@@ -1,0 +1,47 @@
+# Dependencias
+node_modules/
+dist/
+
+# Variables de entorno
+.env
+.env.local
+.env.production
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+build/
+dist/
+tray-agent/.vs/
+tray-agent/src/DepositosTrayAgent/bin/
+tray-agent/src/DepositosTrayAgent/obj/
+tray-agent/artifacts/
+.extfull-backup/
+extension-full - copia/
+
+# Temporal
+tmp/
+temp/
+*.tmp
+
+# Configuración local
+.claude/
+
+# Archivos de prueba
+test-*.js
+test_*.sql
