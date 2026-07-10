@@ -1,10 +1,12 @@
 import React from "react";
+import { Loader2 } from "lucide-react";
 import { FALLBACK_VOUCHER_PREVIEW } from "../../deposits/components/depositDetailModalHelpers.jsx";
 
 export const DepositVoucherPanel = ({
   displayVoucherUrl,
   deposit,
-  setIsFloatingIframeOpen
+  setIsFloatingIframeOpen,
+  isLoading = false
 }) => {
   return (
     <div className="lg:col-span-6 flex flex-col h-full space-y-4">
@@ -13,7 +15,18 @@ export const DepositVoucherPanel = ({
                     className="flex-1 min-h-0 flex items-center justify-center overflow-hidden lg:overflow-auto pointer-events-none lg:pointer-events-auto"
                     style={{ minHeight: "607px" }}
                   >
-                    {displayVoucherUrl &&
+                    {isLoading ? (
+                      // Mientras no llega el detalle completo (GET /v1/deposits/{id})
+                      // no hay imagen real que mostrar todavia -- mejor un loader
+                      // explicito que el recuadro gris vacio de antes, que se veia
+                      // como si el voucher hubiera fallado en cargar.
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500" />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          Cargando comprobante...
+                        </span>
+                      </div>
+                    ) : displayVoucherUrl &&
                     (displayVoucherUrl.includes(".pdf") ||
                       displayVoucherUrl.includes("/preview")) ? (
                       <div

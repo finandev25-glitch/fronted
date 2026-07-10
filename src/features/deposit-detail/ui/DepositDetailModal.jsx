@@ -101,7 +101,8 @@ const DepositDetailModal = ({
     voucherUrl: displayVoucherUrl,
     handleChange,
     handleFileSelect,
-    handleFileSelectFromPicker
+    handleFileSelectFromPicker,
+    isDetailLoaded
   } = useDepositForm({ deposit, empresas, bancos });
 
   // 2. Hook de Acciones
@@ -1705,11 +1706,25 @@ const DepositDetailModal = ({
             <div className={`grid h-full grid-cols-1 ${isCompactPresentation ? "gap-4 items-stretch lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]" : "gap-6 lg:grid-cols-9"}`}>
               <div className="space-y-3 lg:col-span-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-2">
                 <div
-                  className={`w-full bg-slate-50 dark:bg-slate-800/50 border border-gray-200 dark:border-gray-700 border-l-4 ${getCardBorderColor(
+                  className={`relative w-full bg-slate-50 dark:bg-slate-800/50 border border-gray-200 dark:border-gray-700 border-l-4 ${getCardBorderColor(
                     "form",
                   )} rounded-lg p-2 shadow-md dark:shadow-black/30 hover:shadow-lg hover:shadow-slate-500/50 dark:hover:shadow-slate-400/40 transition-shadow duration-300`}
                 >
-                  <DepositFormPanel 
+                  {/* Mientras no llega el detalle completo (GET /v1/deposits/{id})
+                      no mostramos el formulario a medias (empresa/anexo en rojo,
+                      "campos requeridos faltantes" engañoso) -- se ve roto y
+                      ademas confunde, porque esos campos SI estan cargados,
+                      solo que todavia no llegaron del backend. Se tapa con un
+                      loader hasta que editableData ya refleje el deposito real. */}
+                  {!isDetailLoaded && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-[1px]">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Cargando detalle del depósito...
+                      </span>
+                    </div>
+                  )}
+                  <DepositFormPanel
                     editableData={editableData}
                     handleChange={handleChange}
                     isFieldsOnlyEdit={isFieldsOnlyEdit}
@@ -2016,8 +2031,13 @@ const DepositDetailModal = ({
                   )}
                 </div>
 
-                {/* Mensaje de campos requeridos debajo del card Datos del Solicitante */}
-                {(!editableData.empresa_id ||
+                {/* Mensaje de campos requeridos debajo del card Datos del Solicitante.
+                    Se oculta mientras isDetailLoaded es false: recien sabemos
+                    si de verdad faltan datos (o si solo no llego el detalle
+                    todavia) una vez que editableData quedo inicializado con
+                    la respuesta completa de GET /v1/deposits/{id}. */}
+                {isDetailLoaded &&
+                  (!editableData.empresa_id ||
                   !editableData.banco_id ||
                   !editableData.anexo ||
                   !selectedMoneda) && (
@@ -2035,10 +2055,11 @@ const DepositDetailModal = ({
                 )}
               </div>
 
-              <DepositVoucherPanel 
+              <DepositVoucherPanel
                   displayVoucherUrl={displayVoucherUrl}
                   deposit={deposit}
                   setIsFloatingIframeOpen={setIsFloatingIframeOpen}
+                  isLoading={!isDetailLoaded}
                 />
             </div>
           </div>

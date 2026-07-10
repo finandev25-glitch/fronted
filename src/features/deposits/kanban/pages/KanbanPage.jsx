@@ -628,18 +628,6 @@ const KanbanPage = ({
       console.log("📂 KANBAN: Abriendo modal de forma optimista");
       setSelectedDeposit(deposit);
 
-      console.log("🌐 KANBAN: Consultando detalle completo GET /v1/deposits/{id}");
-      fetchDepositById(deposit.id)
-        .then((fullDeposit) => {
-          if (!fullDeposit) return;
-          setSelectedDeposit((prev) =>
-            prev && prev.id === deposit.id ? { ...prev, ...fullDeposit } : prev
-          );
-        })
-        .catch((error) => {
-          console.warn("⚠️ KANBAN: No se pudo obtener el detalle completo del deposito:", error);
-        });
-
       // FIX: candado de validacion. El backend no permite que otro usuario
       // confirme/rechace un deposito ya tomado (ValidadoPor seteado), pero el
       // endpoint de lock en si NO revisa si ya esta tomado por alguien mas —
@@ -656,6 +644,15 @@ const KanbanPage = ({
         console.log("🔄 KANBAN: Es pendiente y esta libre, llamando onTakeDeposit (lock real)...");
         console.log("⏳ KANBAN: Esperando respuesta del servidor...");
 
+        // IMPORTANTE: el candado (POST /lock) se espera ANTES de pedir el
+        // detalle completo (GET /v1/deposits/{id}), no en paralelo. Antes
+        // ambas llamadas salian al mismo tiempo: si el GET (una simple
+        // lectura) tardaba mas en resolver que el POST /lock, su respuesta
+        // reflejaba el estado de ANTES del candado (validadoPor: null) y
+        // terminaba pisando -por orden de llegada, no por cual dato era mas
+        // reciente- el validado_por correcto que ya habia puesto el lock.
+        // Al secuenciar (lock primero, detalle despues), el GET siempre se
+        // dispara una vez que el candado ya quedo confirmado en la BD.
         const startTime = Date.now();
         const updatedDeposit = await onTakeDeposit(deposit);
         const endTime = Date.now();
@@ -671,8 +668,6 @@ const KanbanPage = ({
 
         if (updatedDeposit) {
           console.log("✅ KANBAN: Sincronizando modal con depósito actualizado (candado tomado)");
-          // Merge no destructivo: no pisar datos completos que ya hayan
-          // llegado del GET /v1/deposits/{id} disparado arriba.
           setSelectedDeposit((prev) =>
             prev && prev.id === deposit.id ? { ...prev, ...updatedDeposit } : prev
           );
@@ -682,6 +677,18 @@ const KanbanPage = ({
           );
         }
       }
+
+      console.log("🌐 KANBAN: Consultando detalle completo GET /v1/deposits/{id}");
+      fetchDepositById(deposit.id)
+        .then((fullDeposit) => {
+          if (!fullDeposit) return;
+          setSelectedDeposit((prev) =>
+            prev && prev.id === deposit.id ? { ...prev, ...fullDeposit } : prev
+          );
+        })
+        .catch((error) => {
+          console.warn("⚠️ KANBAN: No se pudo obtener el detalle completo del deposito:", error);
+        });
 
       console.log("🎬 KANBAN: Fin de handleCardClick");
     },

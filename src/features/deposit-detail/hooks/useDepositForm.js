@@ -9,11 +9,15 @@ import { normalizeDepositCurrency, normalizeDateForInput } from "../../deposits/
  * FIX 1: usa lastInitializedDepositId para que las actualizaciones de
  * WebSocket no sobreescriban lo que el usuario ya seleccionó.
  *
- * FIX 2: hasHydratedRelations rellena empresa_id/banco_id/anexo/etc. cuando
- * llega el detalle completo del depósito (GET /v1/deposits/{id}) después de
- * que el Kanban ya abrió el modal con la versión resumida — sin este fix,
- * esos campos se quedaban vacíos para siempre y el select de Anexo nunca
- * cargaba opciones (dependía de empresa_id/banco_id).
+ * FIX 2: el Kanban abre el modal de forma optimista con la versión resumida
+ * del depósito (GET /v1/deposits, que nunca trae imagen/empresa/anexo) y en
+ * paralelo pide GET /v1/deposits/{id} para el detalle completo. hasFullDetail
+ * usa la presencia de imagen_voucher como señal de "ya llegó el detalle
+ * completo": es el único campo que solo viene en esa respuesta (el listado
+ * jamás lo incluye) y todo depósito real tiene una imagen de voucher, así que
+ * no da falsos positivos como sí los daría mirar empresa/banco (esos pueden
+ * venir poblados desde antes por cruce con catálogo en la tarjeta resumida,
+ * aunque el detalle real todavía no haya llegado).
  *
  * También carga Anexos desde el backend (no del prop local `cuentas`).
  */
@@ -52,6 +56,10 @@ export function useDepositForm({ deposit, empresas, bancos }) {
   // detalle completo" (sí hay que rellenarlos en cuanto lleguen).
   const hasHydratedRelations = useRef(false);
 
+  const hasFullDetail = Boolean(
+    deposit?.imagen_voucher || deposit?.imagenUrl || deposit?.imagenVoucher
+  );
+
   useEffect(() => {
     if (!deposit) return;
 
@@ -75,14 +83,14 @@ export function useDepositForm({ deposit, empresas, bancos }) {
       });
 
       lastInitializedDepositId.current = deposit.id;
-      hasHydratedRelations.current = Boolean(deposit.empresa?.id || deposit.banco?.id);
+      hasHydratedRelations.current = hasFullDetail;
       return;
     }
 
-    // Mismo depósito: si todavía no habíamos recibido empresa/banco (veníamos
-    // de la versión resumida del Kanban) y ya llegaron, los rellenamos ahora
-    // — pero solo los campos que el usuario no haya tocado todavía.
-    if (!hasHydratedRelations.current && (deposit.empresa?.id || deposit.banco?.id)) {
+    // Mismo depósito: si todavía no habíamos recibido el detalle completo
+    // (veníamos de la versión resumida del Kanban) y ya llegó, rellenamos
+    // ahora — pero solo los campos que el usuario no haya tocado todavía.
+    if (!hasHydratedRelations.current && hasFullDetail) {
       hasHydratedRelations.current = true;
       setEditableData((prev) => ({
         ...prev,
@@ -95,7 +103,7 @@ export function useDepositForm({ deposit, empresas, bancos }) {
         referencia_cliente: prev.referencia_cliente || deposit.referencia_cliente || "",
       }));
     }
-  }, [deposit]);
+  }, [deposit, hasFullDetail]);
 
   // ─── Cargar Anexos desde el backend ────────────────────────────────────────
   // Usamos el endpoint real en lugar del prop `cuentas` local que puede estar vacío
@@ -183,6 +191,10 @@ export function useDepositForm({ deposit, empresas, bancos }) {
     voucherUrl,
     isBackendConnected,
     currentUser,
+    // true recien cuando llego el detalle completo (GET /v1/deposits/{id}),
+    // no con la version resumida del listado del Kanban. La UI lo usa para
+    // mostrar un loader en vez de un formulario a medias con bordes rojos.
+    isDetailLoaded: hasFullDetail,
     // Handlers
     handleChange,
     handleFileSelectFromPicker,
