@@ -4,6 +4,8 @@ import {
   fetchDepositsByDate,
   fetchDepositsByPeriod,
   updateDeposit as persistDepositUpdate,
+  lockDeposit,
+  unlockDeposit,
 } from "../api/depositsApi.js";
 
 export function useDepositRecords({
@@ -13,7 +15,7 @@ export function useDepositRecords({
   bancos,
   empresas,
   sucursales,
-  isSupabaseConnected,
+  isAuthenticated,
   showPendingDepositNotification,
 }) {
   const [deposits, setDeposits] = useState([]);
@@ -183,8 +185,14 @@ export function useDepositRecords({
     await loadDepositsByDate(fecha);
   }, [loadAllDeposits, loadDepositsByDate]);
 
-  const handleUpdateDeposit = useCallback(async (updatedDeposit) => {
+  // skipPersist=true: usar cuando quien llama YA hizo la llamada real al
+  // backend (confirm/reject/lock) y solo necesita reflejar el resultado en
+  // el estado local, sin que esto dispare OTRA vez el dispatcher generico
+  // de persistDepositUpdate (que ademas no soporta "rechazado"/"procesado").
+  const handleUpdateDeposit = useCallback(async (updatedDeposit, { skipPersist = false } = {}) => {
     setDeposits((prev) => prev.map((deposit) => (deposit.id === updatedDeposit.id ? updatedDeposit : deposit)));
+
+    if (skipPersist) return updatedDeposit;
 
     try {
       const {
@@ -212,29 +220,66 @@ export function useDepositRecords({
     }
   }, []);
 
+  // FIX: antes esto era 100% local — inventaba un estado "en_validacion" que
+  // no existe en el backend (Deposito solo usa recibido/procesado/rechazado/
+  // confirmado) y llamaba a persistDepositUpdate, que ni siquiera sabe manejar
+  // esa transicion (siempre fallaba silenciosamente contra el backend real).
+  // Ahora llama al endpoint real POST /v1/deposits/{id}/lock: el deposito se
+  // queda en estado "procesado", solo se marca "validado_por" = usuario actual
+  // para que nadie mas pueda confirmarlo/rechazarlo mientras lo tiene tomado
+  // (el backend rechaza confirm/reject de otro usuario mientras ValidadoPor
+  // este seteado).
   const handleTakeDepositForValidation = useCallback(async (deposit) => {
     if (!currentUserRef.current) return null;
 
-    const updatedDeposit = {
-      ...deposit,
-      estado: "en_validacion",
-      validado_por: currentUserRef.current.id,
-      fecha_validacion: new Date().toISOString(),
-    };
+    // Proteccion en el cliente: el endpoint de lock del backend NO valida si
+    // el deposito ya esta tomado por otro usuario (solo revisa que el estado
+    // sea "procesado"), asi que evitamos siquiera intentarlo si ya vemos que
+    // "validado_por" pertenece a alguien mas.
+    if (
+      deposit.validado_por &&
+      String(deposit.validado_por).toLowerCase() !== String(currentUserRef.current.id).toLowerCase()
+    ) {
+      alert("Este depósito ya está siendo validado por otro usuario.");
+      return null;
+    }
 
     try {
-      const data = await persistDepositUpdate(deposit.id, updatedDeposit);
-      setDeposits((prev) => prev.map((item) => (item.id === deposit.id ? data : item)));
-      return data;
+      await lockDeposit(deposit.id);
+      const updatedDeposit = {
+        ...deposit,
+        validado_por: currentUserRef.current.id,
+        fecha_validacion: new Date().toISOString(),
+      };
+      setDeposits((prev) => prev.map((item) => (item.id === deposit.id ? { ...item, ...updatedDeposit } : item)));
+      return updatedDeposit;
     } catch (error) {
-      alert(`No se pudo tomar el deposito: ${error.message}`);
+      alert(`No se pudo tomar el depósito para validación: ${error.message}`);
       return null;
+    }
+  }, []);
+
+  // Libera el candado cuando el usuario cierra el modal SIN confirmar ni
+  // rechazar (para que otro usuario pueda tomarlo). No hace nada si el
+  // deposito ya no le pertenece o si ya salio del estado "procesado".
+  const handleUnlockDeposit = useCallback(async (deposit) => {
+    if (!deposit || !currentUserRef.current) return;
+    if (deposit.estado !== "procesado") return;
+    if (String(deposit.validado_por || "").toLowerCase() !== String(currentUserRef.current.id).toLowerCase()) return;
+
+    try {
+      await unlockDeposit(deposit.id);
+      setDeposits((prev) =>
+        prev.map((item) => (item.id === deposit.id ? { ...item, validado_por: null } : item))
+      );
+    } catch (error) {
+      console.warn("No se pudo liberar el depósito:", error.message);
     }
   }, []);
 
   const depositsWithFullData = useMemo(() => {
     if (!deposits) return [];
-    if (isSupabaseConnected) return deposits;
+    if (isAuthenticated) return deposits;
 
     return deposits.map((deposit) => {
       const trabajador = personal.find((item) => item.id === deposit.trabajador_sucursal_id);
@@ -248,7 +293,7 @@ export function useDepositRecords({
         empresa: { nombre: deposit.empresa },
       };
     });
-  }, [deposits, isSupabaseConnected, personal, users]);
+  }, [deposits, isAuthenticated, personal, users]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -279,6 +324,7 @@ export function useDepositRecords({
     handleSelectDate,
     handleUpdateDeposit,
     handleTakeDepositForValidation,
+    handleUnlockDeposit,
   };
 }
 

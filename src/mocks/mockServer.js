@@ -327,14 +327,6 @@ function handleDriveAndFiles(method, path) {
   return null;
 }
 
-function handleMessaging(method, path) {
-  if (path.startsWith("/api/messages") || path.startsWith("/api/whatsapp") || path.startsWith("/api/ycloud")) {
-    if (method === "GET") return jsonResponse({ data: [] });
-    return jsonResponse({ success: true, data: [], message: "Mock response" });
-  }
-  return null;
-}
-
 function handleSqlServer(path) {
   if (path.startsWith("/api/sqlserver/")) {
     return jsonResponse({ data: [], meta: { source: "mock" } });
@@ -375,7 +367,6 @@ export async function handleMockApiRequest(input, init = {}) {
     handleReports(method, path) ||
     handleSupport(method, path, body) ||
     handleDriveAndFiles(method, path) ||
-    handleMessaging(method, path) ||
     handleSqlServer(path) ||
     handleFallback(method, path)
   );

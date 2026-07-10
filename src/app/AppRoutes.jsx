@@ -31,6 +31,7 @@ export function AppRoutes({
             deposits={dashboard.depositsWithFullData}
             onUpdateDeposit={dashboard.handleUpdateDeposit}
             onTakeDeposit={dashboard.handleTakeDepositForValidation}
+            onUnlockDeposit={dashboard.handleUnlockDeposit}
             onFetchDepositsByDate={dashboard.fetchDepositsByDate}
             onFetchAllDeposits={dashboard.fetchAllDeposits}
             onSelectedDateChange={dashboard.handleSelectedDateChange}
@@ -38,9 +39,11 @@ export function AppRoutes({
             empresas={dashboard.empresas}
             bancos={dashboard.bancos}
             cuentas={dashboard.cuentas}
+            sucursales={dashboard.sucursales}
+            personal={dashboard.personal}
             onOpenVoucherWindow={dashboard.handleOpenVoucherWindow}
             connectionStatus={{
-              supabaseConnected: dashboard.isSupabaseConnected,
+              isAuthenticated: dashboard.isAuthenticated,
               realtimeStatus: dashboard.realtimeStatus,
               realtimeErrors: dashboard.realtimeErrors,
             }}

@@ -386,7 +386,7 @@ export default function ExportarVouchersView() {
 
               {currentJob?.zipPath && (
                 <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  ZIP guardado en Supabase Storage: <span className="font-mono">{currentJob.zipPath}</span>
+                  ZIP guardado en el servidor: <span className="font-mono">{currentJob.zipPath}</span>
                 </p>
               )}
             </div>

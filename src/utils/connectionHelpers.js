@@ -1,4 +1,4 @@
-// Utilidades para manejo de conexión y errores de Supabase
+// Utilidades para manejo de conexión y errores de red/API
 
 export const CONNECTION_STATES = {
   CONNECTED: 'connected',

@@ -10,7 +10,7 @@ export const FALLBACK_VOUCHER_PREVIEW =
 
 export const getStatusInfo = (estado) => {
   switch (estado) {
-    case "recibido":
+    case "procesado":
       return {
         Icon: Clock,
         label: "Pendiente",
@@ -24,10 +24,10 @@ export const getStatusInfo = (estado) => {
         color:
           "text-blue-600 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/50",
       };
-    case "validado":
+    case "confirmado":
       return {
         Icon: CheckCircle,
-        label: "Validado",
+        label: "confirmado",
         color:
           "text-green-600 bg-green-100 dark:text-green-300 dark:bg-green-900/50",
       };
@@ -299,4 +299,48 @@ export const normalizeSqlServerRow = (row) => {
   normalized.Contacto = row.Contacto ?? row.CONTACTO ?? row.contacto ?? row.trabajador_nombre ?? "";
 
   return normalized;
+};
+
+
+
+export const extractSqlSelectionValues = (row) => {
+    const selectedRow = row || null;
+    const selectedNroOperacion = String(
+      row?.NRO_OPER ??
+        row?.NRO_OPERACION ??
+        row?.numero_operacion_banco ??
+        row?.numero_operacion ??
+        row?.CUO ??
+        row?.CUOA ??
+        "",
+    )
+      .trim()
+      .toUpperCase();
+    const selectedFecha =
+      row?.FECHA_EMISION || row?.FECHA_DOC || row?.FECHA_DEPOSITO || "";
+    let selectedMonto = 0;
+    if (row && typeof row === "object") {
+      const keys = Object.keys(row);
+      const possibleAmountKeys = keys.filter((k) =>
+        k.toUpperCase().includes("IMPORTE"),
+      );
+      if (possibleAmountKeys.length > 0) {
+        selectedMonto = Number(row[possibleAmountKeys[0]]) || 0;
+      } else if ("MONTO" in row) {
+        selectedMonto = Number(row.MONTO) || 0;
+      }
+    }
+    const selectedTipoMov = (
+      row?.TIPO_MOVIMIENTO ||
+      row?.TIPO ||
+      ""
+    ).toLowerCase();
+
+    return {
+      selectedRow,
+      selectedNroOperacion,
+      selectedFecha,
+      selectedMonto,
+      selectedTipoMov,
+    };
 };

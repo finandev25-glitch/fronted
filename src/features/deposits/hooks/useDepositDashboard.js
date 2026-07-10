@@ -10,7 +10,7 @@ import { useVoucherPanel } from "./useVoucherPanel.js";
 export function useDepositDashboard() {
   const { currentUser, users } = useContext(AuthContext);
   const currentUserRef = useRef(currentUser);
-  const isSupabaseConnected = !!currentUser;
+  const isAuthenticated = !!currentUser;
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -26,7 +26,7 @@ export function useDepositDashboard() {
     bancos: catalogs.bancos,
     empresas: catalogs.empresas,
     sucursales: catalogs.sucursales,
-    isSupabaseConnected,
+    isAuthenticated,
     showPendingDepositNotification: alertsPlaceholder,
   });
 
@@ -40,7 +40,6 @@ export function useDepositDashboard() {
   }
 
   const realtime = useRealtimeDeposits(
-    isSupabaseConnected,
     currentUser,
     records.handleRealtimeInsert,
     records.handleRealtimeUpdate,
@@ -50,7 +49,7 @@ export function useDepositDashboard() {
   );
 
   useEffect(() => {
-    if (!currentUser || !isSupabaseConnected) {
+    if (!currentUser) {
       return;
     }
 
@@ -62,10 +61,10 @@ export function useDepositDashboard() {
     return () => {
       clearInterval(refreshTimer);
     };
-  }, [currentUser, isSupabaseConnected, records.refreshDeposits, realtime.realtimeStatus]);
+  }, [currentUser, records.refreshDeposits, realtime.realtimeStatus]);
 
   useEffect(() => {
-    if (!currentUser || !isSupabaseConnected) {
+    if (!currentUser) {
       return;
     }
 
@@ -76,7 +75,7 @@ export function useDepositDashboard() {
         console.error("Error al cargar datos iniciales:", error);
       }
     })();
-  }, [catalogs.fetchData, currentUser, isSupabaseConnected]);
+  }, [catalogs.fetchData, currentUser]);
 
   useEffect(() => {
     void alerts.triggerWorkloadAlarm();
@@ -101,7 +100,7 @@ export function useDepositDashboard() {
     voucherPanelState: voucherPanel.voucherPanelState,
     currentSelectedDate: records.currentSelectedDate,
     depositsWithFullData: records.depositsWithFullData,
-    isSupabaseConnected,
+    isAuthenticated,
     fetchData: catalogs.fetchData,
     fetchBancosData: catalogs.fetchBancosData,
     fetchEmpresasData: catalogs.fetchEmpresasData,
@@ -132,6 +131,7 @@ export function useDepositDashboard() {
     handleUpdatePersonal: catalogs.handleUpdatePersonal,
     handleUpdateDeposit: records.handleUpdateDeposit,
     handleTakeDepositForValidation: records.handleTakeDepositForValidation,
+    handleUnlockDeposit: records.handleUnlockDeposit,
     triggerWorkloadAlarm: alerts.triggerWorkloadAlarm,
     requestReplacementHelp: alerts.requestReplacementHelp,
   };

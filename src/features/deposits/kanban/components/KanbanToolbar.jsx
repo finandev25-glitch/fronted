@@ -3,8 +3,6 @@ import {
   Calendar,
   MessageCircle,
   Search,
-  ToggleLeft,
-  ToggleRight,
   X,
 } from "lucide-react";
 import ConnectionIndicator from "../../../../shared/ui/ConnectionIndicator.jsx";
@@ -18,8 +16,6 @@ export function KanbanToolbar({
   selectedValidatorFilter,
   handleValidatorFilterToggle,
   clearValidatorFilter,
-  replyToWhatsAppMessages,
-  setReplyToWhatsAppMessages,
   setShowContactosModal,
   specificDate,
   setSpecificDate,
@@ -45,7 +41,7 @@ export function KanbanToolbar({
           {!isCompactKanban && showConnectionStatus && connectionStatus && (
             <div className="ml-auto rounded-full border border-gray-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/80">
               <ConnectionIndicator
-                supabaseConnected={connectionStatus.supabaseConnected}
+                isAuthenticated={connectionStatus.isAuthenticated}
                 realtimeStatus={connectionStatus.realtimeStatus}
                 realtimeErrors={connectionStatus.realtimeErrors}
               />
@@ -79,26 +75,6 @@ export function KanbanToolbar({
                   <X size={14} />
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={() => setReplyToWhatsAppMessages((prev) => !prev)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm transition-colors ${
-                  replyToWhatsAppMessages
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-200 dark:hover:bg-gray-800"
-                }`}
-                title={
-                  replyToWhatsAppMessages
-                    ? "Responder a mensajes de WhatsApp cuando sea posible"
-                    : "Enviar mensajes nuevos en lugar de responder al hilo"
-                }
-              >
-                {replyToWhatsAppMessages ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                <span className="hidden sm:inline">
-                  {replyToWhatsAppMessages ? "Responder On" : "Responder Off"}
-                </span>
-              </button>
 
               <button
                 onClick={() => setShowContactosModal(true)}
@@ -153,26 +129,6 @@ export function KanbanToolbar({
             )}
 
             <div className="ml-auto flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setReplyToWhatsAppMessages((prev) => !prev)}
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${
-                  replyToWhatsAppMessages
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-200 dark:hover:bg-gray-800"
-                }`}
-                title={
-                  replyToWhatsAppMessages
-                    ? "Responder a mensajes de WhatsApp cuando sea posible"
-                    : "Enviar mensajes nuevos en lugar de responder al hilo"
-                }
-              >
-                {replyToWhatsAppMessages ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />}
-                <span className="hidden sm:inline">
-                  {replyToWhatsAppMessages ? "Responder On" : "Responder Off"}
-                </span>
-              </button>
-
               <button
                 onClick={() => setShowContactosModal(true)}
                 className="flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-white shadow-sm transition-colors hover:bg-green-600"

@@ -50,10 +50,33 @@ const DEPOSIT_CHANGED_EVENTS = [
   "RequiresReview",
 ];
 
-// Eventos de panel/finanzas (Clients.Group("panel"/"finance")). Solo llegarian
-// si el cliente se une a esos grupos (JoinPanelGroup), lo cual no se hace hoy;
-// se dejan registrados para cuando se implemente el panel de finanzas.
-const PANEL_EVENTS = ["PanelNewDeposit", "PanelDepositStatusChanged", "PanelStatsUpdate"];
+// Eventos de panel/finanzas (Clients.Group("panel"/"finance")). El backend los
+// manda a esos grupos, y ahora el cliente SI se une (ver joinPanelGroup mas
+// abajo, invocado tras connection.start() y de nuevo en cada reconexion).
+// Incluye el candado de validacion (lock/unlock del deposito): el backend
+// emite PanelDepositLocked/PanelDepositUnlocked con el mismo patron que
+// PanelDepositStatusChanged.
+const PANEL_EVENTS = [
+  "PanelNewDeposit",
+  "PanelDepositStatusChanged",
+  "PanelStatsUpdate",
+  "PanelDepositLocked",
+  "PanelDepositUnlocked",
+];
+
+// Une la conexion actual a los grupos "panel"/"finance" del Hub, para que
+// los eventos de PANEL_EVENTS (incluido el candado de validacion) le lleguen
+// al cliente. El Hub exige rol finanzas/admin (DepositHub.JoinPanelGroup):
+// para otros roles simplemente no los une y manda un evento "Error" inofensivo,
+// no lanza excepcion — por eso esto se puede invocar siempre, sin chequear rol
+// aqui en el cliente.
+async function joinPanelGroup(connection) {
+  try {
+    await connection.invoke("JoinPanelGroup");
+  } catch (error) {
+    console.warn("No se pudo unir al grupo de panel (SignalR):", error?.message || error);
+  }
+}
 
 function registerEventHandlers(connection, handlers = {}) {
   const makeHandler = (eventName) => (payload) => {
@@ -67,8 +90,21 @@ function registerEventHandlers(connection, handlers = {}) {
     return [eventName, handler];
   });
 
+  // El Hub manda "Error" cuando JoinPanelGroup se invoca con un rol distinto
+  // de finanzas/admin (caso normal para vendedores) — se registra para que
+  // no quede como "no client method found" en la consola del navegador.
+  const onHubError = (payload) => {
+    console.debug("ℹ️ SignalR: evento Error del hub (probablemente rol sin acceso a panel)", payload);
+  };
+  connection.on("Error", onHubError);
+  connection.on("PanelJoined", (payload) => {
+    console.log("✅ SignalR: unido al grupo de panel", payload);
+  });
+
   return () => {
     boundHandlers.forEach(([eventName, handler]) => connection.off(eventName, handler));
+    connection.off("Error", onHubError);
+    connection.off("PanelJoined");
   };
 }
 
@@ -110,6 +146,10 @@ export async function startDepositSignalRConnection({
   });
 
   connection.onreconnected(() => {
+    // Los grupos de SignalR NO persisten entre reconexiones (connectionId
+    // nuevo) — sin esto, tras una reconexion el cliente dejaria de recibir
+    // los eventos de PANEL_EVENTS silenciosamente hasta recargar la pagina.
+    void joinPanelGroup(connection);
     onStatusChange?.("SUBSCRIBED");
   });
 
@@ -122,6 +162,7 @@ export async function startDepositSignalRConnection({
 
   try {
     await connection.start();
+    await joinPanelGroup(connection);
     onStatusChange?.("SUBSCRIBED");
     return connection;
   } catch (error) {

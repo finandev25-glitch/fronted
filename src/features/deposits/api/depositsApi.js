@@ -4,6 +4,7 @@ import { createInitialMockState } from "../../../mocks/mockData.js";
 
 const API_BASE = "/api";
 const DEPOSITS_BASE = "/v1/deposits";
+const MASTERS_BASE = "/v1/masters";
 const SESSION_KEY = "control-depositos-auth-session";
 
 // Datos de prueba para el Kanban (VITE_USE_MOCK_DATA=true). El backend real
@@ -92,57 +93,86 @@ export async function apiJson(path, options = {}) {
 // ---------------------------------------------------------------------------
 
 function mapBanco(banco) {
+  if (!banco) return null;
   return {
-    id: banco.id,
-    nombre: banco.nombre,
-    abreviatura: banco.codigo || banco.nombre,
+    id: String(banco.id || banco.Id || "").toLowerCase(),
+    nombre: banco.nombre || "",
+    abreviatura: banco.codigo || banco.nombre || "",
     estado: "activo",
   };
 }
 
 function mapEmpresa(empresa) {
+  if (!empresa) return null;
   return {
-    id: empresa.id,
-    nombre: empresa.nombre,
-    abreviatura: empresa.nombre,
-    logo: empresa.logo || null,
+    id: String(empresa.id || empresa.Id || "").toLowerCase(),
+    nombre: empresa.nombre || empresa.Nombre || "",
+    abreviatura: empresa.nombre || empresa.Nombre || "",
+    logo: empresa.logo || empresa.Logo || null,
     estado: "activo",
+  };
+}
+
+function mapSucursal(sucursal) {
+  if (!sucursal) return null;
+  return {
+    id: String(sucursal.id || sucursal.Id || "").toLowerCase(),
+    empresa_id: String(sucursal.empresaId || sucursal.EmpresaId || "").toLowerCase(),
+    nombre: sucursal.nombre || sucursal.Nombre || "",
+    direccion: sucursal.direccion || sucursal.Direccion || "",
+    estado: (sucursal.activo || sucursal.Activo) ? "activo" : "inactivo",
+  };
+}
+
+function mapTrabajador(trabajador) {
+  if (!trabajador) return null;
+  return {
+    id: String(trabajador.id || trabajador.Id || "").toLowerCase(),
+    empresa_id: String(trabajador.empresaId || trabajador.EmpresaId || "").toLowerCase(),
+    sucursal_id: String(trabajador.sucursalId || trabajador.SucursalId || "").toLowerCase(),
+    nombre: trabajador.nombre || trabajador.Nombre || "",
+    telefono_origen: trabajador.telefonoPersonal || trabajador.TelefonoPersonal || "",
+    estado: (trabajador.activo || trabajador.Activo) ? "activo" : "inactivo",
   };
 }
 
 export async function fetchBancos() {
   if (MOCK_MODE_ENABLED) return getMockState().bancos;
 
-  const data = await apiJson(`${DEPOSITS_BASE}/bancos`);
+  const data = await apiJson(`${MASTERS_BASE}/bancos`);
   return (data || []).map(mapBanco);
 }
 
 export async function fetchEmpresas() {
   if (MOCK_MODE_ENABLED) return getMockState().empresas;
 
-  const data = await apiJson(`${DEPOSITS_BASE}/empresas`);
+  const data = await apiJson(`${MASTERS_BASE}/empresas`);
   return (data || []).map(mapEmpresa);
 }
 
-export async function fetchCuentas() {
+export async function fetchCuentas(empresaId, bancoId) {
   if (MOCK_MODE_ENABLED) return getMockState().cuentas;
 
-  console.warn("fetchCuentas: el backend no expone cuentas bancarias todavia.");
-  return [];
+  let url = `${MASTERS_BASE}/cuentasbancarias`;
+  const params = new URLSearchParams();
+  if (empresaId) params.append("empresaId", empresaId);
+  if (bancoId) params.append("bancoId", bancoId);
+  if (params.toString()) url += `?${params.toString()}`;
+
+  const data = await apiJson(url);
+  return data || [];
 }
 
 export async function fetchSucursales() {
   if (MOCK_MODE_ENABLED) return getMockState().sucursales;
-
-  console.warn("fetchSucursales: el backend no expone sucursales todavia.");
-  return [];
+  const data = await apiJson(`${MASTERS_BASE}/sucursales`);
+  return (data || []).map(mapSucursal);
 }
 
 export async function fetchPersonal() {
   if (MOCK_MODE_ENABLED) return getMockState().personal;
-
-  console.warn("fetchPersonal: el backend no expone personal todavia.");
-  return [];
+  const data = await apiJson(`${MASTERS_BASE}/trabajadores`);
+  return (data || []).map(mapTrabajador);
 }
 
 export async function fetchDashboardBootstrap() {
@@ -163,37 +193,36 @@ export async function fetchDashboardBootstrap() {
 // ---------------------------------------------------------------------------
 
 function mapDeposit(item) {
-  return {
-    id: item.id,
-    numero_operacion: item.numeroOperacion,
-    cliente: item.cliente,
-    monto: item.monto,
-    moneda: item.moneda,
-    fecha_registro: item.fechaRegistro,
-    fecha_solo_date: item.fechaRegistro ? item.fechaRegistro.slice(0, 10) : null,
-    estado: item.estado,
-    numero_operacion_banco: item.numeroOperacionBanco,
-    fecha_deposito: item.fechaDeposito,
-    // El backend expone imagenVoucher (ruta interna en storage) e imagenUrl
-    // (URL firmada de lectura). La UI necesita una URL utilizable como src.
-    imagen_voucher: item.imagenUrl || item.imagenVoucher || null,
-    anexo: item.anexo || null,
-    observaciones: item.observaciones || null,
-    motivo_rechazo: item.motivoRechazo || null,
-    fecha_validacion: item.fechaValidacion || null,
-    empresa_id: item.empresaId || null,
-    banco_id: item.bancoId || null,
-    sucursal_id: item.sucursalId || null,
-    validado_por: item.validadoPor || null,
-    referencia_cliente: item.referenciaCliente || null,
-    ruc_cliente: item.rucCliente || null,
-    empresa: null,
-    banco: null,
-    sucursal: null,
-    trabajador: null,
-    validado_por_usuario: null,
-  };
-}
+    return {
+      id: item.id,
+      numero_operacion: item.numeroOperacion,
+      cliente: item.cliente,
+      monto: item.monto,
+      moneda: item.moneda,
+      fecha_registro: item.fechaRegistro,
+      fecha_solo_date: item.fechaRegistro ? item.fechaRegistro.slice(0, 10) : null,
+      estado: item.estado,
+      numero_operacion_banco: item.numeroOperacionBanco,
+      fecha_deposito: item.fechaDeposito,
+      imagen_voucher: item.imagenUrl || item.imagenVoucher || null,
+      anexo: item.anexo || null,
+      observaciones: item.observaciones || null,
+      motivo_rechazo: item.motivoRechazo || null,
+      fecha_validacion: item.fechaValidacion || null,
+      empresa_id: item.empresaId ? String(item.empresaId).toLowerCase() : null,
+      banco_id: item.bancoId ? String(item.bancoId).toLowerCase() : null,
+      sucursal_id: item.sucursalId ? String(item.sucursalId).toLowerCase() : null,
+      validado_por: item.validadoPor || null,
+      referencia_cliente: item.referenciaCliente || null,
+      ruc_cliente: item.rucCliente || null,
+      trabajador_id: (item.trabajadorId || item.vendedorId) ? String(item.trabajadorId || item.vendedorId).toLowerCase() : null,
+      empresa: item.empresa ? mapEmpresa(item.empresa) : null,
+      banco: item.banco ? mapBanco(item.banco) : null,
+      sucursal: item.sucursal ? mapSucursal(item.sucursal) : null,
+      trabajador: item.trabajador ? mapTrabajador(item.trabajador) : null,
+      validado_por_usuario: item.validadoPorUsuario || null,
+    };
+  }
 
 function fetchMockDepositsList({ desde, hasta } = {}) {
   const desdeMs = desde ? new Date(desde).getTime() : null;
@@ -358,17 +387,38 @@ export async function deletePersonal() {
 // caso mas comun (confirmar) y avisamos para el resto.
 // ---------------------------------------------------------------------------
 
-export async function confirmDeposit(id, observaciones) {
+// El backend espera el ANEXO como texto libre (columna Deposito.Anexo, string),
+// no como un id de cuentasbancarias — por eso aqui se manda tal cual viene de
+// editableData.anexo (que ya es el valor de texto del anexo seleccionado).
+export async function confirmDeposit(id, { observaciones, anexo } = {}) {
+  const body = {};
+  if (observaciones) body.observaciones = observaciones;
+  if (anexo) body.anexo = anexo;
+
   const data = await apiJson(`${DEPOSITS_BASE}/${id}/confirm`, {
     method: "POST",
-    body: JSON.stringify(observaciones ? { observaciones } : {}),
+    body: JSON.stringify(body),
+  });
+  return data;
+}
+
+// POST /v1/deposits/{id}/reject — "observaciones" es obligatorio para el
+// backend (RejectDepositRequest.Observaciones no es nullable); "anexo" es
+// opcional, igual que en confirm.
+export async function rejectDeposit(id, { observaciones, anexo } = {}) {
+  const body = { observaciones: observaciones || "" };
+  if (anexo) body.anexo = anexo;
+
+  const data = await apiJson(`${DEPOSITS_BASE}/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
   return data;
 }
 
 export async function updateDeposit(id, payload) {
   if (payload?.estado === "confirmado") {
-    return confirmDeposit(id, payload.observaciones);
+    return confirmDeposit(id, { observaciones: payload.observaciones, anexo: payload.anexo });
   }
 
   console.warn(
@@ -379,4 +429,20 @@ export async function updateDeposit(id, payload) {
 
 export async function createSupportRequest() {
   return unsupportedWrite("createSupportRequest");
+}
+
+export async function lockDeposit(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/lock`, { method: "POST" });
+}
+
+export async function unlockDeposit(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/unlock`, { method: "POST" });
+}
+
+export async function checkDuplicate(payload) {
+  if (MOCK_MODE_ENABLED) return { duplicates: [] };
+  return apiJson(`${DEPOSITS_BASE}/check-duplicate`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }

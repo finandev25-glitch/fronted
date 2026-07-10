@@ -12,8 +12,8 @@ const ConnectionStatus = () => {
     return navigator.onLine;
   };
 
-  // Verificar conexión a Supabase
-  const checkSupabaseConnection = async () => {
+  // Verificar conexión al backend (api-bridge)
+  const checkBackendConnection = async () => {
     try {
       const response = await fetch("/api/connection/status");
       if (!response.ok) return false;
@@ -21,7 +21,7 @@ const ConnectionStatus = () => {
       return !!data.connected;
     } catch (error) {
       console.error(
-        "❌ Error verificando conexión a Supabase:",
+        "❌ Error verificando conexión al backend:",
         error.message || error
       );
       return false;
@@ -34,8 +34,8 @@ const ConnectionStatus = () => {
       console.log(`🔄 Intento de conexión ${attempt}/${maxRetries}`);
 
       try {
-        const supabaseOk = await checkSupabaseConnection();
-        if (supabaseOk) {
+        const backendOk = await checkBackendConnection();
+        if (backendOk) {
           console.log("✅ Conexión exitosa");
           return true;
         }
@@ -63,11 +63,11 @@ const ConnectionStatus = () => {
       return false;
     }
 
-    console.log("🌐 Conexión a internet OK, verificando Supabase...");
-    const supabaseOk = await checkConnectionWithRetry(2); // Solo 2 reintentos para no ser muy agresivo
+    console.log("🌐 Conexión a internet OK, verificando backend...");
+    const backendOk = await checkConnectionWithRetry(2); // Solo 2 reintentos para no ser muy agresivo
 
-    if (!supabaseOk) {
-      console.log("❌ Fallo en conexión a Supabase después de reintentos");
+    if (!backendOk) {
+      console.log("❌ Fallo en conexión al backend después de reintentos");
       setIsOnline(false);
       setShowOverlay(true);
       return false;

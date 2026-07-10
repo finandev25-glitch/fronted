@@ -8,7 +8,7 @@ import {
 } from "../utils/connectionHelpers";
 
 const ConnectionIndicator = ({
-  supabaseConnected = false,
+  isAuthenticated = false,
   realtimeStatus = null,
   realtimeErrors = 0,
   className = "",
@@ -35,7 +35,7 @@ const ConnectionIndicator = ({
       return CONNECTION_STATES.DISCONNECTED;
     }
 
-    if (!supabaseConnected) {
+    if (!isAuthenticated) {
       return CONNECTION_STATES.ERROR;
     }
 
@@ -79,10 +79,10 @@ const ConnectionIndicator = ({
       <span className={`text-sm font-medium ${getStatusColor()}`}>{text}</span>
 
       {/* Mostrar detalles adicionales si hay problemas */}
-      {(realtimeErrors > 0 || !networkOnline || !supabaseConnected) && (
+      {(realtimeErrors > 0 || !networkOnline || !isAuthenticated) && (
         <div className="text-xs text-gray-500 ml-2">
           {!networkOnline && "(Sin internet)"}
-          {!supabaseConnected && networkOnline && "(BD desconectada)"}
+          {!isAuthenticated && networkOnline && "(Sin sesión)"}
           {realtimeErrors > 0 && `(${realtimeErrors} errores RT)`}
         </div>
       )}

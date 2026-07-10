@@ -1,9 +1,9 @@
 import { toLocalISOString } from "../../../../utils/dateFormatters";
 
 export const KANBAN_COLUMNS = [
-  { id: "recibido", title: "Pendiente", color: "bg-orange-400" },
+  { id: "procesado", title: "Pendiente", color: "bg-orange-400" },
   { id: "en_validacion", title: "En Validación", color: "bg-blue-400" },
-  { id: "validado", title: "Validado", color: "bg-green-400" },
+  { id: "confirmado", title: "Confirmado", color: "bg-green-400" },
   { id: "rechazado", title: "Rechazado", color: "bg-red-400" },
 ];
 

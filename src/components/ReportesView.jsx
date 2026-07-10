@@ -34,7 +34,7 @@ const ReportesView = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('mes');
   const [selectedTrendPeriod, setSelectedTrendPeriod] = useState('semana'); // NUEVO: Filtro de período para confirmados/rechazados
 
-  const isSupabaseConnected = !!currentUser;
+  const isAuthenticated = !!currentUser;
 
   // Función para traducir días y meses al español
   const translateDayToSpanish = (dayText) => {
@@ -120,7 +120,7 @@ const ReportesView = () => {
   };
 
   const fetchReports = React.useCallback(async (isBackground = false) => {
-    if (!isSupabaseConnected) {
+    if (!isAuthenticated) {
       setLoading(false);
       return;
     }
@@ -148,20 +148,20 @@ const ReportesView = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [isSupabaseConnected, selectedTrendPeriod]);
+  }, [isAuthenticated, selectedTrendPeriod]);
 
   // Carga inicial y cuando cambian filtros
   useEffect(() => {
     fetchReports(false);
   }, [fetchReports]);
 
-  if (!isSupabaseConnected) {
+  if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <BarChart3 size={48} className="mx-auto mb-4 text-gray-400" />
           <p className="text-gray-500 dark:text-gray-400">
-            Conecta tu proyecto de Supabase para ver los reportes.
+            Inicia sesión para ver los reportes.
           </p>
         </div>
       </div>

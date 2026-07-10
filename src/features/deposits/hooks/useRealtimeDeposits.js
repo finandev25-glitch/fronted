@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "../../../supabaseClient";
 import { MOCK_MODE_ENABLED } from "../../../mocks/mockServer.js";
 import { logger } from "../../../utils/logger";
 import {
@@ -26,7 +25,6 @@ function getLocalAuthToken() {
 }
 
 export function useRealtimeDeposits(
-  isSupabaseConnected,
   currentUser,
   onInsert,
   onUpdate,
@@ -136,78 +134,9 @@ export function useRealtimeDeposits(
       return !!connection;
     };
 
-    const fallbackToSupabase = async () => {
-      if (MOCK_MODE_ENABLED) {
-        setRealtimeStatus("DISABLED");
-        return;
-      }
-
-      if (!isSupabaseConnected || !currentUser || !supabase) {
-        setRealtimeStatus("DISABLED");
-        return;
-      }
-
-      let channel = null;
-
-      const cleanupChannel = () => {
-        if (!channel) return;
-        try {
-          channel.unsubscribe();
-        } catch (error) {
-          logger.error("Error closing realtime channel:", error.message);
-        }
-        channel = null;
-      };
-
-      const handleRealtimeChange = (payload) => {
-        if (!isMounted) return;
-        const { eventType, new: newRecord, old: oldRecord } = payload;
-        const recordId = newRecord?.id || oldRecord?.id;
-
-        if (eventType === "INSERT") {
-          onInsertRef.current?.(newRecord);
-        } else if (eventType === "UPDATE") {
-          onUpdateRef.current?.(newRecord, oldRecord);
-        } else if (eventType === "DELETE") {
-          onDeleteRef.current?.(oldRecord?.id || recordId);
-        }
-      };
-
-      const createChannel = () => {
-        cleanupChannel();
-
-        channel = supabase
-          .channel(`realtime-depositos-${currentUser.id}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "depositos" }, handleRealtimeChange)
-          .subscribe((status, err) => {
-            if (!isMounted) return;
-            setRealtimeStatus(status);
-
-            if (status === "SUBSCRIBED") {
-              setRealtimeErrors(0);
-              return;
-            }
-
-            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-              setRealtimeErrors((prev) => prev + 1);
-              logger.error("Supabase realtime status:", err?.message || status);
-            }
-          });
-      };
-
-      createChannel();
-      setRealtimeStatus("CONNECTING");
-
-      return () => cleanupChannel();
-    };
-
     const run = async () => {
       await cleanup();
-
-      const connected = await startSignalR();
-      if (!connected) {
-        await fallbackToSupabase();
-      }
+      await startSignalR();
     };
 
     void run();
@@ -216,7 +145,7 @@ export function useRealtimeDeposits(
       isMounted = false;
       void cleanup();
     };
-  }, [currentUser, isSupabaseConnected]);
+  }, [currentUser]);
 
   return {
     realtimeStatus,

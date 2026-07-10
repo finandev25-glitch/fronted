@@ -200,7 +200,7 @@ export function AppShell({ uiMode = "default" }) {
         <MobileHeader
           onMenuClick={() => setIsMobileMenuOpen(true)}
           connectionStatus={{
-            supabaseConnected: dashboard.isSupabaseConnected,
+            isAuthenticated: dashboard.isAuthenticated,
             realtimeStatus: dashboard.realtimeStatus,
             realtimeErrors: dashboard.realtimeErrors,
           }}

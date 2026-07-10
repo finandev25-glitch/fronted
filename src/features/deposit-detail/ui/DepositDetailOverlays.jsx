@@ -6,7 +6,6 @@ import {
   CheckCircle,
   Clock,
   Loader2,
-  Phone,
   X,
 } from "lucide-react";
 
@@ -73,17 +72,6 @@ export function ContactDetailsPortal({
             </div>
 
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
-              {phoneNumber ? (
-                <a
-                  href={`https://wa.me/${String(phoneNumber).replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
-                >
-                  <Phone className="h-4 w-4" />
-                  Abrir WhatsApp
-                </a>
-              ) : null}
               <button
                 type="button"
                 onClick={onClose}
@@ -225,14 +213,14 @@ export function NoDuplicatePortal({
                   onClick={onConfirm}
                   disabled={!canConfirm || isSending || isProcessing}
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Confirmar depósito y enviar mensaje por YCloud"
+                  title="Confirmar depósito"
                 >
                   {isSending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle className="h-4 w-4" />
                   )}
-                  Confirmar con YCloud
+                  Confirmar
                 </button>
                 <button
                   type="button"

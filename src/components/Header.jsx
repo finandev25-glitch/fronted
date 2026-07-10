@@ -6,7 +6,7 @@ import DailyAttendanceSummary from "./DailyAttendanceSummary";
 const Header = ({
   onMenuClick,
   connectionStatus = {
-    supabaseConnected: false,
+    isAuthenticated: false,
     realtimeStatus: null,
     realtimeErrors: 0,
   },
@@ -45,7 +45,7 @@ const Header = ({
 
           {/* Indicador de estado de conexión */}
           <ConnectionIndicator
-            supabaseConnected={connectionStatus.supabaseConnected}
+            isAuthenticated={connectionStatus.isAuthenticated}
             realtimeStatus={connectionStatus.realtimeStatus}
             realtimeErrors={connectionStatus.realtimeErrors}
             className="hidden sm:flex"

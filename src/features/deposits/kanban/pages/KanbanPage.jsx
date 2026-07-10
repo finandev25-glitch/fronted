@@ -87,6 +87,7 @@ const KanbanPage = ({
   deposits,
   onUpdateDeposit,
   onTakeDeposit,
+  onUnlockDeposit,
   onFetchDepositsByDate,
   onFetchAllDeposits,
   onSelectedDateChange,
@@ -94,6 +95,8 @@ const KanbanPage = ({
   empresas,
   bancos,
   cuentas,
+  sucursales,
+  personal,
   onOpenVoucherWindow,
   connectionStatus,
   showConnectionStatus = true,
@@ -135,28 +138,7 @@ const KanbanPage = ({
   // Estado para modal de contactos
   const [showContactosModal, setShowContactosModal] = useState(false);
   const [selectedValidatorFilter, setSelectedValidatorFilter] = useState(null);
-  const [replyToWhatsAppMessages, setReplyToWhatsAppMessages] = useState(() => {
-    try {
-      const storedValue = localStorage.getItem("kanban_reply_to_whatsapp");
-      if (storedValue === "off") return false;
-      if (storedValue === "on") return true;
-      return true;
-    } catch {
-      return true;
-    }
-  });
   const isCompactKanban = detailPresentationMode === "compact";
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "kanban_reply_to_whatsapp",
-        replyToWhatsAppMessages ? "on" : "off",
-      );
-    } catch {
-      // ignore storage failures
-    }
-  }, [replyToWhatsAppMessages]);
 
   const getUserInitials = useCallback((name) => {
     const cleanName = String(name || "").trim();
@@ -562,10 +544,21 @@ const KanbanPage = ({
 
   const groupedDeposits = useMemo(() => {
     const grouped = visibleDeposits.reduce((acc, deposit) => {
-      if (!acc[deposit.estado]) {
-        acc[deposit.estado] = [];
+      // El backend real (Deposito.cs) solo tiene los estados recibido/
+      // procesado/rechazado/confirmado — "en_validacion" no existe ahí. Lo
+      // que existe es "procesado" + "validado_por" seteado (alguien lo tomo
+      // con el lock). Por eso agrupamos visualmente los "procesado" ya
+      // tomados bajo la columna "en_validacion", y los libres se quedan en
+      // "procesado" (columna "Pendiente").
+      const bucket =
+        deposit.estado === "procesado" && deposit.validado_por
+          ? "en_validacion"
+          : deposit.estado;
+
+      if (!acc[bucket]) {
+        acc[bucket] = [];
       }
-      acc[deposit.estado].push(deposit);
+      acc[bucket].push(deposit);
       return acc;
     }, {});
 
@@ -575,8 +568,8 @@ const KanbanPage = ({
         const dateA = new Date(a.fecha_registro);
         const dateB = new Date(b.fecha_registro);
 
-        // Para "validado" y "rechazado": más recientes primero (descendente)
-        if (estado === "validado" || estado === "rechazado") {
+        // Para "confirmado" y "rechazado": más recientes primero (descendente)
+        if (estado === "confirmado" || estado === "rechazado") {
           return dateB - dateA; // Descendente: más recientes arriba
         }
 
@@ -599,7 +592,7 @@ const KanbanPage = ({
 
   // Separar depósitos pendientes por número de teléfono 981199322
   const pendientesSeparated = useMemo(() => {
-    const pendientes = groupedDeposits["recibido"] || [];
+    const pendientes = groupedDeposits["procesado"] || [];
     return {
       especiales: pendientes.filter((d) => {
         // Verificar si el trabajador tiene el número específico
@@ -647,8 +640,20 @@ const KanbanPage = ({
           console.warn("⚠️ KANBAN: No se pudo obtener el detalle completo del deposito:", error);
         });
 
-      if (deposit.estado === "recibido" && currentUser) {
-        console.log("🔄 KANBAN: Es pendiente, llamando onTakeDeposit en segundo plano...");
+      // FIX: candado de validacion. El backend no permite que otro usuario
+      // confirme/rechace un deposito ya tomado (ValidadoPor seteado), pero el
+      // endpoint de lock en si NO revisa si ya esta tomado por alguien mas —
+      // asi que la proteccion real vive aqui: si ya vemos "validado_por" de
+      // OTRO usuario, ni siquiera intentamos tomarlo (evita pisar el candado).
+      const lockedByOther =
+        deposit.validado_por &&
+        currentUser &&
+        String(deposit.validado_por).toLowerCase() !== String(currentUser.id).toLowerCase();
+
+      if (lockedByOther) {
+        console.log("🔒 KANBAN: Depósito ya tomado por otro usuario, se abre solo lectura");
+      } else if (deposit.estado === "procesado" && !deposit.validado_por && currentUser) {
+        console.log("🔄 KANBAN: Es pendiente y esta libre, llamando onTakeDeposit (lock real)...");
         console.log("⏳ KANBAN: Esperando respuesta del servidor...");
 
         const startTime = Date.now();
@@ -661,21 +666,19 @@ const KanbanPage = ({
         console.log("📦 KANBAN: Resultado de onTakeDeposit:", {
           success: !!updatedDeposit,
           id: updatedDeposit?.id,
-          estado: updatedDeposit?.estado,
           validado_por: updatedDeposit?.validado_por,
-          validado_por_usuario: updatedDeposit?.validado_por_usuario,
-          tiene_validado_por_usuario: !!updatedDeposit?.validado_por_usuario,
         });
 
         if (updatedDeposit) {
-          console.log("✅ KANBAN: Sincronizando modal con depósito actualizado");
-          setSelectedDeposit(updatedDeposit);
+          console.log("✅ KANBAN: Sincronizando modal con depósito actualizado (candado tomado)");
+          // Merge no destructivo: no pisar datos completos que ya hayan
+          // llegado del GET /v1/deposits/{id} disparado arriba.
+          setSelectedDeposit((prev) =>
+            prev && prev.id === deposit.id ? { ...prev, ...updatedDeposit } : prev
+          );
         } else {
           console.error(
-            "❌ KANBAN: onTakeDeposit devolvió null/undefined - el modal ya fue abierto, pero la toma falló",
-          );
-          alert(
-            "No se pudo tomar el depósito para validación. Revisa la consola para más detalles.",
+            "❌ KANBAN: onTakeDeposit devolvió null/undefined - el modal ya fue abierto, pero la toma falló (el hook ya mostró el motivo)",
           );
         }
       }
@@ -711,8 +714,18 @@ const KanbanPage = ({
     // NO regresar a pendiente - el depósito se queda en su estado actual
     // Esto permite que los depósitos "en_validacion" permanezcan ahí aunque se cierre el modal
 
+    // Si el usuario cierra SIN confirmar/rechazar y todavía tiene el candado
+    // (validado_por === el mismo usuario, estado sigue "procesado"), lo
+    // liberamos para que otro pueda tomarlo. handleTakeDepositForValidation ya
+    // hizo lo mismo internamente si confirmó/rechazó (el estado ya no sería
+    // "procesado" en ese caso, asi que este unlock es un no-op ahí).
+    const depositBeingClosed = selectedDepositRef.current;
+    if (depositBeingClosed && onUnlockDeposit) {
+      void onUnlockDeposit(depositBeingClosed);
+    }
+
     setSelectedDeposit(null);
-  }, []);
+  }, [onUnlockDeposit]);
 
 
   return (
@@ -726,8 +739,6 @@ const KanbanPage = ({
           selectedValidatorFilter={selectedValidatorFilter}
           handleValidatorFilterToggle={handleValidatorFilterToggle}
           clearValidatorFilter={clearValidatorFilter}
-          replyToWhatsAppMessages={replyToWhatsAppMessages}
-          setReplyToWhatsAppMessages={setReplyToWhatsAppMessages}
           setShowContactosModal={setShowContactosModal}
           specificDate={specificDate}
           setSpecificDate={setSpecificDate}
@@ -769,9 +780,10 @@ const KanbanPage = ({
             empresas={empresas}
             bancos={bancos}
             cuentas={cuentas}
+            sucursales={sucursales}
+            personal={personal}
             onOpenVoucherWindow={onOpenVoucherWindow}
             presentationMode={detailPresentationMode}
-            replyToWhatsAppMessages={replyToWhatsAppMessages}
           />
         )}
         {showContactosModal && (

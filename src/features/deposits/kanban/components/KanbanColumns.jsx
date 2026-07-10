@@ -106,7 +106,7 @@ function KanbanColumnBody({
     );
   }
 
-  if (columnId === "recibido") {
+  if (columnId === "procesado") {
     return (
       <>
         {pendientesSeparated.especiales.length > 0 && (

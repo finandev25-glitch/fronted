@@ -560,7 +560,7 @@ const RegularizarDepositos = ({ onDepositUpdated }) => {
     }
 
     try {
-      const response = await apiPost("/depositos/check-duplicate", {
+      const response = await apiPost("/deposits/check-duplicate", {
         monto: parseFloat(formData.monto),
         moneda: formData.moneda,
         numero_operacion_banco: formData.numero_operacion_banco,
