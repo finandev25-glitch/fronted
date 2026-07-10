@@ -1531,7 +1531,6 @@ const DepositDetailModal = ({
             <RejectionModal
               onClose={() => setIsRejectionModalOpen(false)}
               onConfirm={handleConfirmRejection}
-              initialReason={generateDuplicateRejectionMessage()}
             />
           )}
           {isPickerOpen && (
@@ -2238,7 +2237,6 @@ const DepositDetailModal = ({
         <RejectionModal
           onClose={() => setIsRejectionModalOpen(false)}
           onConfirm={handleConfirmRejection}
-          initialReason={generateDuplicateRejectionMessage()}
         />
       )}
       <ContactDetailsPortal

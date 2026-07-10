@@ -277,23 +277,51 @@ export function useDepositRecords({
     }
   }, []);
 
+  // FIX: GET /v1/deposits (listado usado por el Kanban) solo trae los ids
+  // (banco_id, sucursal_id, empresa_id, trabajador_id) sin las relaciones
+  // pobladas -- eso solo viene en GET /v1/deposits/{id}. Antes esta funcion
+  // solo cruzaba esos ids contra los catalogos (bancos/sucursales/personal)
+  // cuando "!isAuthenticated", y ademas con nombres de campo que ya no
+  // existen (trabajador_sucursal_id en vez de trabajador_id, y trataba
+  // deposit.banco/deposit.sucursal como si fueran strings). Como el panel
+  // real siempre esta autenticado, esa rama nunca corria y las tarjetas
+  // del Kanban mostraban "N/A" en Sucursal y Banco. Ahora se enriquece
+  // siempre, cruzando por id contra los catalogos ya cargados.
   const depositsWithFullData = useMemo(() => {
     if (!deposits) return [];
-    if (isAuthenticated) return deposits;
 
     return deposits.map((deposit) => {
-      const trabajador = personal.find((item) => item.id === deposit.trabajador_sucursal_id);
-      const validator = users.find((item) => item.id === deposit.validado_por);
+      const empresa =
+        deposit.empresa ||
+        empresas.find((item) => String(item.id) === String(deposit.empresa_id)) ||
+        null;
+      const banco =
+        deposit.banco ||
+        bancos.find((item) => String(item.id) === String(deposit.banco_id)) ||
+        null;
+      const sucursal =
+        deposit.sucursal ||
+        sucursales.find((item) => String(item.id) === String(deposit.sucursal_id)) ||
+        null;
+      const trabajador =
+        deposit.trabajador ||
+        personal.find((item) => String(item.id) === String(deposit.trabajador_id)) ||
+        null;
+      const validadoPorUsuario =
+        deposit.validado_por_usuario ||
+        users.find((item) => String(item.id) === String(deposit.validado_por)) ||
+        null;
+
       return {
         ...deposit,
-        trabajador: trabajador ? { nombre: trabajador.nombre } : null,
-        validado_por_usuario: validator ? { nombre: validator.nombre } : null,
-        sucursal: { nombre: deposit.sucursal },
-        banco: { abreviatura: deposit.banco },
-        empresa: { nombre: deposit.empresa },
+        empresa,
+        banco,
+        sucursal,
+        trabajador,
+        validado_por_usuario: validadoPorUsuario,
       };
     });
-  }, [deposits, isAuthenticated, personal, users]);
+  }, [deposits, empresas, bancos, sucursales, personal, users]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -303,9 +331,7 @@ export function useDepositRecords({
     }
   }, [currentUser, deposits.length]);
 
-  void bancos;
-  void empresas;
-  void sucursales;
+  void isAuthenticated;
 
   return {
     deposits,
