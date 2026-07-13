@@ -27,6 +27,7 @@ import SucursalesTableView from './SucursalesTableView.jsx';
 
 const SucursalesView = ({
   sucursales = [],
+  empresas = [],
   onAddSucursal,
   onUpdateSucursal,
   onAddPersonal,
@@ -150,7 +151,7 @@ const SucursalesView = ({
   const filteredSucursales = useMemo(() => {
     return sucursales.filter(
       (sucursal) =>
-        sucursal.estado === 'activa' &&
+        sucursal.estado === 'activo' &&
         (sucursal.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (sucursal.telefono && sucursal.telefono.includes(searchTerm)))
     );
@@ -182,7 +183,7 @@ const SucursalesView = ({
   }, [activityData]);
 
   const handleToggleSucursalStatus = (sucursal) => {
-    const newStatus = sucursal.estado === 'activa' ? 'inactiva' : 'activa';
+    const newStatus = sucursal.estado === 'activo' ? 'inactivo' : 'activo';
     onUpdateSucursal(sucursal.id, { estado: newStatus });
   };
 
@@ -207,7 +208,7 @@ const SucursalesView = ({
 
   const handleConfirmDelete = () => {
     if (sucursalToDelete) {
-      onUpdateSucursal(sucursalToDelete.id, { estado: 'inactiva' });
+      onUpdateSucursal(sucursalToDelete.id, { estado: 'inactivo' });
       setSucursalToDelete(null);
     }
   };
@@ -232,7 +233,7 @@ const SucursalesView = ({
       return {
         Sucursal: sucursal.nombre || '-',
         Teléfono: sucursal.telefono || '-',
-        Estado: sucursal.estado === 'activa' ? 'Activa' : 'Inactiva',
+        Estado: sucursal.estado === 'activo' ? 'Activa' : 'Inactiva',
         'Depósitos del mes': Number(sucursal.total_depositos || 0),
         'Personal activo': counts.active || 0,
         'Personal total': counts.total || 0,
@@ -460,15 +461,15 @@ const SucursalesView = ({
                           <button
                             onClick={() => handleToggleSucursalStatus(sucursal)}
                             className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                              sucursal.estado === 'activa'
+                              sucursal.estado === 'activo'
                                 ? 'bg-emerald-500 hover:bg-emerald-600'
                                 : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500'
                             }`}
-                            title={sucursal.estado === 'activa' ? 'Desactivar sucursal' : 'Activar sucursal'}
+                            title={sucursal.estado === 'activo' ? 'Desactivar sucursal' : 'Activar sucursal'}
                           >
                             <span
                               className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
-                                sucursal.estado === 'activa' ? 'translate-x-3' : 'translate-x-0.5'
+                                sucursal.estado === 'activo' ? 'translate-x-3' : 'translate-x-0.5'
                               }`}
                             />
                           </button>
@@ -520,7 +521,7 @@ const SucursalesView = ({
                 </button>
 
                 <div className="mt-2.5 pt-2 border-t border-gray-200 dark:border-gray-700 text-[10px] text-gray-500 dark:text-gray-400">
-                  Estado: {sucursal.estado === 'activa' ? 'Activa' : 'Inactiva'}
+                  Estado: {sucursal.estado === 'activo' ? 'Activa' : 'Inactiva'}
                 </div>
               </motion.div>
             );
@@ -531,6 +532,7 @@ const SucursalesView = ({
           {selectedSucursal && (
             <SucursalDetailModal
               sucursal={selectedSucursal}
+              empresas={empresas}
               onClose={() => setSelectedSucursal(null)}
               onAddPersonal={onAddPersonal}
               onRemovePersonal={onRemovePersonal}
@@ -840,15 +842,15 @@ const SucursalesView = ({
                           <button
                             onClick={() => handleToggleSucursalStatus(sucursal)}
                             className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                              sucursal.estado === 'activa'
+                              sucursal.estado === 'activo'
                                 ? 'bg-emerald-500 hover:bg-emerald-600'
                                 : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500'
                             }`}
-                            title={sucursal.estado === 'activa' ? 'Desactivar sucursal' : 'Activar sucursal'}
+                            title={sucursal.estado === 'activo' ? 'Desactivar sucursal' : 'Activar sucursal'}
                           >
                             <span
                               className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
-                                sucursal.estado === 'activa' ? 'translate-x-3' : 'translate-x-0.5'
+                                sucursal.estado === 'activo' ? 'translate-x-3' : 'translate-x-0.5'
                               }`}
                             />
                           </button>
@@ -900,7 +902,7 @@ const SucursalesView = ({
                 </button>
 
                 <div className="mt-2.5 pt-2 border-t border-gray-200 dark:border-gray-700 text-[10px] text-gray-500 dark:text-gray-400">
-                  Estado: {sucursal.estado === 'activa' ? 'Activa' : 'Inactiva'}
+                  Estado: {sucursal.estado === 'activo' ? 'Activa' : 'Inactiva'}
                 </div>
               </motion.div>
             );
@@ -912,6 +914,7 @@ const SucursalesView = ({
         {selectedSucursal && (
           <SucursalDetailModal
             sucursal={selectedSucursal}
+            empresas={empresas}
             onClose={() => setSelectedSucursal(null)}
             onAddPersonal={onAddPersonal}
             onRemovePersonal={onRemovePersonal}
@@ -926,6 +929,7 @@ const SucursalesView = ({
             onClose={handleCloseFormModal}
             onSave={handleSaveSucursal}
             sucursalToEdit={sucursalToEdit}
+            empresas={empresas}
           />
         )}
       </AnimatePresence>

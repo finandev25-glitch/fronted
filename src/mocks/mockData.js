@@ -37,16 +37,16 @@ export function createInitialMockState() {
       { id: 2, abreviatura: "BBVA", nombre: "BBVA", estado: "activo" },
     ],
     empresas: [
-      { id: 1, nombre: "JCH Comercial", abreviatura: "JCH", estado: "activa" },
-      { id: 2, nombre: "Evolution Car Service", abreviatura: "EVO", estado: "activa" },
+      { id: 1, nombre: "JCH Comercial", estado: "activo" },
+      { id: 2, nombre: "Evolution Car Service", estado: "activo" },
     ],
     cuentas: [
-      { id: 1, banco_id: 1, empresa_id: 1, numero_cuenta: "001-123456", moneda: "PEN", estado: "activa" },
-      { id: 2, banco_id: 2, empresa_id: 2, numero_cuenta: "191-998877", moneda: "USD", estado: "activa" },
+      { id: 1, banco_id: 1, empresa_id: 1, numero_cuenta: "001-123456", moneda: "PEN", estado: "activo" },
+      { id: 2, banco_id: 2, empresa_id: 2, numero_cuenta: "191-998877", moneda: "USD", estado: "activo" },
     ],
     sucursales: [
-      { id: 1, nombre: "Sucursal Centro", telefono: "51911111111", estado: "activa" },
-      { id: 2, nombre: "Sucursal Norte", telefono: "51922222222", estado: "activa" },
+      { id: 1, nombre: "Sucursal Centro", telefono: "51911111111", estado: "activo" },
+      { id: 2, nombre: "Sucursal Norte", telefono: "51922222222", estado: "activo" },
     ],
     personal: [
       {

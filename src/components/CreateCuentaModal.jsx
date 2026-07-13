@@ -18,8 +18,8 @@ const CreateCuentaModal = ({ onClose, onSave, empresas, bancos, cuentaToEdit }) 
   useEffect(() => {
     if (cuentaToEdit) {
       setFormData({
-        empresa_id: cuentaToEdit.empresa?.id || '',
-        banco_id: cuentaToEdit.banco?.id || '',
+        empresa_id: cuentaToEdit.empresa_id || cuentaToEdit.empresa?.id || '',
+        banco_id: cuentaToEdit.banco_id || cuentaToEdit.banco?.id || '',
         anexo: cuentaToEdit.anexo || '',
         nro_cuenta: cuentaToEdit.nro_cuenta || '',
         subdiario: cuentaToEdit.subdiario || ''
@@ -46,7 +46,10 @@ const CreateCuentaModal = ({ onClose, onSave, empresas, bancos, cuentaToEdit }) 
       return;
     }
     setError('');
-    
+
+    // Nota: "subdiario" no existe en CreateCuentaBancariaRequest/
+    // UpdateCuentaBancariaRequest del backend (Confirmo.Api), asi que se
+    // sigue mandando pero la capa de API lo ignora y no se persiste.
     const dataToSave = {
       empresa_id: formData.empresa_id,
       banco_id: formData.banco_id,

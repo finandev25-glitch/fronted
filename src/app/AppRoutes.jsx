@@ -11,6 +11,7 @@ import RegularizarDepositos from "../components/RegularizarDepositos";
 import ReportesView from "../components/ReportesView";
 import SucursalesView from "../components/SucursalesView";
 import TableView from "../pages/deposits-table/ui/TablePage.jsx";
+import TrabajadoresView from "../components/TrabajadoresView";
 import UsuariosView from "../components/UsuariosView";
 import AuthPage from "../features/auth/pages/AuthPage.jsx";
 import PendingApproval from "../features/auth/pages/PendingApproval.jsx";
@@ -81,10 +82,11 @@ export function AppRoutes({
         element={
           <SucursalesView
             sucursales={dashboard.sucursales}
+            empresas={dashboard.empresas}
             deposits={dashboard.depositsWithFullData}
             onAddSucursal={dashboard.handleAddSucursal}
             onUpdateSucursal={dashboard.handleUpdateSucursal}
-            onDeleteSucursal={(id) => dashboard.handleUpdateSucursal(id, { estado: "inactiva" })}
+            onDeleteSucursal={(id) => dashboard.handleUpdateSucursal(id, { estado: "inactivo" })}
             onAddPersonal={dashboard.handleAddPersonalToSucursal}
             onRemovePersonal={dashboard.handleRemovePersonalFromSucursal}
             onUpdatePersonal={dashboard.handleUpdatePersonal}
@@ -94,42 +96,70 @@ export function AppRoutes({
       <Route
         path="/bancos"
         element={
-          <BancosView
-            bancos={dashboard.bancos}
-            empresas={dashboard.empresas}
-            onAddEmpresa={dashboard.handleAddEmpresa}
-            cuentas={dashboard.cuentas}
-            onAddCuenta={dashboard.handleAddCuenta}
-            onUpdateCuenta={dashboard.handleUpdateCuenta}
-            onDeleteCuenta={dashboard.handleDeleteCuenta}
-            onBatchAddCuentas={dashboard.handleBatchAddCuentas}
-          />
+          currentUser?.user_rol === "admin" ? (
+            <BancosView
+              bancos={dashboard.bancos}
+              empresas={dashboard.empresas}
+              onAddEmpresa={dashboard.handleAddEmpresa}
+              cuentas={dashboard.cuentas}
+              onAddCuenta={dashboard.handleAddCuenta}
+              onUpdateCuenta={dashboard.handleUpdateCuenta}
+              onDeleteCuenta={dashboard.handleDeleteCuenta}
+              onBatchAddCuentas={dashboard.handleBatchAddCuentas}
+            />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
         }
       />
       <Route
         path="/gestion-bancos"
         element={
-          <GestionBancosView
-            bancos={dashboard.bancos}
-            onAdd={dashboard.handleAddBanco}
-            onUpdate={dashboard.handleUpdateBanco}
-            onDelete={dashboard.handleDeleteBanco}
-          />
+          currentUser?.user_rol === "admin" ? (
+            <GestionBancosView
+              bancos={dashboard.bancos}
+              onAdd={dashboard.handleAddBanco}
+              onUpdate={dashboard.handleUpdateBanco}
+              onDelete={dashboard.handleDeleteBanco}
+            />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
         }
       />
       <Route
         path="/gestion-empresas"
         element={
-          <GestionEmpresasView
-            empresas={dashboard.empresas}
-            onAdd={dashboard.handleAddEmpresa}
-            onUpdate={dashboard.handleUpdateEmpresa}
-          />
+          currentUser?.user_rol === "admin" ? (
+            <GestionEmpresasView
+              empresas={dashboard.empresas}
+              onAdd={dashboard.handleAddEmpresa}
+              onUpdate={dashboard.handleUpdateEmpresa}
+            />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
         }
       />
       <Route
         path="/usuarios"
-        element={currentUser?.user_rol === "admin" ? <UsuariosView /> : <Navigate to="/kanban" replace />}
+        element={
+          currentUser?.user_rol === "admin" ? (
+            <UsuariosView empresas={dashboard.empresas} sucursales={dashboard.sucursales} />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
+        }
+      />
+      <Route
+        path="/trabajadores"
+        element={
+          currentUser?.user_rol === "admin" ? (
+            <TrabajadoresView empresas={dashboard.empresas} sucursales={dashboard.sucursales} />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
+        }
       />
       <Route path="/reportes" element={<ReportesView />} />
       <Route path="/confirmados" element={<ConfirmadosPorHoraView />} />

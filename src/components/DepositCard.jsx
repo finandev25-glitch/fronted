@@ -88,14 +88,13 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
               className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-md border border-blue-200 dark:border-blue-700 flex-shrink-0"
               title={`Empresa: ${deposit.empresa.nombre}`}
             >
-              {deposit.empresa.abreviatura ||
-                deposit.empresa.nombre
-                  .split(" ")
-                  .filter((word) => word.length > 2) // Filtrar palabras cortas como "SA", "DE", "LA"
-                  .map((word) => word.charAt(0))
-                  .join("")
-                  .substring(0, 4) // Máximo 4 caracteres
-                  .toUpperCase()}
+              {deposit.empresa.nombre
+                .split(" ")
+                .filter((word) => word.length > 2) // Filtrar palabras cortas como "SA", "DE", "LA"
+                .map((word) => word.charAt(0))
+                .join("")
+                .substring(0, 4) // Máximo 4 caracteres
+                .toUpperCase()}
             </span>
           )}
           {/* Usuario que validó (iniciales) */}

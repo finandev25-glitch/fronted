@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { X, Building, Loader2, Type } from "lucide-react";
+import { X, Building, Loader2 } from "lucide-react";
 
-const EmpresaModal = ({ onClose, onSave, empresaToEdit, existingEmpresas }) => {
+const EmpresaModal = ({ onClose, onSave, empresaToEdit }) => {
   const [formData, setFormData] = useState({
     nombre: "",
-    abreviatura: "",
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -14,16 +13,12 @@ const EmpresaModal = ({ onClose, onSave, empresaToEdit, existingEmpresas }) => {
     if (empresaToEdit) {
       setFormData({
         nombre: empresaToEdit.nombre || "",
-        abreviatura: empresaToEdit.abreviatura || "",
       });
     }
   }, [empresaToEdit]);
 
   const handleChange = (e) => {
-    let { name, value } = e.target;
-    if (name === "abreviatura") {
-      value = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    }
+    const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError("");
   };
@@ -33,19 +28,8 @@ const EmpresaModal = ({ onClose, onSave, empresaToEdit, existingEmpresas }) => {
     console.log("📝 Enviando formulario de empresa:", formData);
 
     // Validaciones
-    if (!formData.nombre.trim() || !formData.abreviatura.trim()) {
-      setError("El nombre y la abreviatura son obligatorios.");
-      return;
-    }
-
-    const isDuplicate = existingEmpresas.some(
-      (empresa) =>
-        empresa.abreviatura === formData.abreviatura &&
-        empresa.id !== empresaToEdit?.id
-    );
-
-    if (isDuplicate) {
-      setError("La abreviatura ya existe. Debe ser única.");
+    if (!formData.nombre.trim()) {
+      setError("El nombre es obligatorio.");
       return;
     }
 
@@ -115,26 +99,6 @@ const EmpresaModal = ({ onClose, onSave, empresaToEdit, existingEmpresas }) => {
                   className="w-full pl-10 pr-4 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                   placeholder="Ej: Transportes Delta S.A."
                   autoFocus
-                />
-              </div>
-            </div>
-            <div>
-              <label
-                htmlFor="abreviatura-empresa"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
-              >
-                Abreviatura (Única)
-              </label>
-              <div className="relative">
-                <Type className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  id="abreviatura-empresa"
-                  name="abreviatura"
-                  value={formData.abreviatura}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono"
-                  placeholder="Ej: TDELTA"
                 />
               </div>
             </div>

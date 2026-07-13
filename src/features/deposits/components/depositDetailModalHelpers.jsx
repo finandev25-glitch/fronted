@@ -132,7 +132,7 @@ export const getSqlServerCompanyConfigFromEmpresaId = (empresaId, empresas = [])
   const companyId = String(empresaId ?? "").trim();
   const selectedEmpresa = empresas.find((empresa) => String(empresa?.id) === companyId) || null;
   const companyText = String(
-    selectedEmpresa?.nombre || selectedEmpresa?.abreviatura || selectedEmpresa?.alias || "",
+    selectedEmpresa?.nombre || selectedEmpresa?.alias || "",
   ).toLowerCase();
 
   if (companyText.includes("jch")) {

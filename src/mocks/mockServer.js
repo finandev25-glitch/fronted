@@ -53,7 +53,7 @@ function enrichDeposit(deposit) {
 
   return {
     ...deposit,
-    empresa: empresa ? { id: empresa.id, nombre: empresa.nombre, abreviatura: empresa.abreviatura, estado: empresa.estado } : null,
+    empresa: empresa ? { id: empresa.id, nombre: empresa.nombre, estado: empresa.estado } : null,
     banco: banco ? { id: banco.id, abreviatura: banco.abreviatura, nombre: banco.nombre, estado: banco.estado } : null,
     sucursal: sucursal ? { id: sucursal.id, nombre: sucursal.nombre } : null,
     trabajador: trabajador ? { id: trabajador.id, nombre: trabajador.nombre, telefono_origen: trabajador.telefono_origen } : null,

@@ -149,7 +149,7 @@ const SucursalesTableView = ({ sucursales }) => {
               >
                 <option value="all">Todas las sucursales</option>
                 {sucursales
-                  .filter(s => s.estado === 'activa')
+                  .filter(s => s.estado === 'activo')
                   .map(sucursal => (
                     <option key={sucursal.id} value={sucursal.id}>
                       {sucursal.nombre}

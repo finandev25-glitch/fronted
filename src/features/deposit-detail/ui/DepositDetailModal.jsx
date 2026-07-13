@@ -991,7 +991,7 @@ const DepositDetailModal = ({
                           <option value="">Seleccionar</option>
                           {activeEmpresas.map((e) => (
                             <option key={e.id} value={e.id}>
-                              {e.abreviatura || e.AliasEmpresa || e.nombre}
+                              {e.AliasEmpresa || e.nombre}
                             </option>
                           ))}
                         </select>
@@ -1453,7 +1453,7 @@ const DepositDetailModal = ({
                                     Empresa
                                   </div>
                                   <div className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">
-                                    {dup.empresa?.abreviatura || dup.empresa?.nombre || "-"}
+                                    {dup.empresa?.nombre || "-"}
                                   </div>
                                 </div>
                                 <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">

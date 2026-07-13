@@ -338,7 +338,7 @@ export function DuplicateDepositsPortal({
                       </div>
 
                       <div className="mt-4 grid gap-2 text-sm">
-                        <Field label="Empresa" value={dup.empresa?.abreviatura || dup.empresa?.nombre || "-"} />
+                        <Field label="Empresa" value={dup.empresa?.nombre || "-"} />
                         <Field label="Banco" value={dup.banco?.abreviatura || dup.banco?.nombre || "-"} />
                         <Field label="Nro. operación" value={dup.numero_operacion_banco || dup.numero_operacion || "-"} mono />
                         <Field label="Importe" value={formatCompactMoney(dup.monto, dup.moneda)} mono />

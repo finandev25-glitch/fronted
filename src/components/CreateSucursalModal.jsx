@@ -2,19 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Building2 } from 'lucide-react';
 
-const CreateSucursalModal = ({ onClose, onSave, sucursalToEdit }) => {
+// CreateSucursalRequest/UpdateSucursalRequest (backend) exigen EmpresaId:
+// toda sucursal pertenece a una empresa. Por eso este modal necesita la
+// lista de empresas para poder elegirla (mismo patron que CreateCuentaModal).
+const CreateSucursalModal = ({ onClose, onSave, sucursalToEdit, empresas = [] }) => {
   const [formData, setFormData] = useState({
     nombre: '',
+    direccion: '',
+    empresa_id: '',
   });
   const [error, setError] = useState('');
+
+  const activeEmpresas = empresas.filter((e) => e.estado === 'activo');
 
   useEffect(() => {
     if (sucursalToEdit) {
       setFormData({
         nombre: sucursalToEdit.nombre,
+        direccion: sucursalToEdit.direccion || '',
+        empresa_id: sucursalToEdit.empresa_id || '',
       });
+    } else {
+      setFormData((prev) => ({ ...prev, empresa_id: activeEmpresas[0]?.id || '' }));
     }
-  }, [sucursalToEdit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucursalToEdit, empresas]);
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -24,6 +36,10 @@ const CreateSucursalModal = ({ onClose, onSave, sucursalToEdit }) => {
     e.preventDefault();
     if (!formData.nombre.trim()) {
       setError('El nombre de la sucursal es obligatorio.');
+      return;
+    }
+    if (!formData.empresa_id) {
+      setError('Debes seleccionar una empresa.');
       return;
     }
     onSave(formData);
@@ -48,6 +64,21 @@ const CreateSucursalModal = ({ onClose, onSave, sucursalToEdit }) => {
         <form onSubmit={handleSubmit}>
           <div className="p-5 space-y-3">
             <div>
+              <label htmlFor="empresa_id" className="block text-sm font-medium text-gray-700 mb-1.5">Empresa</label>
+              <select
+                id="empresa_id"
+                name="empresa_id"
+                value={formData.empresa_id}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Selecciona una empresa</option>
+                {activeEmpresas.map((empresa) => (
+                  <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-1.5">Nombre de la Sucursal</label>
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -61,6 +92,18 @@ const CreateSucursalModal = ({ onClose, onSave, sucursalToEdit }) => {
                   placeholder="Ej: Lima Centro"
                 />
               </div>
+            </div>
+            <div>
+              <label htmlFor="direccion" className="block text-sm font-medium text-gray-700 mb-1.5">Dirección (Opcional)</label>
+              <input
+                type="text"
+                id="direccion"
+                name="direccion"
+                value={formData.direccion}
+                onChange={handleChange}
+                className="w-full px-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ej: Av. Principal 123"
+              />
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>

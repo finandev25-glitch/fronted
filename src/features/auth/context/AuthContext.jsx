@@ -247,6 +247,47 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // POST /v1/masters/profiles crea un Profile nuevo (cuenta de login), solo
+  // admin (IsAdmin). CreateProfileRequest exige Password + FullName +
+  // EmpresaId siempre, y ademas PhoneNumber o Email (al menos uno de los
+  // dos); el backend valida unicidad de cada uno si vienen.
+  const createUserProfile = async (data) => {
+    try {
+      const payload = {
+        phoneNumber: data.phoneNumber || null,
+        email: data.email || null,
+        password: data.password,
+        fullName: data.fullName || data.nombre || "",
+        empresaId: data.empresaId,
+        sucursalId: data.sucursalId || null,
+        rol: data.rol,
+      };
+
+      const response = await apiPost("/v1/masters/profiles", payload);
+      const createdProfile = normalizeProfileResponse(response);
+
+      setUsers((prev) => [...prev, createdProfile]);
+
+      return createdProfile;
+    } catch (error) {
+      console.error("Error creando perfil:", error);
+      throw error;
+    }
+  };
+
+  // PUT /v1/masters/profiles/{id}/password (solo admin). Endpoint separado
+  // del PUT normal de perfil porque UpdateProfileRequest no incluye password.
+  // El backend exige minimo 8 caracteres (ResetProfilePasswordRequest).
+  const resetUserPassword = async (userId, newPassword) => {
+    try {
+      await apiPut(`/v1/masters/profiles/${userId}/password`, { newPassword });
+      return true;
+    } catch (error) {
+      console.error("Error restableciendo contraseña:", error);
+      throw error;
+    }
+  };
+
   const refreshUsers = useCallback(async () => {
     try {
       const response = await apiGet("/v1/masters/profiles");
@@ -267,6 +308,8 @@ export function AuthProvider({ children }) {
     register,
     users,
     updateUserProfile,
+    createUserProfile,
+    resetUserPassword,
     refreshUsers,
     authSession,
   };

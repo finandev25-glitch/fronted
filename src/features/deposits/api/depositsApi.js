@@ -29,7 +29,7 @@ function mapMockDeposit(deposit) {
 
   return {
     ...deposit,
-    empresa: empresa ? { id: empresa.id, nombre: empresa.nombre, abreviatura: empresa.abreviatura, estado: empresa.estado } : null,
+    empresa: empresa ? { id: empresa.id, nombre: empresa.nombre, estado: empresa.estado } : null,
     banco: banco ? { id: banco.id, abreviatura: banco.abreviatura, nombre: banco.nombre, estado: banco.estado } : null,
     sucursal: sucursal ? { id: sucursal.id, nombre: sucursal.nombre } : null,
     trabajador: trabajador ? { id: trabajador.id, nombre: trabajador.nombre, telefono_origen: trabajador.telefono_origen } : null,
@@ -86,10 +86,9 @@ export async function apiJson(path, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Catalogos. El backend real (Confirmo.Api) solo expone bancos y empresas.
-// Sucursales, cuentas bancarias y personal no tienen endpoint todavia: se
-// devuelven listas vacias para que la UI no se rompa mientras esos modulos
-// no esten disponibles en el backend.
+// Catalogos. El backend real (Confirmo.Api) expone CRUD completo para
+// bancos, empresas, sucursales, cuentasbancarias y trabajadores bajo
+// /api/v1/masters/* (ver Confirmo.Api/Endpoints/MasterEndpoints.cs).
 // ---------------------------------------------------------------------------
 
 function mapBanco(banco) {
@@ -107,7 +106,6 @@ function mapEmpresa(empresa) {
   return {
     id: String(empresa.id || empresa.Id || "").toLowerCase(),
     nombre: empresa.nombre || empresa.Nombre || "",
-    abreviatura: empresa.nombre || empresa.Nombre || "",
     logo: empresa.logo || empresa.Logo || null,
     estado: "activo",
   };
@@ -128,11 +126,50 @@ function mapTrabajador(trabajador) {
   if (!trabajador) return null;
   return {
     id: String(trabajador.id || trabajador.Id || "").toLowerCase(),
+    profile_id: String(trabajador.profileId || trabajador.ProfileId || "").toLowerCase(),
     empresa_id: String(trabajador.empresaId || trabajador.EmpresaId || "").toLowerCase(),
     sucursal_id: String(trabajador.sucursalId || trabajador.SucursalId || "").toLowerCase(),
     nombre: trabajador.nombre || trabajador.Nombre || "",
     telefono_origen: trabajador.telefonoPersonal || trabajador.TelefonoPersonal || "",
-    estado: (trabajador.activo || trabajador.Activo) ? "activo" : "inactivo",
+    estado: (trabajador.activo ?? trabajador.Activo) ? "activo" : "inactivo",
+  };
+}
+
+// ProfileResponse (backend) = una cuenta de login (telefono/email + password +
+// rol admin/finanzas/vendedor), distinta de Trabajador (registro de personal
+// asignado a una sucursal). Un Trabajador siempre apunta a un Profile ya
+// existente via ProfileId. Ver mapProfile/fetchProfiles/createProfile abajo.
+function mapProfile(profile) {
+  if (!profile) return null;
+  return {
+    id: String(profile.id || profile.Id || "").toLowerCase(),
+    phoneNumber: profile.phoneNumber || profile.PhoneNumber || null,
+    email: profile.email || profile.Email || null,
+    nombre: profile.fullName || profile.FullName || "",
+    empresa_id: String(profile.empresaId || profile.EmpresaId || "").toLowerCase(),
+    sucursal_id: (profile.sucursalId || profile.SucursalId)
+      ? String(profile.sucursalId || profile.SucursalId).toLowerCase()
+      : null,
+    rol: profile.rol || profile.Rol || "",
+    estado: (profile.activo ?? profile.Activo) ? "activo" : "inactivo",
+    createdAt: profile.createdAt || profile.CreatedAt || null,
+    lastLoginAt: profile.lastLoginAt || profile.LastLoginAt || null,
+  };
+}
+
+// CuentaBancariaResponse trae solo ids planos (EmpresaId/BancoId), sin objetos
+// anidados de empresa/banco. Los componentes que muestran nombre/abreviatura
+// (BancosView) resuelven esos ids contra las listas de empresas/bancos que ya
+// tienen cargadas, en vez de esperar objetos anidados aca.
+function mapCuenta(cuenta) {
+  if (!cuenta) return null;
+  return {
+    id: String(cuenta.id || cuenta.Id || "").toLowerCase(),
+    empresa_id: String(cuenta.empresaId || cuenta.EmpresaId || "").toLowerCase(),
+    banco_id: String(cuenta.bancoId || cuenta.BancoId || "").toLowerCase(),
+    nro_cuenta: cuenta.numeroCuenta || cuenta.NumeroCuenta || "",
+    anexo: cuenta.anexo || cuenta.Anexo || "",
+    estado: (cuenta.activo ?? cuenta.Activo) ? "activo" : "inactivo",
   };
 }
 
@@ -160,7 +197,7 @@ export async function fetchCuentas(empresaId, bancoId) {
   if (params.toString()) url += `?${params.toString()}`;
 
   const data = await apiJson(url);
-  return data || [];
+  return (data || []).map(mapCuenta);
 }
 
 export async function fetchSucursales() {
@@ -173,6 +210,28 @@ export async function fetchPersonal() {
   if (MOCK_MODE_ENABLED) return getMockState().personal;
   const data = await apiJson(`${MASTERS_BASE}/trabajadores`);
   return (data || []).map(mapTrabajador);
+}
+
+// GET /v1/masters/profiles requiere rol admin/finanzas (IsAdminOrFinanzas).
+// Se usa para el selector de "usuario existente" en AddPersonModal. filtros
+// admite empresaId/sucursalId/rol/activo, todos opcionales (mismos query
+// params que soporta el backend).
+export async function fetchProfiles(filtros = {}) {
+  if (MOCK_MODE_ENABLED) return getMockState().users;
+
+  const params = new URLSearchParams();
+  if (filtros.empresaId) params.append("empresaId", filtros.empresaId);
+  if (filtros.sucursalId) params.append("sucursalId", filtros.sucursalId);
+  if (filtros.rol) params.append("rol", filtros.rol);
+  if (filtros.activo !== undefined && filtros.activo !== null) {
+    params.append("activo", String(filtros.activo));
+  }
+
+  let url = `${MASTERS_BASE}/profiles`;
+  if (params.toString()) url += `?${params.toString()}`;
+
+  const data = await apiJson(url);
+  return (data || []).map(mapProfile);
 }
 
 export async function fetchDashboardBootstrap() {
@@ -319,66 +378,216 @@ export async function fetchDepositById(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Catalogos: create/update/delete. Sin endpoints reales todavia para bancos,
-// empresas, cuentas y personal (solo hay lectura); se dejan como no-op que
-// avisan en consola en vez de romper la UI.
+// Catalogos: create/update/delete contra /api/v1/masters/*. Los verbos de
+// escritura (POST/PUT/DELETE) requieren rol admin en el backend (IsAdmin);
+// si el usuario logueado no es admin, el backend responde 403 y apiJson lo
+// convierte en Error con el mensaje del backend.
+//
+// IMPORTANTE (PUT = reemplazo completo): los endpoints PUT de masters no
+// aceptan updates parciales, exigen el objeto completo (Nombre/Activo/etc).
+// Por eso los handlers de los hooks (useDepositCatalogs.js) mezclan el
+// registro existente con los cambios parciales antes de llamar a estas
+// funciones (mismo patron que ya usaba AuthContext.updateUserProfile para
+// /v1/masters/profiles/{id}).
 // ---------------------------------------------------------------------------
 
-async function unsupportedWrite(action) {
-  console.warn(`${action}: el backend no soporta esta operacion todavia.`);
-  throw new Error("Esta operacion no esta disponible todavia en el backend.");
+export async function createBanco(data) {
+  const body = {
+    nombre: (data?.nombre || "").trim(),
+    codigo: data?.abreviatura || data?.codigo || null,
+  };
+  const created = await apiJson(`${MASTERS_BASE}/bancos`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapBanco(created);
 }
 
-export async function createBanco() {
-  return unsupportedWrite("createBanco");
+export async function updateBanco(id, data) {
+  const body = {
+    nombre: (data?.nombre || "").trim(),
+    codigo: data?.abreviatura || data?.codigo || null,
+    activo: data?.estado ? data.estado === "activo" : true,
+  };
+  const updated = await apiJson(`${MASTERS_BASE}/bancos/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return mapBanco(updated);
 }
 
-export async function updateBanco() {
-  return unsupportedWrite("updateBanco");
+export async function deleteBanco(id) {
+  // Soft delete: el backend marca Activo=false, no borra la fila.
+  return apiJson(`${MASTERS_BASE}/bancos/${id}`, { method: "DELETE" });
 }
 
-export async function deleteBanco() {
-  return unsupportedWrite("deleteBanco");
+// NOTA: EmpresaResponse/CreateEmpresaRequest/UpdateEmpresaRequest (backend)
+// solo tienen Nombre, Ruc, Logo y Activo — no existe un campo "Abreviatura".
+// El campo fue eliminado del formulario/listado de Empresa en el frontend
+// (era decorativo, nunca se persistio).
+export async function createEmpresa(data) {
+  const body = {
+    nombre: (data?.nombre || "").trim(),
+    ruc: data?.ruc || null,
+    logo: data?.logo || null,
+  };
+  const created = await apiJson(`${MASTERS_BASE}/empresas`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapEmpresa(created);
 }
 
-export async function createEmpresa() {
-  return unsupportedWrite("createEmpresa");
+export async function updateEmpresa(id, data) {
+  const body = {
+    nombre: (data?.nombre || "").trim(),
+    ruc: data?.ruc || null,
+    logo: data?.logo || null,
+    activo: data?.estado ? data.estado === "activo" : true,
+  };
+  const updated = await apiJson(`${MASTERS_BASE}/empresas/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return mapEmpresa(updated);
 }
 
-export async function updateEmpresa() {
-  return unsupportedWrite("updateEmpresa");
+export async function createCuenta(data) {
+  const body = {
+    numeroCuenta: (data?.nro_cuenta || "").trim(),
+    anexo: data?.anexo || "",
+    empresaId: data?.empresa_id || data?.empresaId,
+    bancoId: data?.banco_id || data?.bancoId,
+  };
+  const created = await apiJson(`${MASTERS_BASE}/cuentasbancarias`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapCuenta(created);
 }
 
-export async function createCuenta() {
-  return unsupportedWrite("createCuenta");
+export async function updateCuenta(id, data) {
+  const body = {
+    numeroCuenta: (data?.nro_cuenta || "").trim(),
+    anexo: data?.anexo || "",
+    empresaId: data?.empresa_id || data?.empresaId,
+    bancoId: data?.banco_id || data?.bancoId,
+    activo: data?.estado ? data.estado === "activo" : true,
+  };
+  const updated = await apiJson(`${MASTERS_BASE}/cuentasbancarias/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return mapCuenta(updated);
 }
 
-export async function updateCuenta() {
-  return unsupportedWrite("updateCuenta");
+export async function deleteCuenta(id) {
+  return apiJson(`${MASTERS_BASE}/cuentasbancarias/${id}`, { method: "DELETE" });
 }
 
-export async function deleteCuenta() {
-  return unsupportedWrite("deleteCuenta");
+export async function createSucursal(data) {
+  const body = {
+    empresaId: data?.empresa_id || data?.empresaId,
+    nombre: (data?.nombre || "").trim(),
+    direccion: data?.direccion || null,
+  };
+  const created = await apiJson(`${MASTERS_BASE}/sucursales`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapSucursal(created);
 }
 
-export async function createSucursal() {
-  return unsupportedWrite("createSucursal");
+export async function updateSucursal(id, data) {
+  const body = {
+    empresaId: data?.empresa_id || data?.empresaId,
+    nombre: (data?.nombre || "").trim(),
+    direccion: data?.direccion || null,
+    activo: data?.estado ? data.estado === "activo" : true,
+  };
+  const updated = await apiJson(`${MASTERS_BASE}/sucursales/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return mapSucursal(updated);
 }
 
-export async function updateSucursal() {
-  return unsupportedWrite("updateSucursal");
+// NOTA IMPORTANTE (Trabajador <-> Profile): CreateTrabajadorRequest exige un
+// ProfileId (Guid) de un Profile YA EXISTENTE (backend valida con
+// context.Profiles.AnyAsync). Un Profile es una cuenta de login del sistema
+// (telefono/email + password + rol), no simplemente "un contacto".
+// AddPersonModal ofrece dos caminos para conseguir ese profileId: elegir un
+// Profile ya existente (fetchProfiles) o crear uno nuevo ahi mismo
+// (createProfile) y usar el id resultante. Esta funcion sigue exigiendo
+// explicitamente un profileId en el payload; si no llega, falla con un
+// mensaje claro en vez de mandar un profileId inventado.
+export async function createPersonal(data) {
+  if (!data?.profileId && !data?.profile_id) {
+    console.warn(
+      "createPersonal: falta profileId. POST /v1/masters/trabajadores exige un Profile " +
+        "existente; AddPersonModal todavia no lo captura."
+    );
+    throw new Error(
+      "No se puede crear el trabajador: falta un usuario (Profile) existente para asociarlo. " +
+        "Esta parte del formulario todavia no esta conectada."
+    );
+  }
+
+  const body = {
+    profileId: data.profileId || data.profile_id,
+    nombre: (data.nombre || "").trim(),
+    telefonoPersonal: data.telefono || data.telefono_origen || null,
+    empresaId: data.empresa_id || data.empresaId,
+    sucursalId: data.sucursal_id || data.sucursalId || null,
+    fechaInicio: data.fechaInicio || new Date().toISOString().slice(0, 10),
+  };
+
+  const created = await apiJson(`${MASTERS_BASE}/trabajadores`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapTrabajador(created);
 }
 
-export async function createPersonal() {
-  return unsupportedWrite("createPersonal");
+// POST /v1/masters/profiles requiere rol admin (IsAdmin). CreateProfileRequest
+// exige Password + FullName + EmpresaId siempre, y ademas PhoneNumber o Email
+// (al menos uno de los dos; el backend valida unicidad de cada uno si vienen).
+// Se usa desde AddPersonModal cuando se elige "Crear nuevo usuario": primero
+// se llama a esta funcion, y con el id devuelto se llama a createPersonal.
+export async function createProfile(data) {
+  const body = {
+    phoneNumber: data?.phoneNumber || data?.telefono || null,
+    email: data?.email || null,
+    password: data?.password || "",
+    fullName: (data?.nombre || data?.fullName || "").trim(),
+    empresaId: data?.empresa_id || data?.empresaId,
+    sucursalId: data?.sucursal_id || data?.sucursalId || null,
+    rol: data?.rol || "vendedor",
+  };
+
+  const created = await apiJson(`${MASTERS_BASE}/profiles`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapProfile(created);
 }
 
-export async function updatePersonal() {
-  return unsupportedWrite("updatePersonal");
+export async function updatePersonal(id, data) {
+  const body = {
+    nombre: (data.nombre || "").trim(),
+    telefonoPersonal: data.telefono || data.telefono_origen || null,
+    sucursalId: data.sucursal_id || data.sucursalId || null,
+    activo: data.estado ? data.estado === "activo" : true,
+  };
+  const updated = await apiJson(`${MASTERS_BASE}/trabajadores/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return mapTrabajador(updated);
 }
 
-export async function deletePersonal() {
-  return unsupportedWrite("deletePersonal");
+export async function deletePersonal(id) {
+  return apiJson(`${MASTERS_BASE}/trabajadores/${id}`, { method: "DELETE" });
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +637,8 @@ export async function updateDeposit(id, payload) {
 }
 
 export async function createSupportRequest() {
-  return unsupportedWrite("createSupportRequest");
+  console.warn("createSupportRequest: el backend no soporta esta operacion todavia.");
+  throw new Error("Esta operacion no esta disponible todavia en el backend.");
 }
 
 export async function lockDeposit(id) {

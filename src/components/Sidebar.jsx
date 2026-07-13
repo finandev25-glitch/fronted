@@ -22,6 +22,7 @@ import {
   KeyRound,
   FolderCheck,
   UserMinus,
+  UserCog,
 } from "lucide-react";
 
 const SidebarContent = ({
@@ -39,25 +40,49 @@ const SidebarContent = ({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const menuItems = [
-    { view: "kanban", icon: LayoutDashboard, label: "Kanban" },
-    { view: "table", icon: Table, label: "Depósitos" },
-    { view: "sucursales", icon: Building2, label: "Sucursales" },
-    { view: "bancos", icon: CreditCard, label: "Cuentas" },
-    { view: "gestion-bancos", icon: Landmark, label: "Bancos" },
-    { view: "gestion-empresas", icon: Building, label: "Empresas" },
-    { view: "usuarios", icon: Users, label: "Usuarios", adminOnly: true },
-    { view: "reportes", icon: PieChart, label: "Reportes" },
-    { view: "confirmados", icon: Clock3, label: "Confirmados" },
-    { view: "documentos", icon: FileText, label: "Documentos" },
-    { view: "regularizar-depositos", icon: FolderCheck, label: "Regularizar Depósitos" },
-    { view: "cambiar-contrasena", icon: KeyRound, label: "Cambiar Contraseña" },
+  const isAdmin = currentUser?.user_rol === "admin";
+
+  // "Sucursales" se deja fuera del grupo Administrador a proposito: la vista
+  // ya tiene su propio gating interno (botones de editar/desactivar/eliminar
+  // visibles solo para currentUser.user_rol === "admin", ver SucursalesView),
+  // y finanzas la usa como referencia (actividad de sucursales, personal) en
+  // su flujo normal. El resto de los "masters" (usuarios, empresas, bancos,
+  // cuentas bancarias) no tienen ese gating interno ni un uso conocido desde
+  // finanzas, asi que pasan a vivir solo dentro de la categoria admin.
+  const menuSections = [
+    {
+      key: "main",
+      items: [
+        { view: "kanban", icon: LayoutDashboard, label: "Kanban" },
+        { view: "table", icon: Table, label: "Depósitos" },
+        { view: "sucursales", icon: Building2, label: "Sucursales" },
+      ],
+    },
+    {
+      key: "admin",
+      title: "Administrador",
+      adminOnly: true,
+      items: [
+        { view: "usuarios", icon: Users, label: "Usuarios" },
+        { view: "trabajadores", icon: UserCog, label: "Trabajadores" },
+        { view: "gestion-empresas", icon: Building, label: "Empresas" },
+        { view: "gestion-bancos", icon: Landmark, label: "Bancos" },
+        { view: "bancos", icon: CreditCard, label: "Cuentas Bancarias" },
+      ],
+    },
+    {
+      key: "other",
+      items: [
+        { view: "reportes", icon: PieChart, label: "Reportes" },
+        { view: "confirmados", icon: Clock3, label: "Confirmados" },
+        { view: "documentos", icon: FileText, label: "Documentos" },
+        { view: "regularizar-depositos", icon: FolderCheck, label: "Regularizar Depósitos" },
+        { view: "cambiar-contrasena", icon: KeyRound, label: "Cambiar Contraseña" },
+      ],
+    },
   ];
 
-  const visibleMenuItems = menuItems.filter(
-    (item) =>
-      !item.adminOnly || (item.adminOnly && currentUser?.user_rol === "admin")
-  );
+  const visibleMenuSections = menuSections.filter((section) => !section.adminOnly || isAdmin);
 
   const handleItemClick = (view) => {
     navigate(`/${view}`);
@@ -114,39 +139,58 @@ const SidebarContent = ({
 
       {/* Navegación */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        <ul>
-          {visibleMenuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === `/${item.view}` || (item.view === "kanban" && location.pathname === "/");
+        {visibleMenuSections.map((section) => (
+          <div key={section.key} className="mb-2">
+            {section.title && (
+              <div
+                className={`flex items-center px-3 pt-3 pb-1.5 ${
+                  isCollapsed ? "justify-center" : ""
+                }`}
+              >
+                {!isCollapsed ? (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {section.title}
+                  </span>
+                ) : (
+                  <div className="w-6 border-t border-gray-200 dark:border-gray-700" />
+                )}
+              </div>
+            )}
+            <ul>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === `/${item.view}` || (item.view === "kanban" && location.pathname === "/");
 
-            return (
-              <li key={item.view}>
-                <button
-                  onClick={() => handleItemClick(item.view)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 flex items-center space-x-3 ${
-                    isCollapsed ? "justify-center" : ""
-                  } ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "hover:bg-gray-100 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                  }`}
-                  title={isCollapsed ? item.label : undefined}
-                >
-                  <Icon size={14} />
-                  {!isCollapsed && (
-                    <span
-                      className={`font-medium ${
-                        isActive ? "font-semibold" : ""
+                return (
+                  <li key={item.view}>
+                    <button
+                      onClick={() => handleItemClick(item.view)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 flex items-center space-x-3 ${
+                        isCollapsed ? "justify-center" : ""
+                      } ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "hover:bg-gray-100 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                       }`}
+                      title={isCollapsed ? item.label : undefined}
                     >
-                      {item.label}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                      <Icon size={14} />
+                      {!isCollapsed && (
+                        <span
+                          className={`font-medium ${
+                            isActive ? "font-semibold" : ""
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}

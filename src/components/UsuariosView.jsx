@@ -1,21 +1,26 @@
 import React, { useState, useContext } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../contexts/AuthContext.jsx';
 import ToggleSwitch from './ToggleSwitch';
-import { 
-  User, 
+import UserFormModal from './UserFormModal.jsx';
+import {
+  User,
   Search,
   Shield,
   UserCheck,
   UserX,
   Calendar,
-  Mail
+  Mail,
+  Plus,
+  Edit
 } from 'lucide-react';
 
-const UsuariosView = () => {
-  const { users, updateUserProfile, currentUser: loggedInUser } = useContext(AuthContext);
+const UsuariosView = ({ empresas = [], sucursales = [] }) => {
+  const { users, updateUserProfile, createUserProfile, currentUser: loggedInUser } = useContext(AuthContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
 
   const handleToggleStatus = async (userId, currentStatus) => {
     if (userId === loggedInUser.id) {
@@ -24,6 +29,29 @@ const UsuariosView = () => {
     }
     const newStatus = currentStatus === 'activo' ? 'inactivo' : 'activo';
     await updateUserProfile(userId, { estado: newStatus });
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingUser(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (usuario) => {
+    setEditingUser(usuario);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+  };
+
+  const handleSaveUser = async (userIdOrData, maybeUpdates) => {
+    if (editingUser) {
+      await updateUserProfile(userIdOrData, maybeUpdates);
+    } else {
+      await createUserProfile(userIdOrData);
+    }
   };
 
   const filteredUsuarios = (users || []).filter(usuario => {
@@ -71,6 +99,13 @@ const UsuariosView = () => {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Gestión de Usuarios</h2>
           <p className="text-gray-600 dark:text-gray-400">Administra usuarios y permisos del sistema.</p>
         </div>
+        <button
+          onClick={handleOpenCreateModal}
+          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus size={14} />
+          <span>Añadir Usuario</span>
+        </button>
       </div>
 
       <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4 mb-6">
@@ -117,7 +152,14 @@ const UsuariosView = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex space-x-1">
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                 <button
+                    onClick={() => handleOpenEditModal(usuario)}
+                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                    title="Editar usuario"
+                  >
+                    <Edit size={12} className="text-gray-600 dark:text-gray-300" />
+                  </button>
                  <ToggleSwitch
                     checked={usuario.estado === 'activo'}
                     onChange={() => handleToggleStatus(usuario.id, usuario.estado)}
@@ -156,6 +198,18 @@ const UsuariosView = () => {
           </motion.div>
         ))}
       </div>
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <UserFormModal
+            onClose={handleCloseModal}
+            onSave={handleSaveUser}
+            userToEdit={editingUser}
+            empresas={empresas}
+            sucursales={sucursales}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

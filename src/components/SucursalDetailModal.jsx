@@ -7,7 +7,7 @@ import ToggleSwitch from './ToggleSwitch';
 import AddPersonModal from './AddPersonModal.jsx';
 
 
-const SucursalDetailModal = ({ sucursal, onClose, onAddPersonal, onRemovePersonal, onUpdatePersonal }) => {
+const SucursalDetailModal = ({ sucursal, empresas = [], onClose, onAddPersonal, onRemovePersonal, onUpdatePersonal }) => {
   const { currentUser } = useContext(AuthContext);
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);
   const [personal, setPersonal] = useState([]);
@@ -165,7 +165,9 @@ const SucursalDetailModal = ({ sucursal, onClose, onAddPersonal, onRemovePersona
       </div>
       <AnimatePresence>
         {isAddPersonModalOpen && (
-          <AddPersonModal 
+          <AddPersonModal
+            sucursal={sucursal}
+            empresas={empresas}
             onClose={() => setIsAddPersonModalOpen(false)}
             onSave={handleAddPerson}
           />

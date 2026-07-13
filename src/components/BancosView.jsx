@@ -138,14 +138,27 @@ const BancosView = ({ bancos, empresas, onAddEmpresa, cuentas, onAddCuenta, onUp
     e.target.value = null;
   };
 
+  // CuentaBancariaResponse (backend) solo trae empresa_id/banco_id planos, sin
+  // objetos anidados: se resuelven nombre/abreviatura contra las listas ya
+  // cargadas por props en vez de esperar cuenta.empresa/cuenta.banco.
+  const empresaById = React.useMemo(
+    () => new Map(empresas.map((empresa) => [empresa.id, empresa])),
+    [empresas]
+  );
+  const bancoById = React.useMemo(
+    () => new Map(bancos.map((banco) => [banco.id, banco])),
+    [bancos]
+  );
+
   const filteredCuentas = cuentas.filter(cuenta => {
     const searchTermLower = searchTerm.toLowerCase();
+    const bancoAbreviatura = bancoById.get(cuenta.banco_id)?.abreviatura || '';
 
-    const matchesSearch = (cuenta.banco?.abreviatura.toLowerCase().includes(searchTermLower)) ||
+    const matchesSearch = bancoAbreviatura.toLowerCase().includes(searchTermLower) ||
       (cuenta.nro_cuenta && cuenta.nro_cuenta.toLowerCase().includes(searchTermLower)) ||
       (cuenta.anexo && cuenta.anexo.toLowerCase().includes(searchTermLower));
-    
-    const matchesEmpresa = filterEmpresa === 'all' || cuenta.empresa?.id === filterEmpresa;
+
+    const matchesEmpresa = filterEmpresa === 'all' || cuenta.empresa_id === filterEmpresa;
 
     return matchesSearch && matchesEmpresa;
   });
@@ -220,8 +233,8 @@ const BancosView = ({ bancos, empresas, onAddEmpresa, cuentas, onAddCuenta, onUp
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredCuentas.map((cuenta) => (
                   <motion.tr key={cuenta.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-semibold">{cuenta.empresa?.nombre}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-mono">{cuenta.banco?.abreviatura}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-semibold">{empresaById.get(cuenta.empresa_id)?.nombre}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-mono">{bancoById.get(cuenta.banco_id)?.abreviatura}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{cuenta.anexo}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-200 font-mono">{cuenta.nro_cuenta}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{cuenta.subdiario}</td>

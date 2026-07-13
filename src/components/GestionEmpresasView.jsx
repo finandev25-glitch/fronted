@@ -32,8 +32,7 @@ const GestionEmpresasView = ({ empresas, onAdd, onUpdate }) => {
   };
 
   const filteredEmpresas = empresas.filter(empresa =>
-    (empresa.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (empresa.abreviatura || '').toLowerCase().includes(searchTerm.toLowerCase())
+    (empresa.nombre || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -58,7 +57,7 @@ const GestionEmpresasView = ({ empresas, onAdd, onUpdate }) => {
             <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre o abreviatura..."
+              placeholder="Buscar por nombre..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200"
@@ -72,7 +71,6 @@ const GestionEmpresasView = ({ empresas, onAdd, onUpdate }) => {
               <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Nombre de la Empresa</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Abreviatura</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -96,7 +94,6 @@ const GestionEmpresasView = ({ empresas, onAdd, onUpdate }) => {
                           <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{empresa.nombre}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">{empresa.abreviatura}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <ToggleSwitch checked={empresa.estado === 'activo'} onChange={() => handleToggleStatus(empresa)} />
                       </td>
@@ -124,7 +121,6 @@ const GestionEmpresasView = ({ empresas, onAdd, onUpdate }) => {
             onClose={handleCloseModal}
             onSave={handleSave}
             empresaToEdit={editingEmpresa}
-            existingEmpresas={empresas}
           />
         )}
       </AnimatePresence>
