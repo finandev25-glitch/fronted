@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { AuthContext } from "../contexts/AuthContext";
 import { formatDate } from "../utils/dateFormatters";
-import SimpleFileManager from "./SimpleFileManager";
 import { apiDelete, apiGet, apiPost } from "../services/backendApi.js";
 
 const RegularizarDepositos = ({ onDepositUpdated }) => {
@@ -95,8 +94,6 @@ const RegularizarDepositos = ({ onDepositUpdated }) => {
   const [duplicateDeposits, setDuplicateDeposits] = useState([]);
 
   // Estados para manejo de archivos
-  const [showFileManager, setShowFileManager] = useState(false);
-  const [selectedDepositForFiles, setSelectedDepositForFiles] = useState(null);
 
   // Cargar catálogos y depósitos al iniciar
   useEffect(() => {
@@ -499,19 +496,6 @@ const RegularizarDepositos = ({ onDepositUpdated }) => {
     setAnexoSearch("");
     clearCroppedImage();
     setMessage({ type: "", text: "" });
-  };
-
-  // Funciones para manejo de archivos
-  const openFileManager = (deposito) => {
-    setSelectedDepositForFiles(deposito);
-    setShowFileManager(true);
-  };
-
-  const closeFileManager = () => {
-    setShowFileManager(false);
-    setSelectedDepositForFiles(null);
-    // Recargar depósitos para actualizar los colores de las filas
-    loadDepositosRegularizados();
   };
 
   // Reset solo los datos de identificación
@@ -1239,13 +1223,6 @@ const RegularizarDepositos = ({ onDepositUpdated }) => {
                       <td className="px-2 py-1.5 text-center">
                         <div className="flex items-center justify-center space-x-1">
                           <button
-                            onClick={() => openFileManager(dep)}
-                            className="p-0.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded text-blue-600 dark:text-blue-400"
-                            title="Gestionar Archivos"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
-                          <button
                             onClick={() => handleDeleteDeposito(dep.id)}
                             className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-red-600 dark:text-red-400"
                             title="Eliminar"
@@ -1262,15 +1239,6 @@ const RegularizarDepositos = ({ onDepositUpdated }) => {
           </div>
         </div>
       </div>
-
-      {/* Modal para gestionar archivos */}
-      {showFileManager && selectedDepositForFiles && (
-        <SimpleFileManager
-          deposito={selectedDepositForFiles}
-          onClose={closeFileManager}
-          onDepositoUpdated={onDepositUpdated}
-        />
-      )}
     </div>
   );
 };

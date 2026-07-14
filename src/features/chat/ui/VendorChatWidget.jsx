@@ -192,6 +192,21 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
       if (vendedorIdStr === selectedVendedorIdRef.current) {
         setMessages((prev) => {
           if (mapped.id && prev.some((item) => String(item.id) === String(mapped.id))) return prev;
+          // Si este eco corresponde a un mensaje que este mismo panel acaba de
+          // mandar, puede llegar ANTES de que resuelva el POST (la notificacion
+          // de SignalR se dispara antes de que el endpoint devuelva la
+          // respuesta, ver ChatService.AddVendedorMessageAsync). En ese caso el
+          // mensaje optimista todavia tiene el id temporal "local-...", asi que
+          // el chequeo de arriba no lo detecta como duplicado. Se reconcilia
+          // aca en vez de agregar una entrada nueva; cuando el POST resuelva,
+          // el .map de handleSend ya no va a encontrar el id temporal y no va
+          // a hacer nada (sin duplicar).
+          const pendingMatch = prev.find(
+            (item) => String(item.id).startsWith("local-") && item.content === mapped.content
+          );
+          if (pendingMatch) {
+            return prev.map((item) => (item === pendingMatch ? { ...mapped } : item));
+          }
           return [...prev, mapped];
         });
       } else {
@@ -280,12 +295,12 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
 
     try {
       // sendVendedorChatMessage devuelve el mensaje YA persistido (con el id
-      // real del backend). Reemplazamos el mensaje optimista por ese: si mas
-      // tarde llega el eco del mismo mensaje via SignalR "ChatMessage", el
-      // chequeo por id en el listener (arriba) lo va a reconocer como
-      // duplicado y no lo va a insertar de nuevo. Esto es a proposito el
-      // mismo criterio que se uso para el chat de CONFIRMO (evitar renderizar
-      // "a ciegas" con un id local que nunca coincide con el id real).
+      // real del backend). Reemplazamos el mensaje optimista por ese. Si el
+      // eco de SignalR llega ANTES que esta respuesta (race real, ver el
+      // listener arriba), el eco ya reconcilia el mensaje optimista por
+      // contenido y este .map simplemente no encuentra el id temporal y no
+      // hace nada — no se duplica en ningun orden de llegada. Mismo criterio
+      // que se uso para el chat de CONFIRMO.
       const persisted = await sendVendedorChatMessage(selectedVendedor.id, { content });
       if (persisted?.id) {
         setMessages((prev) =>

@@ -16,7 +16,6 @@ import { driveFilesService } from "../services/driveFilesService";
 
 /**
  * Componente para mostrar archivos no vinculados en formato de cards
- * Similar al estilo de DocumentosView
  */
 const UnlinkedFilesGallery = ({ onFileSelect, onClose }) => {
   const [files, setFiles] = useState([]);

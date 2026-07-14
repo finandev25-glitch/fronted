@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import BancosView from "../components/BancosView";
 import CambiarContrasena from "../components/CambiarContrasena";
 import ConfirmadosPorHoraView from "../components/ConfirmadosPorHoraView";
-import DocumentosView from "../components/DocumentosView";
 import ExportarVouchersView from "../components/ExportarVouchersView";
 import GestionBancosView from "../components/GestionBancosView";
 import GestionEmpresasView from "../components/GestionEmpresasView";
@@ -164,7 +163,6 @@ export function AppRoutes({
       <Route path="/reportes" element={<ReportesView />} />
       <Route path="/confirmados" element={<ConfirmadosPorHoraView />} />
       <Route path="/apoyo" element={<Navigate to="/confirmados" replace />} />
-      <Route path="/documentos" element={<DocumentosView />} />
       <Route path="/exportar-vouchers" element={<ExportarVouchersView />} />
       <Route path="/cambiar-contrasena" element={<CambiarContrasena />} />
       <Route

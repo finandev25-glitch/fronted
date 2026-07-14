@@ -11,7 +11,6 @@ import {
   Users,
   PieChart,
   Clock3,
-  FileText,
   ShieldCheck,
   LogOut,
   ChevronLeft,
@@ -75,7 +74,6 @@ const SidebarContent = ({
       items: [
         { view: "reportes", icon: PieChart, label: "Reportes" },
         { view: "confirmados", icon: Clock3, label: "Confirmados" },
-        { view: "documentos", icon: FileText, label: "Documentos" },
         { view: "regularizar-depositos", icon: FolderCheck, label: "Regularizar Depósitos" },
         { view: "cambiar-contrasena", icon: KeyRound, label: "Cambiar Contraseña" },
       ],
