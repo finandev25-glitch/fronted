@@ -3,7 +3,13 @@ import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
-import { fetchCuentas } from "../../deposits/api/depositsApi.js";
+import {
+  fetchCuentas,
+  markDepositForRegularize,
+  unmarkDepositForRegularize,
+  financeRegularizeImage,
+} from "../../deposits/api/depositsApi.js";
+import RegularizeImageModal from "../../deposits/components/RegularizeImageModal.jsx";
 import React, {
   useState,
   useEffect,
@@ -20,7 +26,7 @@ import {
   X, User, Building2, CreditCard, Calendar, Clock, DollarSign,
   CheckCircle, XCircle, AlertCircle, FileText, Hash, Building, Info,
   Search, Loader2, Ban, MessageSquare, PanelRightOpen, Save, Fingerprint,
-  Eye, AlertTriangle, Phone, FileDown, ExternalLink,
+  Eye, AlertTriangle, Phone, FileDown, ExternalLink, UploadCloud,
 } from "lucide-react";
 import RejectionModal from "../../../components/RejectionModal";
 import GoogleDrivePicker from "../../../components/GoogleDrivePicker.jsx";
@@ -196,6 +202,54 @@ const DepositDetailModal = ({
   const [duplicateModalMode, setDuplicateModalMode] = useState("none");
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [duplicateStoreDataSnapshot, setDuplicateStoreDataSnapshot] = useState("");
+
+  // Regularizar voucher (solo finanzas/admin, independiente del Estado): el
+  // mismo flujo que ya existe en el listado de tabla (TablePage), pero
+  // disponible aca tambien porque el Kanban abre el detalle SIEMPRE a traves
+  // de este modal (no tiene un listado propio donde marcar la fila).
+  const userRolForRegularize = currentUser?.user_rol || currentUser?.rol || "";
+  const canRegularize = userRolForRegularize === "finanzas" || userRolForRegularize === "admin";
+  const [isMarkingRegularize, setIsMarkingRegularize] = useState(false);
+  const [showRegularizeUpload, setShowRegularizeUpload] = useState(false);
+
+  const handleMarkRegularize = async () => {
+    if (!canRegularize || isMarkingRegularize) return;
+    if (!window.confirm("¿Marcar este depósito para regularizar el voucher?")) return;
+
+    setIsMarkingRegularize(true);
+    try {
+      await markDepositForRegularize(deposit.id);
+      onUpdateDeposit({ ...deposit, pendiente_regularizar: true }, { skipPersist: true });
+    } catch (error) {
+      alert(`No se pudo marcar el depósito: ${error.message}`);
+    } finally {
+      setIsMarkingRegularize(false);
+    }
+  };
+
+  const handleUnmarkRegularize = async () => {
+    if (!canRegularize || isMarkingRegularize) return;
+    if (!window.confirm("¿Quitar la marca de regularizar de este depósito?")) return;
+
+    setIsMarkingRegularize(true);
+    try {
+      await unmarkDepositForRegularize(deposit.id);
+      onUpdateDeposit({ ...deposit, pendiente_regularizar: false }, { skipPersist: true });
+    } catch (error) {
+      alert(`No se pudo desmarcar el depósito: ${error.message}`);
+    } finally {
+      setIsMarkingRegularize(false);
+    }
+  };
+
+  // Sube el archivo nuevo via PUT /finance-regularize-image. No cambia
+  // Estado ni encola nada al python-worker -- solo reemplaza el archivo. La
+  // URL del voucher (endpoint redirect estable) no necesita actualizarse.
+  const handleSubmitRegularizeImage = async (imagenBase64) => {
+    await financeRegularizeImage(deposit.id, imagenBase64);
+    onUpdateDeposit({ ...deposit, pendiente_regularizar: false }, { skipPersist: true });
+    setShowRegularizeUpload(false);
+  };
 
   const openDuplicateModal = (mode) => {
     setDuplicateModalMode(mode);
@@ -2207,6 +2261,40 @@ const DepositDetailModal = ({
                   </button>
                 )}
 
+                {/* Regularizar voucher (solo finanzas/admin, cualquier estado) */}
+                {canRegularize && !deposit.pendiente_regularizar && (
+                  <button
+                    onClick={handleMarkRegularize}
+                    disabled={isMarkingRegularize}
+                    className="px-3 py-1.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Marcar para regularizar el voucher (independiente del estado)"
+                  >
+                    <AlertTriangle size={12} />
+                    <span>Regularizar</span>
+                  </button>
+                )}
+                {canRegularize && deposit.pendiente_regularizar && (
+                  <>
+                    <button
+                      onClick={() => setShowRegularizeUpload(true)}
+                      className="px-3 py-1.5 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium flex items-center justify-center space-x-2 text-sm"
+                      title="Subir la nueva imagen/pdf del voucher"
+                    >
+                      <UploadCloud size={12} />
+                      <span>Subir imagen</span>
+                    </button>
+                    <button
+                      onClick={handleUnmarkRegularize}
+                      disabled={isMarkingRegularize}
+                      className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Quitar la marca de regularizar"
+                    >
+                      <XCircle size={12} />
+                      <span>Quitar marca</span>
+                    </button>
+                  </>
+                )}
+
                 {/* Grupo de confirmación */}
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -2258,6 +2346,13 @@ const DepositDetailModal = ({
         <RejectionModal
           onClose={() => setIsRejectionModalOpen(false)}
           onConfirm={handleConfirmRejection}
+        />
+      )}
+      {showRegularizeUpload && (
+        <RegularizeImageModal
+          deposit={deposit}
+          onClose={() => setShowRegularizeUpload(false)}
+          onSubmit={handleSubmitRegularizeImage}
         />
       )}
       <ContactDetailsPortal

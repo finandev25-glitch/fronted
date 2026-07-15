@@ -298,6 +298,24 @@ function mapDeposit(item) {
       sucursal: item.sucursal ? mapSucursal(item.sucursal) : null,
       trabajador: item.trabajador ? mapTrabajador(item.trabajador) : null,
       validado_por_usuario: item.validadoPorUsuario || null,
+      // Marcado por finanzas/admin desde el listado (independiente del
+      // Estado) para indicar que el voucher esta incompleto y hay que
+      // subirle una imagen nueva. Ver markDepositForRegularize/
+      // financeRegularizeImage mas abajo.
+      //
+      // OJO: el backend solo manda "pendienteRegularizar" en la respuesta
+      // del LISTADO (GET /v1/deposits), no en la del detalle individual
+      // (GET /v1/deposits/{id}). El Kanban pide ese detalle individual
+      // aparte y lo fusiona sobre el depósito que ya tenía cargado
+      // ({...prev, ...fullDeposit} en KanbanPage). Si aquí siempre
+      // pusiéramos `Boolean(item.pendienteRegularizar)`, esa fusión
+      // pisaría el flag correcto (true, venido del listado) con `false`
+      // apenas llegara el detalle. Por eso solo se incluye la clave cuando
+      // el campo realmente vino en la respuesta -- así el spread del
+      // detalle no tiene con qué sobreescribirlo.
+      ...(item.pendienteRegularizar !== undefined
+        ? { pendiente_regularizar: Boolean(item.pendienteRegularizar) }
+        : {}),
     };
   }
 
@@ -641,6 +659,34 @@ export async function rejectDeposit(id, { observaciones, anexo } = {}) {
     body: JSON.stringify(body),
   });
   return data;
+}
+
+// POST /v1/deposits/{id}/mark-regularize — Solo finanzas/admin (el backend
+// valida el rol). A diferencia de regularizeDeposit (flujo del vendedor,
+// exige Estado="rechazado" y SI vuelve a encolar al worker de IA), este
+// marca el deposito para regularizar sin importar su Estado actual. Es solo
+// el primer paso: marca el flag `pendienteRegularizar`, el archivo se sube
+// despues con financeRegularizeImage. Sin motivo: no se pide/envia desde el
+// fronted.
+export async function markDepositForRegularize(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/mark-regularize`, { method: "POST" });
+}
+
+// POST /v1/deposits/{id}/unmark-regularize — por si se marco por error.
+export async function unmarkDepositForRegularize(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/unmark-regularize`, { method: "POST" });
+}
+
+// PUT /v1/deposits/{id}/finance-regularize-image — reemplaza UNICAMENTE el
+// archivo del voucher (imagenBase64 sin el prefijo "data:...;base64,").
+// El backend exige que el deposito ya este marcado (mark-regularize) y, a
+// diferencia de regularizeDeposit, NO cambia Estado ni encola nada para el
+// python-worker: es un reemplazo directo, no un reproceso.
+export async function financeRegularizeImage(id, imagenBase64) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/finance-regularize-image`, {
+    method: "PUT",
+    body: JSON.stringify({ imagenBase64 }),
+  });
 }
 
 export async function updateDeposit(id, payload) {

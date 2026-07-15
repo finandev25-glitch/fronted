@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit, Eye } from "lucide-react";
+import { Edit, Eye, AlertTriangle, UploadCloud, XCircle as XCircleIcon } from "lucide-react";
 
 export default function DepositsTable({
   filteredDeposits,
@@ -8,6 +8,13 @@ export default function DepositsTable({
   getStatusBadge,
   onEditDeposit,
   onViewVoucher,
+  // Regularizar imagen (solo finanzas/admin): marcar/desmarcar el deposito
+  // (independiente de su Estado) y, una vez marcado, subir el archivo nuevo.
+  // canRegularize se resuelve en TablePage a partir de currentUser.rol.
+  canRegularize = false,
+  onMarkRegularize,
+  onUnmarkRegularize,
+  onOpenRegularizeUpload,
 }) {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -74,7 +81,18 @@ export default function DepositsTable({
                   {deposit.moneda}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4">
-                  {getStatusBadge(deposit.estado)}
+                  <div className="flex flex-col gap-1">
+                    {getStatusBadge(deposit.estado)}
+                    {deposit.pendiente_regularizar && (
+                      <span
+                        className="inline-flex w-fit items-center space-x-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+                        title="Marcado para regularizar el voucher"
+                      >
+                        <AlertTriangle size={12} />
+                        <span>Regularizar</span>
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td
                   className="w-20 max-w-20 truncate px-2 py-4 align-top text-xs text-red-600 dark:text-red-400"
@@ -146,6 +164,35 @@ export default function DepositsTable({
                         className="text-gray-600 dark:text-gray-300"
                       />
                     </button>
+                    {canRegularize && !deposit.pendiente_regularizar && (
+                      <button
+                        onClick={() => onMarkRegularize?.(deposit)}
+                        className="inline-flex items-center space-x-1.5 rounded-md bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                        title="Marcar para regularizar el voucher (independiente del estado)"
+                      >
+                        <AlertTriangle size={14} />
+                        <span>Regularizar</span>
+                      </button>
+                    )}
+                    {canRegularize && deposit.pendiente_regularizar && (
+                      <>
+                        <button
+                          onClick={() => onOpenRegularizeUpload?.(deposit)}
+                          className="inline-flex items-center space-x-1.5 rounded-md bg-purple-100 px-3 py-1.5 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                          title="Subir la nueva imagen/pdf del voucher"
+                        >
+                          <UploadCloud size={14} />
+                          <span>Subir imagen</span>
+                        </button>
+                        <button
+                          onClick={() => onUnmarkRegularize?.(deposit)}
+                          className="rounded-md p-2 transition-colors hover:bg-gray-200 dark:hover:bg-gray-600"
+                          title="Quitar la marca de regularizar"
+                        >
+                          <XCircleIcon size={14} className="text-gray-500 dark:text-gray-300" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
