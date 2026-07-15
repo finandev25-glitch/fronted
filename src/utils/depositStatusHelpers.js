@@ -9,7 +9,7 @@ import {
  * Configuración centralizada de estados de depósitos
  */
 export const depositStatusConfig = {
-  pendiente: {
+  procesado: {
     icon: Clock,
     label: "Pendiente",
     color: "text-orange-600 bg-orange-100 dark:text-orange-300 dark:bg-orange-900/50",
@@ -27,9 +27,9 @@ export const depositStatusConfig = {
     shadow: "shadow-md dark:shadow-black/30 hover:shadow-lg hover:shadow-blue-500/50 dark:hover:shadow-blue-400/40",
     iconColor: "text-blue-600 dark:text-blue-400",
   },
-  validado: {
+  confirmado: {
     icon: CheckCircle,
-    label: "Validado",
+    label: "Confirmado",
     color: "text-green-600 bg-green-100 dark:text-green-300 dark:bg-green-900/50",
     borderColor: "border-l-green-500",
     gradient: "bg-gradient-to-br from-green-50/80 to-white dark:from-green-900/20 dark:to-gray-800",
@@ -45,6 +45,39 @@ export const depositStatusConfig = {
     shadow: "shadow-md dark:shadow-black/30 hover:shadow-lg hover:shadow-red-500/50 dark:hover:shadow-red-400/40",
     iconColor: "text-red-600 dark:text-red-400",
   },
+};
+
+/**
+ * Determina si un depósito es "antiguo". El backend expone esto vía el campo
+ * `condicion === "antiguo"` (se setea cuando la fecha del voucher es anterior
+ * a hoy). Se mantiene `es_antiguo` como fallback por si en el futuro se puebla
+ * esa columna.
+ * @param {{ es_antiguo?: boolean, condicion?: string } | null} deposit
+ * @returns {boolean}
+ */
+export const isDepositAntiguo = (deposit) => {
+  if (!deposit) return false;
+  if (deposit.es_antiguo === true) return true;
+  return String(deposit.condicion || "").toLowerCase() === "antiguo";
+};
+
+/**
+ * Columna del Kanban a la que pertenece un depósito. El backend no tiene un
+ * estado "en_validacion" real: un "procesado" pasa a la columna "En Validación"
+ * cuando ya fue tomado (validado_por) O cuando es antiguo (condicion "antiguo"),
+ * para que los antiguos entren directo a validación en vez de quedarse en
+ * "Pendiente". El resto conserva su estado tal cual.
+ * @param {{ estado?: string, validado_por?: any, es_antiguo?: boolean, condicion?: string }} deposit
+ * @returns {string} id de columna ("procesado" | "en_validacion" | "confirmado" | "rechazado" | ...)
+ */
+export const getKanbanBucket = (deposit) => {
+  if (
+    deposit?.estado === "procesado" &&
+    (deposit.validado_por || isDepositAntiguo(deposit))
+  ) {
+    return "en_validacion";
+  }
+  return deposit?.estado;
 };
 
 /**
@@ -97,4 +130,6 @@ export default {
   getStatusIcon,
   getStatusLabel,
   getStatusBorder,
+  isDepositAntiguo,
+  getKanbanBucket,
 };

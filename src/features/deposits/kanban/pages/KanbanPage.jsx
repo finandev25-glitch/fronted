@@ -22,6 +22,10 @@ import { KanbanToolbar } from "../../../../widgets/deposits-kanban-board/ui/Kanb
 import { KanbanColumns } from "../../../../widgets/deposits-kanban-board/ui/KanbanColumns.jsx";
 import { fetchDepositById } from "../../api/depositsApi.js";
 import {
+  getKanbanBucket,
+  isDepositAntiguo,
+} from "../../../../utils/depositStatusHelpers";
+import {
   KANBAN_COLUMNS as KANBAN_COLUMN_DEFS,
   getSelectedDateFilter,
 } from "../../../../widgets/deposits-kanban-board/lib/kanbanHelpers.js";
@@ -545,15 +549,11 @@ const KanbanPage = ({
   const groupedDeposits = useMemo(() => {
     const grouped = visibleDeposits.reduce((acc, deposit) => {
       // El backend real (Deposito.cs) solo tiene los estados recibido/
-      // procesado/rechazado/confirmado — "en_validacion" no existe ahí. Lo
-      // que existe es "procesado" + "validado_por" seteado (alguien lo tomo
-      // con el lock). Por eso agrupamos visualmente los "procesado" ya
-      // tomados bajo la columna "en_validacion", y los libres se quedan en
-      // "procesado" (columna "Pendiente").
-      const bucket =
-        deposit.estado === "procesado" && deposit.validado_por
-          ? "en_validacion"
-          : deposit.estado;
+      // procesado/rechazado/confirmado — "en_validacion" no existe ahí. Un
+      // "procesado" pasa a la columna "En Validación" cuando ya fue tomado
+      // (validado_por) O cuando es antiguo (condicion "antiguo"). La regla
+      // vive en getKanbanBucket para compartirla con DepositCard.
+      const bucket = getKanbanBucket(deposit);
 
       if (!acc[bucket]) {
         acc[bucket] = [];
@@ -585,8 +585,8 @@ const KanbanPage = ({
   const validacionSeparated = useMemo(() => {
     const enValidacion = groupedDeposits["en_validacion"] || [];
     return {
-      normales: enValidacion.filter((d) => !d.es_antiguo),
-      antiguos: enValidacion.filter((d) => d.es_antiguo),
+      normales: enValidacion.filter((d) => !isDepositAntiguo(d)),
+      antiguos: enValidacion.filter((d) => isDepositAntiguo(d)),
     };
   }, [groupedDeposits]);
 
@@ -711,21 +711,15 @@ const KanbanPage = ({
       return;
     }
 
-    console.log(
-      "🚪 KANBAN: Cerrando modal - el depósito mantiene su estado actual",
-    );
+    console.log("🚪 KANBAN: Cerrando modal");
 
     // Limpiar localStorage ya que el usuario cerró explícitamente el modal
     clearOpenDepositId();
 
-    // NO regresar a pendiente - el depósito se queda en su estado actual
-    // Esto permite que los depósitos "en_validacion" permanezcan ahí aunque se cierre el modal
-
-    // Si el usuario cierra SIN confirmar/rechazar y todavía tiene el candado
+    // Si el usuario cierra SIN confirmar ni rechazar y todavía tiene el candado
     // (validado_por === el mismo usuario, estado sigue "procesado"), lo
-    // liberamos para que otro pueda tomarlo. handleTakeDepositForValidation ya
-    // hizo lo mismo internamente si confirmó/rechazó (el estado ya no sería
-    // "procesado" en ese caso, asi que este unlock es un no-op ahí).
+    // liberamos para que otro pueda tomarlo y el depósito vuelva a "Pendiente".
+    // Ya no se fuerza a que permanezca en "En Validación" al cerrar el modal.
     const depositBeingClosed = selectedDepositRef.current;
     if (depositBeingClosed && onUnlockDeposit) {
       void onUnlockDeposit(depositBeingClosed);
@@ -776,6 +770,7 @@ const KanbanPage = ({
           setShowPendientesOtros={setShowPendientesOtros}
           handleCardClick={handleCardClick}
           selectedDepositId={selectedDeposit?.id}
+          realtimeActivity={realtimeActivity}
         />
       </div>
       <AnimatePresence>

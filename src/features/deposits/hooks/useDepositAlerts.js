@@ -4,6 +4,11 @@ import { createSupportRequest } from "../api/depositsApi.js";
 const WORKLOAD_ALERT_THRESHOLD = 3;
 const WORKLOAD_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 
+// Notificación de nuevos pendientes: "más de 3" => count > 3. Cooldown corto
+// para no repetir la notificación cuando llegan varios depósitos seguidos.
+const PENDING_ALERT_THRESHOLD = 3;
+const PENDING_ALERT_COOLDOWN_MS = 60 * 1000;
+
 export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
   const [workloadAlarmActive, setWorkloadAlarmActive] = useState(false);
   const [replacementRequestState, setReplacementRequestState] = useState({
@@ -19,26 +24,25 @@ export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
 
   const ensureNotificationPermission = useCallback(async () => {
     void notificationPermissionPromiseRef;
-    return "disabled";
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return "unsupported";
+    }
+    if (Notification.permission === "granted") return "granted";
+    if (Notification.permission === "denied") return "denied";
+    try {
+      return await Notification.requestPermission();
+    } catch {
+      return Notification.permission;
+    }
   }, []);
 
   const getNotificationIconUrl = useCallback(() => {
+    // Ícono rojo con una campana, para que la notificación se lea urgente.
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-        <defs>
-          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#0f172a"/>
-            <stop offset="100%" stop-color="#2563eb"/>
-          </linearGradient>
-        </defs>
-        <rect width="128" height="128" rx="28" fill="url(#g)"/>
-        <path d="M24 50.5 64 33l40 17.5v10H24v-10Z" fill="#f8fafc"/>
-        <rect x="28" y="60" width="72" height="8" rx="4" fill="#e2e8f0"/>
-        <rect x="31" y="70" width="10" height="30" rx="3" fill="#f8fafc"/>
-        <rect x="49" y="70" width="10" height="30" rx="3" fill="#f8fafc"/>
-        <rect x="69" y="70" width="10" height="30" rx="3" fill="#f8fafc"/>
-        <rect x="87" y="70" width="10" height="30" rx="3" fill="#f8fafc"/>
-        <rect x="24" y="100" width="80" height="8" rx="4" fill="#e2e8f0"/>
+        <rect width="128" height="128" rx="28" fill="#dc2626"/>
+        <path d="M64 28c-12 0-21 9-21 21v13l-9 12v4h60v-4l-9-12V49c0-12-9-21-21-21Z" fill="#ffffff"/>
+        <circle cx="64" cy="98" r="9" fill="#ffffff"/>
       </svg>
     `.trim();
 
@@ -93,17 +97,38 @@ export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
   }, []);
 
   const showNativeAlert = useCallback(
-    async ({ title, body, tag, requireInteraction = true, requestPermission = false }) => {
-      void title;
-      void body;
-      void tag;
-      void requireInteraction;
-      void requestPermission;
-      void ensureNotificationPermission;
-      void getNotificationIconUrl;
-      return false;
+    ({ title, body, tag, requireInteraction = true }) => {
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        return false;
+      }
+      // No pedimos permiso aquí (requiere gesto del usuario); solo mostramos
+      // si ya fue concedido. El botón "Activar notificaciones" hace la solicitud.
+      if (Notification.permission !== "granted") return false;
+
+      try {
+        const notification = new Notification(title, {
+          body,
+          tag,
+          renotify: true,
+          requireInteraction,
+          icon: getNotificationIconUrl(),
+          badge: getNotificationIconUrl(),
+        });
+        notification.onclick = () => {
+          try {
+            window.focus();
+          } catch {
+            // Ignorar: algunos navegadores no permiten enfocar desde aquí.
+          }
+          notification.close();
+        };
+        return true;
+      } catch (error) {
+        console.warn("No se pudo mostrar la notificación nativa:", error?.message);
+        return false;
+      }
     },
-    [ensureNotificationPermission, getNotificationIconUrl]
+    [getNotificationIconUrl]
   );
 
   const showPendingDepositNotification = useCallback(
@@ -113,6 +138,54 @@ export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
       return false;
     },
     [showNativeAlert]
+  );
+
+  // Dispara la notificación roja: nativa del SO (si hay permiso) + sonido +
+  // vibración. Visible aunque el navegador esté minimizado o el usuario esté
+  // en otra aplicación (mientras el navegador siga abierto).
+  const fireRedNotification = useCallback(
+    async ({ title, body, tag }) => {
+      const shown = showNativeAlert({ title, body, tag, requireInteraction: true });
+      await Promise.allSettled([playAlarmTone()]);
+      vibrateAlarm();
+      return shown;
+    },
+    [showNativeAlert, playAlarmTone, vibrateAlarm]
+  );
+
+  // Notifica cuando la columna "Pendiente" de hoy supera 3 cards. Funciona por
+  // "episodio": dispara una vez mientras el conteo esté por encima de 3, y se
+  // rearma cuando baja a 3 o menos (así vuelve a avisar en el siguiente pico).
+  // Si aún no se concedió el permiso, NO se marca como notificado, para que
+  // reintente en la próxima evaluación (p. ej. al activar el permiso).
+  const pendingAlertRef = useRef({ episodeNotified: false, lastNotifiedAt: 0 });
+  const notifyNewPendingIfNeeded = useCallback(
+    async (count) => {
+      const state = pendingAlertRef.current;
+
+      if (count <= PENDING_ALERT_THRESHOLD) {
+        state.episodeNotified = false; // se rearma al bajar de 4
+        return false;
+      }
+
+      const now = Date.now();
+      const withinCooldown = now - state.lastNotifiedAt < PENDING_ALERT_COOLDOWN_MS;
+      if (state.episodeNotified && withinCooldown) return false;
+
+      const shown = await fireRedNotification({
+        title: "🔴 Nuevos depósitos pendientes",
+        body: `Hay ${count} depósitos pendientes de hoy por validar.`,
+        tag: "nuevo-pendiente-hoy",
+      });
+
+      state.lastNotifiedAt = now;
+      // Solo cerramos el "episodio" si la notificación nativa realmente se
+      // mostró; si faltaba permiso, dejamos que reintente al activarlo.
+      if (shown) state.episodeNotified = true;
+
+      return shown;
+    },
+    [fireRedNotification]
   );
 
   const createSupportRequestOnBackend = useCallback(
@@ -225,6 +298,8 @@ export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
     triggerWorkloadAlarm,
     requestReplacementHelp,
     showPendingDepositNotification,
+    notifyNewPendingIfNeeded,
+    ensureNotificationPermission,
   };
 }
 

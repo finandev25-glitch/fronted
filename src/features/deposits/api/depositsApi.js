@@ -268,6 +268,7 @@ function mapDeposit(item) {
       observaciones: item.observaciones || null,
       motivo_rechazo: item.motivoRechazo || null,
       fecha_validacion: item.fechaValidacion || null,
+      condicion: item.condicion || null,
       empresa_id: item.empresaId ? String(item.empresaId).toLowerCase() : null,
       banco_id: item.bancoId ? String(item.bancoId).toLowerCase() : null,
       sucursal_id: item.sucursalId ? String(item.sucursalId).toLowerCase() : null,

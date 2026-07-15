@@ -81,6 +81,34 @@ export function useDepositDashboard() {
     void alerts.triggerWorkloadAlarm();
   }, [alerts.triggerWorkloadAlarm, records.pendingWorkloadCount]);
 
+  // Notificación roja cuando la columna "Pendiente" de hoy supera 3 cards.
+  // notifyNewPendingIfNeeded aplica la condición (>3), el episodio y el cooldown.
+  useEffect(() => {
+    void alerts.notifyNewPendingIfNeeded(records.pendientesHoyCount);
+  }, [alerts.notifyNewPendingIfNeeded, records.pendientesHoyCount]);
+
+  // Re-verificar al volver el foco a la pestaña: cubre el caso de que el usuario
+  // recién active el permiso de notificaciones teniendo ya >3 pendientes (sin
+  // esto habría que esperar a que cambie el conteo).
+  const pendientesHoyCountRef = useRef(records.pendientesHoyCount);
+  useEffect(() => {
+    pendientesHoyCountRef.current = records.pendientesHoyCount;
+  }, [records.pendientesHoyCount]);
+
+  useEffect(() => {
+    const recheck = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        void alerts.notifyNewPendingIfNeeded(pendientesHoyCountRef.current);
+      }
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, [alerts.notifyNewPendingIfNeeded]);
+
   return {
     bancos: catalogs.bancos,
     empresas: catalogs.empresas,

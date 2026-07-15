@@ -5,6 +5,7 @@ import FloatingDepositMetaOverlay from "../components/FloatingDepositMetaOverlay
 import MobileHeader from "../components/MobileHeader.jsx";
 import Sidebar from "../components/Sidebar";
 import VoucherExtensionPanel from "../components/VoucherExtensionPanel.jsx";
+import WebFramePanel from "../components/WebFramePanel.jsx";
 import VendorChatWidget from "../features/chat/ui/VendorChatWidget.jsx";
 import { AuthContext } from "../features/auth/context/AuthContext.jsx";
 import { useDepositDashboard } from "../features/deposits/hooks/useDepositDashboard.js";
@@ -248,6 +249,9 @@ export function AppShell({ uiMode = "default" }) {
           en cualquier pantalla del panel. El propio componente se oculta
           para otros roles (ver FINANCE_ROLES en VendorChatWidget.jsx). */}
       <VendorChatWidget currentUser={currentUser} />
+
+      {/* Panel lateral con página web incrustada (Google) */}
+      {!isExtensionMode && <WebFramePanel />}
     </div>
   );
 }

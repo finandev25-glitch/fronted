@@ -69,4 +69,53 @@
   .alarm-glow {
     animation: alarmGlow 0.9s ease-in-out infinite;
   }
+
+  /* Flash de una sola pasada cuando una card recibe un cambio via SignalR.
+     La duracion (1.4s) debe coincidir con HIGHLIGHT_MS en
+     useRealtimeHighlights.js para que la clase se retire justo al terminar. */
+  @keyframes rtFlashUpdate {
+    0% {
+      box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    }
+    15% {
+      box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    }
+  }
+
+  @keyframes rtFlashInsert {
+    0% {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+    15% {
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.55);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+  }
+
+  .rt-flash-update {
+    border-radius: 0.5rem;
+    animation: rtFlashUpdate 1.4s ease-out;
+  }
+
+  .rt-flash-insert {
+    border-radius: 0.5rem;
+    animation: rtFlashInsert 1.4s ease-out;
+  }
+
+  /* Accesibilidad: usuarios que piden menos movimiento no ven parpadeos
+     ni pulsos infinitos. Framer Motion ya respeta esto via useReducedMotion;
+     esto cubre las animaciones CSS puras. */
+  @media (prefers-reduced-motion: reduce) {
+    .alarm-flash,
+    .alarm-glow,
+    .rt-flash-update,
+    .rt-flash-insert {
+      animation: none;
+    }
+  }
 }

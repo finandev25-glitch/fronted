@@ -7,6 +7,7 @@ import {
   lockDeposit,
   unlockDeposit,
 } from "../api/depositsApi.js";
+import { toLocalISOString } from "../../../utils/dateFormatters";
 
 export function useDepositRecords({
   currentUser,
@@ -43,6 +44,22 @@ export function useDepositRecords({
     () => deposits.filter((deposit) => deposit?.estado === "recibido").length,
     [deposits]
   );
+
+  // Cards de la columna "Pendiente" de hoy: procesado, aún NO tomado
+  // (sin validado_por) y con fecha de registro de hoy. Es el conteo que
+  // dispara la notificación cuando supera 3. Comparamos la fecha LOCAL (Lima)
+  // del registro contra hoy-local, no el slice UTC de fecha_solo_date, para
+  // que coincida con la fecha que ve el tablero.
+  const pendientesHoyCount = useMemo(() => {
+    const hoy = toLocalISOString(new Date());
+    return deposits.filter(
+      (deposit) =>
+        deposit?.estado === "procesado" &&
+        !deposit?.validado_por &&
+        deposit?.fecha_registro &&
+        toLocalISOString(deposit.fecha_registro) === hoy
+    ).length;
+  }, [deposits]);
 
   const mergeDepositRecord = useCallback((existing = {}, incoming = {}) => {
     const merged = { ...existing, ...incoming };
@@ -338,6 +355,7 @@ export function useDepositRecords({
     depositsWithFullData,
     currentSelectedDate,
     pendingWorkloadCount,
+    pendientesHoyCount,
     realtimeActivity,
     refreshDeposits,
     fetchDepositsByDate: loadDepositsByDate,

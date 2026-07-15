@@ -1,22 +1,18 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Calendar,
-  MessageCircle,
   Search,
   X,
 } from "lucide-react";
-import ConnectionIndicator from "../../../../shared/ui/ConnectionIndicator.jsx";
 import DailyAttendanceSummary from "../../../../shared/ui/DailyAttendanceSummary.jsx";
+import NotificationPermissionButton from "./NotificationPermissionButton.jsx";
 
 export function KanbanToolbar({
   isCompactKanban,
-  showConnectionStatus,
-  connectionStatus,
   attendedUsersSummary,
   selectedValidatorFilter,
   handleValidatorFilterToggle,
   clearValidatorFilter,
-  setShowContactosModal,
   specificDate,
   setSpecificDate,
   onSelectDate,
@@ -33,20 +29,57 @@ export function KanbanToolbar({
   return (
     <>
       <div className="mb-4 flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="whitespace-nowrap text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Kanban de Depósitos
-          </h2>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+            <h2 className="whitespace-nowrap text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Kanban de Depósitos
+            </h2>
 
-          {!isCompactKanban && showConnectionStatus && connectionStatus && (
-            <div className="ml-auto rounded-full border border-gray-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/80">
-              <ConnectionIndicator
-                isAuthenticated={connectionStatus.isAuthenticated}
-                realtimeStatus={connectionStatus.realtimeStatus}
-                realtimeErrors={connectionStatus.realtimeErrors}
-              />
-            </div>
-          )}
+            <NotificationPermissionButton />
+
+            {/* Chips de usuarios atendidos, al costado derecho del título (desktop) */}
+            {!isCompactKanban && attendedUsersSummary.length > 0 && (
+              <div className="hidden flex-wrap items-center gap-x-2 gap-y-2 lg:flex">
+                {attendedUsersSummary.map((user) => (
+                  <button
+                    key={user.key}
+                    type="button"
+                    onClick={() => handleValidatorFilterToggle(user)}
+                    aria-pressed={selectedValidatorFilter?.key === user.key}
+                    className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 shadow-sm backdrop-blur transition-all ${
+                      selectedValidatorFilter?.key === user.key
+                        ? "alarm-flash border-red-600 bg-red-100 text-slate-900 shadow-lg shadow-red-500/30 dark:border-red-500 dark:bg-red-200 dark:text-slate-900"
+                        : "border-slate-200 bg-white/90 hover:border-red-300 hover:bg-red-50 dark:border-slate-700 dark:bg-gray-900/90 dark:hover:border-red-700 dark:hover:bg-red-950/20"
+                    }`}
+                    title={`${user.name}: ${user.count} depósito${user.count === 1 ? "" : "s"} atendido${user.count === 1 ? "" : "s"}`}
+                  >
+                    <div
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${
+                        selectedValidatorFilter?.key === user.key
+                          ? "from-red-200 to-red-100 text-slate-900"
+                          : "from-slate-800 to-slate-600 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+                      } text-[11px] font-bold`}
+                    >
+                      {user.count}
+                    </div>
+                    <span className="whitespace-nowrap text-xs font-medium leading-tight text-gray-600 dark:text-gray-300">
+                      {user.name}
+                    </span>
+                  </button>
+                ))}
+                {selectedValidatorFilter && (
+                  <button
+                    type="button"
+                    onClick={clearValidatorFilter}
+                    className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"
+                  >
+                    <span>Filtro: {selectedValidatorFilter.name}</span>
+                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">Limpiar</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {!isCompactKanban && attendedUsersSummary.length > 0 && (
@@ -63,8 +96,8 @@ export function KanbanToolbar({
               />
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5">
-              {selectedValidatorFilter && (
+            {selectedValidatorFilter && (
+              <div className="flex shrink-0 items-center">
                 <button
                   type="button"
                   onClick={clearValidatorFilter}
@@ -74,70 +107,8 @@ export function KanbanToolbar({
                 >
                   <X size={14} />
                 </button>
-              )}
-
-              <button
-                onClick={() => setShowContactosModal(true)}
-                className="flex items-center gap-2 rounded-lg bg-green-500 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-600"
-                title="Ver todos los contactos"
-              >
-                <MessageCircle size={16} />
-                <span className="hidden sm:inline">Contactos</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!isCompactKanban && attendedUsersSummary.length > 0 && (
-          <div className="hidden flex-wrap items-center gap-2 lg:flex">
-            {attendedUsersSummary.map((user) => (
-              <button
-                key={user.key}
-                type="button"
-                onClick={() => handleValidatorFilterToggle(user)}
-                aria-pressed={selectedValidatorFilter?.key === user.key}
-                className={`flex min-w-0 flex-col items-center rounded-xl border px-2 py-1 shadow-sm backdrop-blur transition-all ${
-                  selectedValidatorFilter?.key === user.key
-                    ? "alarm-flash border-red-600 bg-red-100 text-slate-900 shadow-lg shadow-red-500/30 dark:border-red-500 dark:bg-red-200 dark:text-slate-900"
-                    : "border-slate-200 bg-white/90 hover:border-red-300 hover:bg-red-50 dark:border-slate-700 dark:bg-gray-900/90 dark:hover:border-red-700 dark:hover:bg-red-950/20"
-                }`}
-                title={`${user.name}: ${user.count} depósito${user.count === 1 ? "" : "s"} atendido${user.count === 1 ? "" : "s"}`}
-              >
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${
-                    selectedValidatorFilter?.key === user.key
-                      ? "from-red-200 to-red-100 text-slate-900"
-                      : "from-slate-800 to-slate-600 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
-                  } text-[11px] font-bold`}
-                >
-                  {user.count}
-                </div>
-                <span className="mt-1 max-w-20 truncate text-[10px] font-medium leading-tight text-gray-600 dark:text-gray-300">
-                  {user.name}
-                </span>
-              </button>
-            ))}
-            {selectedValidatorFilter && (
-              <button
-                type="button"
-                onClick={clearValidatorFilter}
-                className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"
-              >
-                <span>Filtro: {selectedValidatorFilter.name}</span>
-                <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">Limpiar</span>
-              </button>
+              </div>
             )}
-
-            <div className="ml-auto flex items-center gap-3">
-              <button
-                onClick={() => setShowContactosModal(true)}
-                className="flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-white shadow-sm transition-colors hover:bg-green-600"
-                title="Ver todos los contactos"
-              >
-                <MessageCircle size={18} />
-                <span className="hidden sm:inline">Contactos</span>
-              </button>
-            </div>
           </div>
         )}
       </div>
