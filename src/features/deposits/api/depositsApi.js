@@ -251,7 +251,24 @@ export async function fetchDashboardBootstrap() {
 // (no existe una vista de "todos los depositos" para finanzas/admin todavia).
 // ---------------------------------------------------------------------------
 
+// Antes se guardaba/usaba item.imagenUrl (URL firmada de GCS, vive solo 20
+// minutos) tal cual venia del backend. Cualquier tabla/tarjeta que la tuviera
+// abierta mas de esos 20 minutos, o que la releyera de una fila cacheada,
+// terminaba con un link roto. En vez de eso, armamos SIEMPRE la misma URL
+// estable hacia el endpoint "redirect" del backend (GET
+// /v1/deposits/{id}/image): el backend firma una URL fresca en cada visita,
+// asi que esta URL nunca expira del lado del cliente.
+function buildVoucherImageUrl(depositId) {
+  if (!depositId) return null;
+  const token = getStoredAccessToken();
+  if (!token) return null;
+  return buildApiUrl(
+    `${API_BASE}${DEPOSITS_BASE}/${depositId}/image?access_token=${encodeURIComponent(token)}`
+  );
+}
+
 function mapDeposit(item) {
+    const hasVoucher = Boolean(item.imagenUrl || item.imagenVoucher);
     return {
       id: item.id,
       numero_operacion: item.numeroOperacion,
@@ -263,7 +280,7 @@ function mapDeposit(item) {
       estado: item.estado,
       numero_operacion_banco: item.numeroOperacionBanco,
       fecha_deposito: item.fechaDeposito,
-      imagen_voucher: item.imagenUrl || item.imagenVoucher || null,
+      imagen_voucher: hasVoucher ? buildVoucherImageUrl(item.id) : null,
       anexo: item.anexo || null,
       observaciones: item.observaciones || null,
       motivo_rechazo: item.motivoRechazo || null,
