@@ -1,10 +1,17 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 import DepositDetailModal from "../../../features/deposit-detail/ui/DepositDetailModal.jsx";
 import { apiBlob } from "../../../services/backendApi";
 import DepositsTableToolbar from "../../../widgets/deposits-table-controls/ui/DepositsTableToolbar.jsx";
 import DepositsTable from "../../../widgets/deposits-table-grid/ui/DepositsTable.jsx";
+import RegularizeImageModal from "../../../features/deposits/components/RegularizeImageModal.jsx";
+import { AuthContext } from "../../../features/auth/context/AuthContext.jsx";
+import {
+  markDepositForRegularize,
+  unmarkDepositForRegularize,
+  financeRegularizeImage,
+} from "../../../features/deposits/api/depositsApi.js";
 import {
   CheckCircle,
   XCircle,
@@ -45,6 +52,11 @@ const TablePage = ({
   const [modalEditMode, setModalEditMode] = useState("full"); // 'full' or 'fields-only'
   const [isExporting, setIsExporting] = useState(false);
   const [exportJob, setExportJob] = useState(null);
+  const [regularizeUploadDeposit, setRegularizeUploadDeposit] = useState(null);
+
+  const { currentUser } = useContext(AuthContext);
+  const userRol = currentUser?.user_rol || currentUser?.rol || "";
+  const canRegularize = userRol === "finanzas" || userRol === "admin";
 
   const formatDate = (isoString) => {
     if (!isoString) return "-";
@@ -287,6 +299,57 @@ const TablePage = ({
     }
   };
 
+  // Marcar/desmarcar un deposito para regularizar (solo finanzas/admin,
+  // independiente de su Estado): el vendedor puede haber mandado una
+  // imagen/pdf incompleta y hay que avisar que se le va a subir una nueva
+  // mas tarde, sin tocar el Estado actual ni reprocesarlo con el worker. No
+  // se pide/envia motivo desde el fronted.
+  const handleMarkRegularize = async (deposit) => {
+    if (!canRegularize) return;
+    if (!window.confirm("¿Marcar este depósito para regularizar el voucher?")) return;
+
+    try {
+      await markDepositForRegularize(deposit.id);
+      onUpdateDeposit({ ...deposit, pendiente_regularizar: true }, { skipPersist: true });
+    } catch (error) {
+      alert(`No se pudo marcar el depósito: ${error.message}`);
+    }
+  };
+
+  const handleUnmarkRegularize = async (deposit) => {
+    if (!canRegularize) return;
+    if (!window.confirm("¿Quitar la marca de regularizar de este depósito?")) return;
+
+    try {
+      await unmarkDepositForRegularize(deposit.id);
+      onUpdateDeposit({ ...deposit, pendiente_regularizar: false }, { skipPersist: true });
+    } catch (error) {
+      alert(`No se pudo desmarcar el depósito: ${error.message}`);
+    }
+  };
+
+  const handleOpenRegularizeUpload = (deposit) => {
+    if (!canRegularize) return;
+    setRegularizeUploadDeposit(deposit);
+  };
+
+  // Sube el archivo nuevo via PUT /finance-regularize-image. A diferencia
+  // del flujo de regularizacion del vendedor, esto NO cambia el Estado ni
+  // encola nada al python-worker -- el backend solo reemplaza el archivo.
+  // La URL del voucher en la tabla (imagen_voucher) ya apunta al endpoint
+  // "redirect" estable (ver depositsApi.js/buildVoucherImageUrl), asi que no
+  // hace falta actualizarla aca: al re-visitarla el backend firma de nuevo
+  // contra el objeto GCS ya reemplazado.
+  const handleSubmitRegularizeImage = async (imagenBase64) => {
+    if (!regularizeUploadDeposit) return;
+    await financeRegularizeImage(regularizeUploadDeposit.id, imagenBase64);
+    onUpdateDeposit(
+      { ...regularizeUploadDeposit, pendiente_regularizar: false },
+      { skipPersist: true }
+    );
+    setRegularizeUploadDeposit(null);
+  };
+
   const handleViewVoucher = (url) => {
     if (!url) {
       alert("Este depósito no tiene un voucher adjunto.");
@@ -374,6 +437,10 @@ const TablePage = ({
           getStatusBadge={getStatusBadge}
           onEditDeposit={handleEditClick}
           onViewVoucher={handleViewVoucher}
+          canRegularize={canRegularize}
+          onMarkRegularize={handleMarkRegularize}
+          onUnmarkRegularize={handleUnmarkRegularize}
+          onOpenRegularizeUpload={handleOpenRegularizeUpload}
         />
       </div>
       <AnimatePresence>
@@ -422,6 +489,14 @@ const TablePage = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {regularizeUploadDeposit && (
+        <RegularizeImageModal
+          deposit={regularizeUploadDeposit}
+          onClose={() => setRegularizeUploadDeposit(null)}
+          onSubmit={handleSubmitRegularizeImage}
+        />
+      )}
 
       <AnimatePresence>
         {selectedDeposit && (
