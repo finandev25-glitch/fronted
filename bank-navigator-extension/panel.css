@@ -1,0 +1,94 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1f2937;
+  background: #f8fafc;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar {
+  flex: 0 0 auto;
+  padding: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.banks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.bank-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.bank-btn:hover { filter: brightness(1.08); }
+.bank-btn.active { outline: 2px solid #111827; outline-offset: 1px; }
+
+.addressbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#url {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+#url:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px #93c5fd; }
+
+.addressbar button {
+  flex: 0 0 auto;
+  height: 32px;
+  min-width: 32px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+}
+.addressbar button:hover { background: #f3f4f6; }
+#go { background: #2563eb; color: #fff; border-color: #2563eb; }
+#go:hover { background: #1d4ed8; }
+
+.frame-wrap { flex: 1 1 auto; min-height: 0; }
+#frame { width: 100%; height: 100%; border: 0; background: #fff; }
+
+.note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #6b7280;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body { color: #e5e7eb; background: #0b1220; }
+  .toolbar, .note, .addressbar button { background: #111827; border-color: #374151; }
+  #url { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+  #frame { background: #fff; }
+  .note { color: #9ca3af; }
+}

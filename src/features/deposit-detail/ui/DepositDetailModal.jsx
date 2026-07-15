@@ -3,6 +3,7 @@ import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
+import { searchActiveTab } from "../lib/activeTabSearch.js";
 import { fetchCuentas } from "../../deposits/api/depositsApi.js";
 import React, {
   useState,
@@ -110,6 +111,7 @@ const DepositDetailModal = ({
     isChecking,
     isProcessing,
     isSending,
+    isRegularizing,
     checkResult,
     duplicateDeposits,
     isRejectionModalOpen,
@@ -121,7 +123,9 @@ const DepositDetailModal = ({
     handleConfirmRejection,
     handleRestoreToPending,
     handleSaveChanges,
-    handleToggleEsAntiguo
+    handleToggleEsAntiguo,
+    handleToggleRegularizePending,
+    handleUploadRegularizeVoucher,
   } = useDepositActions({
     deposit,
     editableData,
@@ -160,8 +164,10 @@ const DepositDetailModal = ({
     sqlCortadoImporteFilter,
     setSqlCortadoImporteFilter,
     sqlCortadoPage,
+    setSqlCortadoPage,
     sqlCortadoPageSize,
     sqlCortadoTotalCount,
+    setSqlCortadoTotalCount,
     sqlActiveTab,
     setSqlActiveTab,
     sqlSelectedMovement,
@@ -196,6 +202,9 @@ const DepositDetailModal = ({
   const [duplicateModalMode, setDuplicateModalMode] = useState("none");
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [duplicateStoreDataSnapshot, setDuplicateStoreDataSnapshot] = useState("");
+  // Estado del selector de Google Drive (se referenciaba en la vista compacta
+  // sin estar definido, lo que rompía el modal en móvil).
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const openDuplicateModal = (mode) => {
     setDuplicateModalMode(mode);
@@ -343,15 +352,87 @@ const DepositDetailModal = ({
   const [compactVoucherUrl, setCompactVoucherUrl] = useState("");
   const canUseChromeSearch = true; // simplificado
 
-  const runCompactSearch = async () => {
-     // placeholder
-  };
+  // FIX: la vista compacta/móvil usa compactVoucherUrl, pero nunca se poblaba
+  // (setCompactVoucherUrl no se llamaba en ningún lado), así que el voucher no
+  // se veía en móvil. Lo sincronizamos con la URL real del voucher del hook.
+  useEffect(() => {
+    setCompactVoucherUrl(displayVoucherUrl || "");
+  }, [displayVoucherUrl]);
 
   const [compactSearchTone, setCompactSearchTone] = useState("neutral");
+  const [compactSearchStatus, setCompactSearchStatus] = useState("Sin verificar.");
 
   useEffect(() => {
     setCompactSearchTone("neutral");
+    setCompactSearchStatus("Sin verificar.");
   }, [deposit?.id]);
+
+  // Busca el importe o el nro. de operación en la PESTAÑA ACTIVA (el portal del
+  // banco abierto en otra pestaña) y resalta la coincidencia. Solo funciona en
+  // la extensión (usa chrome.scripting). Da feedback visible en cada paso.
+  const runCompactSearch = async (type) => {
+    console.log("[busqueda] runCompactSearch:", type);
+    const terms = [];
+    const add = (value) => {
+      const text = String(value ?? "").trim();
+      if (text && !terms.includes(text)) terms.push(text);
+    };
+
+    if (type === "amount") {
+      const raw = editableData.monto || deposit.monto;
+      if (raw !== undefined && raw !== null && raw !== "") {
+        add(raw);
+        const n = Number(String(raw).replace(/[^0-9,.-]/g, "").replace(",", "."));
+        if (!Number.isNaN(n)) {
+          add(n.toFixed(2));
+          add(n.toLocaleString("es-PE"));
+          add(n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+          add(n.toLocaleString("en-US"));
+          add(n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+      }
+    } else {
+      const op = editableData.numero_operacion_banco || deposit.numero_operacion_banco;
+      [op, deposit.numero_operacion].forEach((value) => {
+        add(value);
+        const digits = String(value || "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+        if (digits) add(digits);
+      });
+    }
+
+    console.log("[busqueda] términos:", terms);
+
+    if (terms.length === 0) {
+      setCompactSearchTone("error");
+      setCompactSearchStatus("No hay importe / nro. operación para buscar.");
+      return;
+    }
+
+    setIsCompactSearching(true);
+    setCompactSearchStatus("Buscando en la pestaña activa...");
+    try {
+      const res = await searchActiveTab(terms);
+      console.log("[busqueda] resultado:", res);
+      if (res.available === false) {
+        setCompactSearchTone("error");
+        setCompactSearchStatus("Solo disponible dentro de la extensión.");
+      } else if (res.found) {
+        setCompactSearchTone("success");
+        setCompactSearchStatus(
+          `Encontrado y resaltado${res.matches ? ` (${res.matches})` : ""}.`,
+        );
+      } else {
+        setCompactSearchTone("error");
+        setCompactSearchStatus("No se encontró en la pestaña activa.");
+      }
+    } catch (error) {
+      setCompactSearchTone("error");
+      setCompactSearchStatus(`Error: ${error?.message || "no se pudo buscar"}`);
+      console.warn("[busqueda] error:", error);
+    } finally {
+      setIsCompactSearching(false);
+    }
+  };
 
   const compactModalBorderClass =
     deposit.estado === "rechazado"
@@ -426,6 +507,7 @@ const DepositDetailModal = ({
       : compactSearchTone === "error"
         ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/30 dark:text-rose-200"
         : "border-slate-200 bg-slate-50 text-slate-600 dark:border-gray-700 dark:bg-gray-950/60 dark:text-slate-300";
+
 
   const nroOperacionClasses = "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400";
   const getCardBorderColor = (type) => "border-gray-200";
@@ -929,6 +1011,21 @@ const DepositDetailModal = ({
                       </div>
                     </div>
                   )}
+
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {deposit.riesgo && (
+                    <span className="danger-blink inline-flex items-center gap-1 rounded-md border border-red-400 bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200">
+                      <AlertTriangle className="h-3 w-3" />
+                      Riesgo · Revisar
+                    </span>
+                  )}
+                  {deposit.pendiente_regularizar && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-yellow-400 bg-yellow-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/40 dark:text-yellow-200">
+                      <FileText className="h-3 w-3" />
+                      Pendiente regularizar
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-1.5">
                 <span
@@ -1236,11 +1333,11 @@ const DepositDetailModal = ({
                       />
                     </div>
                   ) : (
-                    <div className="absolute inset-0">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black">
                       <img
                         src={compactVoucherUrl}
                         alt={`Voucher ${deposit.numero_voucher || deposit.numero_operacion}`}
-                        className="h-full w-full object-contain object-center bg-black"
+                        className="max-h-full max-w-full object-contain object-center"
                       />
                     </div>
                   )}
@@ -1600,7 +1697,19 @@ const DepositDetailModal = ({
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              {deposit.riesgo && (
+                <span className="danger-blink inline-flex items-center gap-1.5 rounded-full border border-red-400 bg-red-100 px-3 py-1 text-sm font-bold uppercase tracking-wide text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200">
+                  <AlertTriangle className="h-4 w-4" />
+                  Riesgo · Revisar
+                </span>
+              )}
+              {deposit.pendiente_regularizar && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400 bg-yellow-100 px-3 py-1 text-sm font-bold uppercase tracking-wide text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/40 dark:text-yellow-200">
+                  <FileText className="h-4 w-4" />
+                  Pendiente regularizar
+                </span>
+              )}
               <span
                 className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${statusColor}`}
               >
@@ -2005,25 +2114,27 @@ const DepositDetailModal = ({
                         </div>
                       </div>
 
-                      {/* Grupo de confirmación en el card */}
-                      {canShowConfirmActions && (
+                      {/* Chat flotante con el trabajador (solicitante) */}
+                      {deposit.trabajador && (
                         <div className="pt-3 border-t border-gray-200 dark:border-gray-600 space-y-2">
                           <button
-                            onClick={handleConfirmDeposit}
-                            disabled={!canConfirm || isSending || isProcessing}
-                            className="w-full px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm flex items-center justify-center space-x-2 transition-colors"
-                            title="Confirmar depósito"
+                            type="button"
+                            onClick={() =>
+                              window.dispatchEvent(
+                                new CustomEvent("confirmo:open-vendor-chat", {
+                                  detail: {
+                                    id: deposit.trabajador?.id,
+                                    nombre: deposit.trabajador?.nombre,
+                                    telefono: deposit.trabajador?.telefono_origen,
+                                  },
+                                }),
+                              )
+                            }
+                            className="w-full px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm flex items-center justify-center space-x-2 transition-colors"
+                            title="Abrir chat con el trabajador"
                           >
-                            {isSending ? (
-                              <Loader2 className="animate-spin" size={14} />
-                            ) : (
-                              <CheckCircle size={14} />
-                            )}
-                            <span>
-                              {isSending
-                                ? "Confirmando..."
-                                : "Confirmar"}
-                            </span>
+                            <MessageSquare size={14} />
+                            <span>Chat con el trabajador</span>
                           </button>
                         </div>
                       )}
@@ -2182,6 +2293,57 @@ const DepositDetailModal = ({
                       {deposit.es_antiguo ? "Antiguo ✓" : "Marcar Antiguo"}
                     </span>
                   </button>
+                )}
+
+                {/* Pendiente de regularizar: marcar/desmarcar (flag) */}
+                <button
+                  onClick={handleToggleRegularizePending}
+                  disabled={isRegularizing}
+                  className={`px-3 py-1.5 rounded-md font-medium flex items-center justify-center space-x-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                    deposit.pendiente_regularizar
+                      ? "bg-yellow-500 text-yellow-950 hover:bg-yellow-600"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500"
+                  }`}
+                  title={
+                    deposit.pendiente_regularizar
+                      ? "Quitar marca de pendiente de regularizar"
+                      : "Marcar como pendiente de regularizar (voucher de formato inválido)"
+                  }
+                >
+                  {isRegularizing ? (
+                    <Loader2 className="animate-spin" size={12} />
+                  ) : (
+                    <FileText size={12} />
+                  )}
+                  <span>
+                    {deposit.pendiente_regularizar
+                      ? "Por regularizar ✓"
+                      : "Pendiente regularizar"}
+                  </span>
+                </button>
+
+                {/* Subir el voucher válido que reemplaza la imagen (solo si está marcado) */}
+                {deposit.pendiente_regularizar && (
+                  <label
+                    className={`px-3 py-1.5 rounded-md font-medium flex items-center justify-center space-x-2 text-sm bg-emerald-600 text-white hover:bg-emerald-700 ${
+                      isRegularizing ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                    }`}
+                    title="Subir el voucher válido (reemplaza la imagen y quita la marca)"
+                  >
+                    <FileDown size={12} />
+                    <span>Subir voucher válido</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isRegularizing}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = ""; // permitir re-seleccionar el mismo archivo
+                        if (file) handleUploadRegularizeVoucher(file);
+                      }}
+                    />
+                  </label>
                 )}
 
                 <button

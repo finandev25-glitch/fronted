@@ -71,7 +71,8 @@ export const DepositVoucherPanel = ({
                             FALLBACK_VOUCHER_PREVIEW
                           }
                           alt={`Voucher ${deposit.numero_voucher}`}
-                          className="max-h-full max-w-full object-contain pointer-events-none lg:pointer-events-auto"
+                          className="max-w-full object-contain pointer-events-none lg:pointer-events-auto"
+                          style={{ maxHeight: "calc(93vh - 160px)" }}
                         />
                       </div>
                     )}

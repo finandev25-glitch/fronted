@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Confirmo - Control de Depósitos",
+  "version": "1.0.0",
+  "description": "Panel de la aplicación Confirmo (control y validación de depósitos) como extensión de Chrome.",
+  "permissions": ["sidePanel", "storage", "scripting", "activeTab", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Confirmo - Control de Depósitos" },
+  "side_panel": { "default_path": "extension.html" }
+}

@@ -97,6 +97,27 @@
     }
   }
 
+  /* Parpadeo rojo de PELIGRO (intenso) para depósitos procesado con riesgo. */
+  @keyframes dangerBlink {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 0 rgba(239, 68, 68, 0.25),
+        0 0 8px 0 rgba(239, 68, 68, 0.35);
+      border-color: rgba(248, 113, 113, 0.9);
+    }
+    50% {
+      box-shadow:
+        0 0 0 5px rgba(239, 68, 68, 0.55),
+        0 0 22px 4px rgba(239, 68, 68, 0.75);
+      border-color: rgba(153, 27, 27, 1);
+    }
+  }
+
+  .danger-blink {
+    animation: dangerBlink 0.7s ease-in-out infinite;
+  }
+
   .rt-flash-update {
     border-radius: 0.5rem;
     animation: rtFlashUpdate 1.4s ease-out;
@@ -114,7 +135,8 @@
     .alarm-flash,
     .alarm-glow,
     .rt-flash-update,
-    .rt-flash-insert {
+    .rt-flash-insert,
+    .danger-blink {
       animation: none;
     }
   }

@@ -731,7 +731,7 @@ const KanbanPage = ({
 
   return (
     <>
-      <div className="h-full p-6 flex flex-col bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-full p-6 flex flex-col bg-gray-50 dark:bg-gray-950 lg:h-full">
         <KanbanToolbar
           isCompactKanban={isCompactKanban}
           showConnectionStatus={showConnectionStatus}

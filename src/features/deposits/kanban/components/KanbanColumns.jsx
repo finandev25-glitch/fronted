@@ -168,20 +168,12 @@ function KanbanColumnBody({
         )}
 
         {pendientesSeparated.otros.length > 0 && (
-          <KanbanSection
-            tone="orange"
-            title="Otros Contactos"
-            count={pendientesSeparated.otros.length}
-            isOpen={showPendientesOtros}
-            onToggle={() => setShowPendientesOtros(!showPendientesOtros)}
-          >
-            <KanbanColumnContent
-              deposits={pendientesSeparated.otros}
-              onCardClick={handleCardClick}
-              selectedDepositId={selectedDepositId}
-              highlights={highlights}
-            />
-          </KanbanSection>
+          <KanbanColumnContent
+            deposits={pendientesSeparated.otros}
+            onCardClick={handleCardClick}
+            selectedDepositId={selectedDepositId}
+            highlights={highlights}
+          />
         )}
 
         {pendientesSeparated.especiales.length === 0 && pendientesSeparated.otros.length === 0 && (
@@ -243,12 +235,15 @@ export function KanbanColumns(props) {
   return (
     <>
       <LayoutGroup id="kanban-mobile">
-        <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto lg:hidden">
-          {KANBAN_COLUMNS.map((column, index) => (
+        {/* En pantallas chicas / extensión: los tableros crecen de forma
+            natural y el scroll vertical lo maneja el contenedor principal
+            (main). Todos los tableros vienen expandidos por defecto. */}
+        <div className="flex flex-col space-y-4 lg:hidden">
+          {KANBAN_COLUMNS.map((column) => (
             <details
               key={column.id}
               className="group overflow-hidden rounded-xl border border-gray-200/80 bg-gray-100/70 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700/80 dark:bg-gray-900/70"
-              open={index === 0}
+              open
             >
               <summary className="flex cursor-pointer list-none items-center justify-between p-4">
                 <h3 className="flex items-center gap-2 font-semibold text-gray-800 dark:text-gray-200">
