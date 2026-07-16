@@ -106,6 +106,9 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   const [sendError, setSendError] = useState(null);
 
   const [unreadVendedorIds, setUnreadVendedorIds] = useState(() => new Set());
+  // Solicitud pendiente de abrir el chat de un trabajador (desde el evento
+  // global "confirmo:open-vendor-chat", p. ej. desde el modal de detalle).
+  const [pendingVendorMatch, setPendingVendorMatch] = useState(null);
 
   const messagesEndRef = useRef(null);
   const selectedVendedorIdRef = useRef(null);
@@ -134,6 +137,48 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     if (!isOpen || vendedoresLoaded || !canUseChat) return;
     loadVendedores();
   }, [isOpen, vendedoresLoaded, canUseChat, loadVendedores]);
+
+  // Permite abrir el chat de un trabajador desde otras partes de la app:
+  //   window.dispatchEvent(new CustomEvent("confirmo:open-vendor-chat",
+  //     { detail: { id, nombre, telefono } }))
+  useEffect(() => {
+    const handler = (event) => {
+      if (!canUseChat) return;
+      setIsOpen(true);
+      setPendingVendorMatch(event.detail || {});
+    };
+    window.addEventListener("confirmo:open-vendor-chat", handler);
+    return () => window.removeEventListener("confirmo:open-vendor-chat", handler);
+  }, [canUseChat]);
+
+  // Cuando los vendedores estén cargados y haya una solicitud pendiente, abre
+  // la conversación del que coincida (por teléfono, luego id, luego nombre).
+  useEffect(() => {
+    if (!pendingVendorMatch || !vendedoresLoaded || vendedores.length === 0) return;
+
+    const normPhone = (value) => String(value || "").replace(/\D/g, "").replace(/^51/, "");
+    const wantPhone = normPhone(pendingVendorMatch.telefono);
+    const wantName = String(pendingVendorMatch.nombre || "").trim().toLowerCase();
+    const wantId = pendingVendorMatch.id != null ? String(pendingVendorMatch.id) : null;
+
+    const match =
+      (wantId && vendedores.find((v) => String(v.id) === wantId)) ||
+      (wantPhone && vendedores.find((v) => normPhone(v.telefono) === wantPhone)) ||
+      (wantName &&
+        vendedores.find(
+          (v) => String(v.nombre || "").trim().toLowerCase() === wantName,
+        )) ||
+      null;
+
+    if (match) {
+      openVendedor(match);
+    } else if (pendingVendorMatch.nombre || pendingVendorMatch.telefono) {
+      // No se encontró exacto: deja el término en el buscador para ubicarlo.
+      setSearch(pendingVendorMatch.nombre || pendingVendorMatch.telefono || "");
+      setView("list");
+    }
+    setPendingVendorMatch(null);
+  }, [pendingVendorMatch, vendedoresLoaded, vendedores]);
 
   const loadHistory = useCallback((vendedorId) => {
     if (!vendedorId) return;

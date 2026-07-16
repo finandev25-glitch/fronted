@@ -92,7 +92,18 @@ export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
       return false;
     }
 
-    navigator.vibrate([220, 80, 220, 80, 320]);
+    // Chrome BLOQUEA navigator.vibrate hasta que el usuario haya interactuado
+    // con la página (y lo registra como error en la consola/extensión). Si aún
+    // no hubo interacción, salimos sin llamarlo para no ensuciar el log.
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+      return false;
+    }
+
+    try {
+      navigator.vibrate([220, 80, 220, 80, 320]);
+    } catch {
+      return false;
+    }
     return true;
   }, []);
 
@@ -153,37 +164,34 @@ export function useDepositAlerts({ currentUserRef, pendingWorkloadCount }) {
     [showNativeAlert, playAlarmTone, vibrateAlarm]
   );
 
-  // Notifica cuando la columna "Pendiente" de hoy supera 3 cards. Funciona por
-  // "episodio": dispara una vez mientras el conteo esté por encima de 3, y se
-  // rearma cuando baja a 3 o menos (así vuelve a avisar en el siguiente pico).
-  // Si aún no se concedió el permiso, NO se marca como notificado, para que
-  // reintente en la próxima evaluación (p. ej. al activar el permiso).
-  const pendingAlertRef = useRef({ episodeNotified: false, lastNotifiedAt: 0 });
+  // Notifica SOLO cuando se AÑADE un nuevo pendiente (el conteo aumenta) y el
+  // total de la columna "Pendiente" de hoy supera 3. Es decir: una notificación
+  // por cada card nuevo mientras haya más de 3 — no se repite "a cada rato".
+  // lastCount = null en la primera evaluación (carga inicial) para NO notificar
+  // por los que ya estaban.
+  const pendingAlertRef = useRef({ lastCount: null, lastNotifiedAt: 0 });
   const notifyNewPendingIfNeeded = useCallback(
     async (count) => {
       const state = pendingAlertRef.current;
+      const prevCount = state.lastCount;
+      state.lastCount = count;
 
-      if (count <= PENDING_ALERT_THRESHOLD) {
-        state.episodeNotified = false; // se rearma al bajar de 4
-        return false;
-      }
+      // Carga inicial: registrar el conteo sin notificar.
+      if (prevCount === null) return false;
 
+      // Solo si AUMENTÓ (se añadió un card) y el total supera 3.
+      if (count <= prevCount || count <= PENDING_ALERT_THRESHOLD) return false;
+
+      // Anti-doble-disparo por renders rápidos (no es un cooldown por tiempo).
       const now = Date.now();
-      const withinCooldown = now - state.lastNotifiedAt < PENDING_ALERT_COOLDOWN_MS;
-      if (state.episodeNotified && withinCooldown) return false;
+      if (now - state.lastNotifiedAt < 1500) return false;
+      state.lastNotifiedAt = now;
 
-      const shown = await fireRedNotification({
-        title: "🔴 Nuevos depósitos pendientes",
+      return fireRedNotification({
+        title: "🔴 Nuevo depósito pendiente",
         body: `Hay ${count} depósitos pendientes de hoy por validar.`,
         tag: "nuevo-pendiente-hoy",
       });
-
-      state.lastNotifiedAt = now;
-      // Solo cerramos el "episodio" si la notificación nativa realmente se
-      // mostró; si faltaba permiso, dejamos que reintente al activarlo.
-      if (shown) state.episodeNotified = true;
-
-      return shown;
     },
     [fireRedNotification]
   );

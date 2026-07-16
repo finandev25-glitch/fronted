@@ -193,39 +193,7 @@ export const DepositFormPanel = ({
                       </FormRow>
                     </div>
 
-                    <div className="col-span-6">
-                      <FormRow icon={Fingerprint} label="RUC/DNI Cliente">
-                        <input
-                          type="text"
-                          name="ruc_cliente"
-                          value={editableData.ruc_cliente}
-                          onChange={handleChange}
-                          disabled={
-                            isFieldsOnlyEdit ? true : isFullEditDisabled
-                          }
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
-                          placeholder="RUC o DNI del cliente"
-                        />
-                      </FormRow>
-                    </div>
-
-                    <div className="col-span-6">
-                      <FormRow icon={Info} label="Referencia del Cliente">
-                        <textarea
-                          name="referencia_cliente"
-                          rows="2"
-                          value={editableData.referencia_cliente}
-                          onChange={handleChange}
-                          disabled={
-                            isFieldsOnlyEdit ? true : isFullEditDisabled
-                          }
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
-                          placeholder="Añadir referencia del cliente..."
-                        />
-                      </FormRow>
-                    </div>
-
-                    {/* Campo Observaciones ocultado por petición del usuario 
+                    {/* Campo Observaciones ocultado por petición del usuario
                     <div className="col-span-6">
                       <FormRow
                         icon={MessageSquare}

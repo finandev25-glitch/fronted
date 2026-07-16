@@ -1,6 +1,22 @@
 import { useState, useCallback } from "react";
 import { apiPut } from "../../../services/backendApi.js";
-import { checkDuplicate, confirmDeposit, rejectDeposit } from "../../deposits/api/depositsApi.js";
+import {
+  checkDuplicate,
+  confirmDeposit,
+  rejectDeposit,
+  markDepositRegularizePending,
+  uploadRegularizeVoucher,
+} from "../../deposits/api/depositsApi.js";
+
+// Lee un File y devuelve su contenido en base64 (data URL completa).
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    reader.readAsDataURL(file);
+  });
+}
 
 /**
  * Hook que encapsula la lógica de confirmación, rechazo y acciones sobre el depósito.
@@ -262,6 +278,66 @@ export function useDepositActions({
     }
   }, [buildUpdatePayload, deposit, isProcessing, onClose, onUpdateDeposit]);
 
+  // ─── Pendiente de regularizar (flag independiente) ──────────────────────────
+  // Marca/desmarca el depósito para que su voucher (formato inválido) se
+  // reemplace luego por uno válido. NO cambia el estado del depósito.
+  const [isRegularizing, setIsRegularizing] = useState(false);
+
+  const handleToggleRegularizePending = useCallback(async () => {
+    if (isRegularizing) return;
+    const nuevo = !deposit.pendiente_regularizar;
+
+    setIsRegularizing(true);
+    // Actualización optimista
+    onUpdateDeposit({ ...deposit, pendiente_regularizar: nuevo }, { skipPersist: true });
+
+    try {
+      await markDepositRegularizePending(deposit.id, nuevo);
+    } catch (err) {
+      onUpdateDeposit({ ...deposit, pendiente_regularizar: !nuevo }, { skipPersist: true });
+      alert(`❌ No se pudo actualizar la marca: ${err.message}`);
+    } finally {
+      setIsRegularizing(false);
+    }
+  }, [deposit, isRegularizing, onUpdateDeposit]);
+
+  // Sube el voucher válido que reemplaza la imagen y limpia la marca.
+  const handleUploadRegularizeVoucher = useCallback(
+    async (file) => {
+      if (!file || isRegularizing) return;
+
+      if (!file.type.startsWith("image/")) {
+        alert("Selecciona un archivo de imagen válido (JPG/PNG).");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert("La imagen debe pesar 5 MB o menos.");
+        return;
+      }
+
+      setIsRegularizing(true);
+      try {
+        const base64 = await fileToBase64(file);
+        const result = await uploadRegularizeVoucher(deposit.id, base64);
+        onUpdateDeposit(
+          {
+            ...deposit,
+            pendiente_regularizar: false,
+            imagen_voucher: result?.imagenVoucher || deposit.imagen_voucher,
+          },
+          { skipPersist: true },
+        );
+        alert("✅ Voucher reemplazado. Depósito regularizado.");
+        onClose();
+      } catch (err) {
+        alert(`❌ No se pudo subir el voucher: ${err.message}`);
+      } finally {
+        setIsRegularizing(false);
+      }
+    },
+    [deposit, isRegularizing, onClose, onUpdateDeposit],
+  );
+
   // ─── Guardar cambios (sin confirmar) ────────────────────────────────────────
   const handleSaveChanges = useCallback(() => {
     onUpdateDeposit({
@@ -278,6 +354,7 @@ export function useDepositActions({
     isChecking,
     isProcessing,
     isSending,
+    isRegularizing,
     checkResult,
     setCheckResult,
     duplicateDeposits,
@@ -294,5 +371,7 @@ export function useDepositActions({
     handleConfirmRejection,
     handleRestoreToPending,
     handleSaveChanges,
+    handleToggleRegularizePending,
+    handleUploadRegularizeVoucher,
   };
 }

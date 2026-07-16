@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Navegador de Bancos - Perú",
+  "version": "1.0.0",
+  "description": "Panel lateral para navegar los portales de los bancos de Perú embebidos (quita las cabeceras que bloquean el iframe). Uso interno.",
+  "permissions": ["declarativeNetRequest", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Navegador de Bancos" },
+  "side_panel": { "default_path": "panel.html" },
+  "declarative_net_request": {
+    "rule_resources": [
+      { "id": "ruleset_frame", "enabled": true, "path": "rules.json" }
+    ]
+  }
+}

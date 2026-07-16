@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Clock,
   Hourglass,
+  AlertTriangle,
 } from "lucide-react";
 import {
   getStatusInfo,
@@ -77,6 +78,8 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
   // Determinar si es un depósito antiguo en validación
   const isOldDeposit =
     isDepositAntiguo(deposit) && effectiveEstado === "en_validacion";
+  // Depósito procesado marcado con riesgo -> peligro (parpadeo rojo + ícono).
+  const isRiesgo = deposit.estado === "procesado" && deposit.riesgo === true;
   const rejectedObservation =
     deposit.estado === "rechazado"
       ? String(deposit.observaciones || deposit.motivo_rechazo || "").trim()
@@ -85,12 +88,18 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
   return (
     <div
       onClick={() => onClick?.(deposit)}
-      className={`rounded-xl border border-gray-200 dark:border-gray-700/80 border-l-4 ${
-        isOldDeposit
-          ? "border-l-orange-500 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 shadow-orange-200/50 dark:shadow-orange-900/30"
-          : `${statusStyles.borderColor} ${statusStyles.gradient} ${statusStyles.shadow}`
+      className={`relative rounded-xl border border-gray-200 dark:border-gray-700/80 border-l-4 ${
+        isRiesgo
+          ? "border-l-red-600 bg-gradient-to-br from-red-100 to-rose-50 dark:from-red-950/50 dark:to-rose-950/30 shadow-red-300/60 dark:shadow-red-900/50"
+          : isOldDeposit
+            ? "border-l-orange-500 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 shadow-orange-200/50 dark:shadow-orange-900/30"
+            : `${statusStyles.borderColor} ${statusStyles.gradient} ${statusStyles.shadow}`
       } px-3.5 py-2.5 transition-all duration-300 cursor-pointer flex flex-col h-full ${
-        isOldDeposit ? "ring-2 ring-orange-300 dark:ring-orange-600" : ""
+        isRiesgo
+          ? "danger-blink ring-2 ring-red-400 dark:ring-red-600"
+          : isOldDeposit
+            ? "ring-2 ring-orange-300 dark:ring-orange-600"
+            : ""
       } ${
         isSelected
           ? "ring-2 ring-emerald-300 shadow-[0_0_0_1px_rgba(34,197,94,0.18),0_0_22px_rgba(34,197,94,0.35)] dark:ring-emerald-400 dark:shadow-[0_0_0_1px_rgba(74,222,128,0.22),0_0_24px_rgba(74,222,128,0.28)]"
@@ -124,13 +133,13 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
                   .toUpperCase()}
               </span>
             ))}
-          {/* Badge para depósitos antiguos */}
-          {isOldDeposit && (
+          {/* Badge para depósitos pendientes de regularizar (voucher a reemplazar) */}
+          {deposit.pendiente_regularizar && (
             <span
-              className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-bold rounded-md border border-orange-300 dark:border-orange-600 animate-pulse flex-shrink-0"
-              title="Depósito antiguo (más de 24 horas en validación)"
+              className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-xs font-bold rounded-md border border-yellow-300 dark:border-yellow-600 flex-shrink-0"
+              title="Pendiente de regularizar: reemplazar el voucher por uno válido"
             >
-              ⚠️ ANT
+              ⚠️ REG
             </span>
           )}
           {/* Banco */}
@@ -264,6 +273,17 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
           )}
         </div>
       </div>
+
+      {/* Indicador de peligro (riesgo): ícono + "Revisar" abajo a la derecha */}
+      {isRiesgo && (
+        <div
+          className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1 rounded-full bg-red-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-white dark:ring-gray-900"
+          title="Depósito con riesgo: revisar"
+        >
+          <AlertTriangle size={12} />
+          <span>Revisar</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -286,6 +306,9 @@ const MemoizedDepositCard = memo(DepositCard, (prevProps, nextProps) => {
       nextProps.deposit.en_validacion_por &&
     prevProps.deposit.es_antiguo === nextProps.deposit.es_antiguo &&
     prevProps.deposit.condicion === nextProps.deposit.condicion &&
+    prevProps.deposit.riesgo === nextProps.deposit.riesgo &&
+    prevProps.deposit.pendiente_regularizar ===
+      nextProps.deposit.pendiente_regularizar &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.deposit.trabajador?.telefono_origen ===
       nextProps.deposit.trabajador?.telefono_origen;

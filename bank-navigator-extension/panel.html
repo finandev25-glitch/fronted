@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Navegador de Bancos</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="banks" id="banks"></div>
+      <div class="addressbar">
+        <input
+          id="url"
+          type="url"
+          placeholder="https://..."
+          spellcheck="false"
+          autocomplete="off"
+        />
+        <button id="go" title="Ir">➜</button>
+        <button id="reload" title="Recargar">⟳</button>
+        <button id="newtab" title="Abrir en pestaña nueva">↗</button>
+      </div>
+    </header>
+
+    <div class="frame-wrap">
+      <iframe
+        id="frame"
+        title="Portal del banco"
+        referrerpolicy="no-referrer"
+        allow="clipboard-read; clipboard-write"
+      ></iframe>
+    </div>
+
+    <p class="note">
+      Uso interno. Si un banco requiere iniciar sesión, es posible que dentro
+      del panel no persista la sesión (cookies de terceros): usa “↗ Abrir en
+      pestaña nueva” para esos casos.
+    </p>
+
+    <script src="panel.js"></script>
+  </body>
+</html>
