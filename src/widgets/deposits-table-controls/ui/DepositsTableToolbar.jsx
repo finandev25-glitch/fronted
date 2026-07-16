@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar, Download, Filter, Search, XCircle } from "lucide-react";
+import { Calendar, Download, Filter, Search, XCircle, Archive } from "lucide-react";
 
 export default function DepositsTableToolbar({
   searchTerm,
@@ -17,6 +17,8 @@ export default function DepositsTableToolbar({
   onSelectedDateChange,
   onSelectDate,
   onExportExcel,
+  canExportVouchers = false,
+  onOpenExportVouchers,
 }) {
   return (
     <div className="mb-6 flex shrink-0 flex-col space-y-4">
@@ -37,6 +39,15 @@ export default function DepositsTableToolbar({
             <Download size={14} />
             <span>Exportar Excel</span>
           </button>
+          {canExportVouchers && (
+            <button
+              onClick={onOpenExportVouchers}
+              className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              <Archive size={14} />
+              <span>Respaldo de vouchers</span>
+            </button>
+          )}
         </div>
       </div>
 

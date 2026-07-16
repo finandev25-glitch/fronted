@@ -71,6 +71,7 @@ export function AppRoutes({
             empresas={dashboard.empresas}
             bancos={dashboard.bancos}
             cuentas={dashboard.cuentas}
+            sucursales={dashboard.sucursales}
             onOpenVoucherWindow={dashboard.handleOpenVoucherWindow}
             detailPresentationMode={detailPresentationMode}
           />

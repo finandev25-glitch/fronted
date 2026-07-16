@@ -1,16 +1,17 @@
 import React, { useContext, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 import DepositDetailModal from "../../../features/deposit-detail/ui/DepositDetailModal.jsx";
-import { apiBlob } from "../../../services/backendApi";
 import DepositsTableToolbar from "../../../widgets/deposits-table-controls/ui/DepositsTableToolbar.jsx";
 import DepositsTable from "../../../widgets/deposits-table-grid/ui/DepositsTable.jsx";
 import RegularizeImageModal from "../../../features/deposits/components/RegularizeImageModal.jsx";
+import VoucherExportModal from "../../../features/deposits/components/VoucherExportModal.jsx";
 import { AuthContext } from "../../../features/auth/context/AuthContext.jsx";
 import {
   markDepositForRegularize,
   unmarkDepositForRegularize,
   financeRegularizeImage,
+  exportVouchersZip,
 } from "../../../features/deposits/api/depositsApi.js";
 import {
   CheckCircle,
@@ -30,6 +31,7 @@ const TablePage = ({
   empresas,
   bancos,
   cuentas,
+  sucursales,
   onOpenVoucherWindow,
   detailPresentationMode = "default",
 }) => {
@@ -50,9 +52,8 @@ const TablePage = ({
   const [specificDate, setSpecificDate] = useState("");
   const [selectedDeposit, setSelectedDeposit] = useState(null);
   const [modalEditMode, setModalEditMode] = useState("full"); // 'full' or 'fields-only'
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportJob, setExportJob] = useState(null);
   const [regularizeUploadDeposit, setRegularizeUploadDeposit] = useState(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const { currentUser } = useContext(AuthContext);
   const userRol = currentUser?.user_rol || currentUser?.rol || "";
@@ -211,92 +212,27 @@ const TablePage = ({
     XLSX.writeFile(workbook, "listado_depositos.xlsx");
   };
 
-  const handleExportVouchers = async () => {
-    if (isExporting || filteredDeposits.length === 0) {
-      alert(
-        isExporting
-          ? "Ya hay una exportaci?n en curso."
-          : "No hay dep?sitos para exportar."
-      );
-      return;
+  // Respaldo masivo de vouchers en ZIP (GET /v1/deposits/export-vouchers-zip),
+  // organizado por fecha de depósito y sucursal, solo depósitos validados,
+  // solo finanzas/admin. Reemplaza un bloque anterior que apuntaba a
+  // "/documents/vouchers/export-filtered", un endpoint que nunca existió en
+  // el backend y que tampoco estaba conectado a ningún botón visible.
+  const handleDownloadVouchersZip = async ({ sucursalId, fechaDesde, fechaHasta }) => {
+    const zipBlob = await exportVouchersZip({ sucursalId, fechaDesde, fechaHasta });
+
+    if (!zipBlob || zipBlob.size === 0) {
+      throw new Error("El backend devolvió un archivo vacío.");
     }
 
-    const voucherCount = filteredDeposits.filter((deposit) => deposit.imagen_voucher).length;
-
-    if (voucherCount === 0) {
-      alert("No hay vouchers v?lidos para exportar.");
-      return;
-    }
-
-    setIsExporting(true);
-    setExportJob({
-      jobId: null,
-      status: "processing",
-      progress: 0,
-      total: voucherCount,
-      processed: 0,
-      filesAdded: 0,
-      failures: [],
-      error: null,
-      message: "Preparando exportaci?n...",
-    });
-
-    try {
-      setExportJob((prev) => ({
-        ...(prev || {}),
-        progress: 15,
-        message: "Solicitando exportaci?n al backend...",
-      }));
-
-      const zipBlob = await apiBlob("/documents/vouchers/export-filtered", {
-        method: "POST",
-        body: {
-          filterPeriod,
-          selectedMonth,
-          specificDate,
-          searchTerm,
-          filterStatus,
-        },
-      });
-
-      if (!zipBlob || zipBlob.size === 0) {
-        throw new Error("El backend devolvi? un archivo vac?o.");
-      }
-
-      setExportJob((prev) => ({
-        ...(prev || {}),
-        progress: 90,
-        message: "Descarga lista, iniciando archivo...",
-      }));
-
-      const link = document.createElement("a");
-      const objectUrl = URL.createObjectURL(zipBlob);
-      link.href = objectUrl;
-      link.download = "vouchers_depositos.zip";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-
-      setExportJob((prev) => ({
-        ...(prev || {}),
-        status: "completed",
-        progress: 100,
-        message: "Descarga completada",
-      }));
-    } catch (error) {
-      console.error("Error al exportar vouchers desde backend:", error);
-      setExportJob((prev) => ({
-        ...(prev || {}),
-        status: "error",
-        error: error.message,
-        message: error.message || "Ocurri? un error al exportar los vouchers.",
-      }));
-      alert(error.message || "Ocurri? un error al exportar los vouchers.");
-    } finally {
-      setIsExporting(false);
-    }
+    const link = document.createElement("a");
+    const objectUrl = URL.createObjectURL(zipBlob);
+    link.href = objectUrl;
+    link.download = "vouchers_respaldo.zip";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   };
 
   // Marcar/desmarcar un deposito para regularizar (solo finanzas/admin,
@@ -428,6 +364,8 @@ const TablePage = ({
           onSelectedDateChange={onSelectedDateChange}
           onSelectDate={onSelectDate}
           onExportExcel={handleExportExcel}
+          canExportVouchers={canRegularize}
+          onOpenExportVouchers={() => setShowExportModal(true)}
         />
 
         <DepositsTable
@@ -443,58 +381,19 @@ const TablePage = ({
           onOpenRegularizeUpload={handleOpenRegularizeUpload}
         />
       </div>
-      <AnimatePresence>
-        {exportJob && isExporting && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          >
-            <motion.div
-              initial={{ scale: 0.96, y: 10 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 10 }}
-              className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-2xl border border-gray-200 dark:border-gray-800"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Exportando vouchers
-                </h3>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {Math.min(100, Math.max(0, Math.round(exportJob.progress || 0)))}%
-                </span>
-              </div>
-
-              <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-blue-600 transition-all duration-300"
-                  style={{ width: `${Math.min(100, Math.max(0, exportJob.progress || 0))}%` }}
-                />
-              </div>
-
-              <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                <p>{exportJob.message || "Preparando exportación..."}</p>
-                <p>
-                  Procesados: {exportJob.processed || 0} / {exportJob.total || 0}
-                </p>
-                <p>Archivos incluidos: {exportJob.filesAdded || 0}</p>
-                {Array.isArray(exportJob.failures) && exportJob.failures.length > 0 && (
-                  <p className="text-amber-600 dark:text-amber-400">
-                    Fallas parciales: {exportJob.failures.length}
-                  </p>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {regularizeUploadDeposit && (
         <RegularizeImageModal
           deposit={regularizeUploadDeposit}
           onClose={() => setRegularizeUploadDeposit(null)}
           onSubmit={handleSubmitRegularizeImage}
+        />
+      )}
+
+      {showExportModal && (
+        <VoucherExportModal
+          sucursales={sucursales}
+          onClose={() => setShowExportModal(false)}
+          onSubmit={handleDownloadVouchersZip}
         />
       )}
 

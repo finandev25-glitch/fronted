@@ -1,4 +1,5 @@
 import { buildApiUrl } from "../../../services/apiBase.js";
+import { apiBlob } from "../../../services/backendApi.js";
 import { MOCK_MODE_ENABLED } from "../../../mocks/mockServer.js";
 import { createInitialMockState } from "../../../mocks/mockData.js";
 
@@ -711,6 +712,23 @@ export async function lockDeposit(id) {
 
 export async function unlockDeposit(id) {
   return apiJson(`${DEPOSITS_BASE}/${id}/unlock`, { method: "POST" });
+}
+
+// GET /v1/deposits/export-vouchers-zip — respaldo masivo de vouchers en ZIP,
+// organizado por fecha de depósito y, dentro de cada fecha, por sucursal
+// (solo finanzas/admin, el backend valida el rol). El backend SIEMPRE filtra
+// solo depositos validados (Estado = confirmado), eso no es opcional desde
+// aqui. Filtros opcionales: sucursalId, fechaDesde/fechaHasta (YYYY-MM-DD,
+// sobre FechaDeposito). Devuelve el blob del ZIP tal cual, listo para
+// disparar la descarga en el navegador.
+export async function exportVouchersZip({ sucursalId, fechaDesde, fechaHasta } = {}) {
+  const params = new URLSearchParams();
+  if (sucursalId) params.append("sucursalId", sucursalId);
+  if (fechaDesde) params.append("fechaDesde", fechaDesde);
+  if (fechaHasta) params.append("fechaHasta", fechaHasta);
+
+  const query = params.toString();
+  return apiBlob(`${DEPOSITS_BASE}/export-vouchers-zip${query ? `?${query}` : ""}`);
 }
 
 export async function checkDuplicate(payload) {
