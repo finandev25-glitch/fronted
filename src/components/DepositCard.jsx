@@ -80,6 +80,8 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
     isDepositAntiguo(deposit) && effectiveEstado === "en_validacion";
   // Depósito procesado marcado con riesgo -> peligro (parpadeo rojo + ícono).
   const isRiesgo = deposit.estado === "procesado" && deposit.riesgo === true;
+  // Depósito marcado como pendiente de regularizar -> color turquesa.
+  const isRegularizar = deposit.pendiente_regularizar === true;
   const rejectedObservation =
     deposit.estado === "rechazado"
       ? String(deposit.observaciones || deposit.motivo_rechazo || "").trim()
@@ -91,9 +93,11 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
       className={`relative rounded-xl border border-gray-200 dark:border-gray-700/80 border-l-4 ${
         isRiesgo
           ? "border-l-red-600 bg-gradient-to-br from-red-100 to-rose-50 dark:from-red-950/50 dark:to-rose-950/30 shadow-red-300/60 dark:shadow-red-900/50"
-          : isOldDeposit
-            ? "border-l-orange-500 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 shadow-orange-200/50 dark:shadow-orange-900/30"
-            : `${statusStyles.borderColor} ${statusStyles.gradient} ${statusStyles.shadow}`
+          : isRegularizar
+            ? "border-l-purple-500 bg-gradient-to-br from-purple-100 to-violet-50 dark:from-purple-950/50 dark:to-violet-950/30 shadow-purple-200/50 dark:shadow-purple-900/40"
+            : isOldDeposit
+              ? "border-l-orange-500 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 shadow-orange-200/50 dark:shadow-orange-900/30"
+              : `${statusStyles.borderColor} ${statusStyles.gradient} ${statusStyles.shadow}`
       } px-3.5 py-2.5 transition-all duration-300 cursor-pointer flex flex-col h-full ${
         isRiesgo
           ? "danger-blink ring-2 ring-red-400 dark:ring-red-600"
@@ -133,15 +137,6 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
                   .toUpperCase()}
               </span>
             ))}
-          {/* Badge para depósitos pendientes de regularizar (voucher a reemplazar) */}
-          {deposit.pendiente_regularizar && (
-            <span
-              className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-xs font-bold rounded-md border border-yellow-300 dark:border-yellow-600 flex-shrink-0"
-              title="Pendiente de regularizar: reemplazar el voucher por uno válido"
-            >
-              ⚠️ REG
-            </span>
-          )}
           {/* Banco */}
           <span
             className={`px-3 py-1.5 text-sm font-semibold rounded-lg border truncate ${getBankBadgeClassName(deposit.banco)}`}

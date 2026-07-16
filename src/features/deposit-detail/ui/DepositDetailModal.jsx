@@ -3,10 +3,7 @@ import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
-<<<<<<< HEAD
 import { searchActiveTab } from "../lib/activeTabSearch.js";
-import { fetchCuentas } from "../../deposits/api/depositsApi.js";
-=======
 import {
   fetchCuentas,
   markDepositForRegularize,
@@ -14,7 +11,6 @@ import {
   financeRegularizeImage,
 } from "../../deposits/api/depositsApi.js";
 import RegularizeImageModal from "../../deposits/components/RegularizeImageModal.jsx";
->>>>>>> e4a4e2adbb55727b2277b633b23522539f085b93
 import React, {
   useState,
   useEffect,
@@ -90,6 +86,7 @@ const DepositDetailModal = ({
   empresas,
   bancos,
   cuentas,
+  allDeposits = [],
   onOpenVoucherWindow,
   editMode = "full",
   presentationMode = "default",
@@ -121,7 +118,6 @@ const DepositDetailModal = ({
     isChecking,
     isProcessing,
     isSending,
-    isRegularizing,
     checkResult,
     duplicateDeposits,
     isRejectionModalOpen,
@@ -134,8 +130,6 @@ const DepositDetailModal = ({
     handleRestoreToPending,
     handleSaveChanges,
     handleToggleEsAntiguo,
-    handleToggleRegularizePending,
-    handleUploadRegularizeVoucher,
   } = useDepositActions({
     deposit,
     editableData,
@@ -143,6 +137,7 @@ const DepositDetailModal = ({
     currentUser,
     empresas,
     bancos,
+    allDeposits,
     onUpdateDeposit,
     onClose
   });
@@ -314,6 +309,7 @@ const DepositDetailModal = ({
   
   const [elapsedTime, setElapsedTime] = useState("");
   const [receivedTime, setReceivedTime] = useState("");
+  const [receivedDate, setReceivedDate] = useState("");
 
   useEffect(() => {
     if (!deposit.fecha_registro) return;
@@ -325,6 +321,13 @@ const DepositDetailModal = ({
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+      }),
+    );
+    setReceivedDate(
+      registeredAt.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       }),
     );
 
@@ -1314,18 +1317,16 @@ const DepositDetailModal = ({
                         <Clock className="h-4 w-4" />
                         {deposit?.es_antiguo ? "Antiguo ✓" : "Antiguo"}
                       </button>
-                      {deposit?.es_antiguo && (
-                        <button
-                          type="button"
-                          onClick={openSqlMovementsModal}
-                          disabled={isProcessing}
-                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                          title="Ver movimientos SQL por identificar"
-                        >
-                          <Search className="h-4 w-4" />
-                          SQL
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={openSqlMovementsModal}
+                        disabled={isProcessing}
+                        className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Ver movimientos SQL por identificar"
+                      >
+                        <Search className="h-4 w-4" />
+                        SQL
+                      </button>
                       <button
                         type="button"
                         onClick={() => setIsRejectionModalOpen(true)}
@@ -1736,14 +1737,11 @@ const DepositDetailModal = ({
                 <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100">
                   Detalle del Depósito
                 </h2>
-                <p className="hidden md:block text-sm text-gray-500 dark:text-gray-400">
-                  Operación (Voucher): {deposit.numero_operacion}
-                </p>
-                <div className="hidden sm:flex items-center gap-3 mt-1 text-xs">
+                <div className="hidden sm:flex items-center gap-4 mt-1.5 text-sm md:text-base">
                   <span className="text-gray-600 dark:text-gray-400">
                     📅 Recibido:{" "}
                     <strong className="text-blue-600 dark:text-blue-400">
-                      {receivedTime}
+                      {receivedDate} {receivedTime}
                     </strong>
                   </span>
                   <span className="text-gray-600 dark:text-gray-400">
@@ -1775,17 +1773,15 @@ const DepositDetailModal = ({
                 <span>{statusLabel}</span>
               </span>
 
-              {deposit.es_antiguo && (
-                <button
-                  type="button"
-                  onClick={openSqlMovementsModal}
-                  className="flex items-center space-x-2 px-2 md:px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors"
-                  title="Ver movimientos SQL por identificar"
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="hidden md:inline">SQL</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={openSqlMovementsModal}
+                className="flex items-center space-x-2 px-2 md:px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors"
+                title="Ver movimientos SQL por identificar"
+              >
+                <Search className="h-4 w-4" />
+                <span className="hidden md:inline">SQL</span>
+              </button>
 
               {deposit.estado === "rechazado" && (
                 <button
@@ -1982,32 +1978,6 @@ const DepositDetailModal = ({
                     <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                       Datos del Solicitante
                     </h4>
-                    {!editingSolicitante && isBackendConnected && (
-                      <button
-                        onClick={() => {
-                          setEditingSolicitante(true);
-                          setSearchTrabajador(deposit.trabajador?.nombre || "");
-                        }}
-                        disabled={isProcessing}
-                        className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                        title="Editar datos del solicitante"
-                      >
-                        <svg
-                          className="w-3 h-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                        <span>Editar</span>
-                      </button>
-                    )}
                   </div>
 
                   {editingSolicitante ? (
@@ -2122,53 +2092,30 @@ const DepositDetailModal = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="truncate">
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Vendedor
-                          </p>
-                          <p
-                            className="font-semibold text-gray-900 dark:text-gray-100 text-base"
-                            title={deposit.trabajador?.nombre}
-                          >
-                            {deposit.trabajador?.nombre || "-"}
-                          </p>
-                        </div>
-                        <div className="truncate">
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Sucursal
-                          </p>
-                          <p
-                            className="font-semibold text-gray-900 dark:text-gray-100 text-base"
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 truncate">
+                          <Building2 className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                          <span
+                            className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate"
                             title={deposit.sucursal?.nombre}
                           >
                             {deposit.sucursal?.nombre || "-"}
-                          </p>
+                          </span>
                         </div>
-                        <div className="truncate">
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Fecha de Envío
-                          </p>
-                          <p className="font-semibold text-gray-900 dark:text-gray-100 text-base">
-                            {formatDepositDateTime(deposit.fecha_registro)}
-                          </p>
+                        <div className="flex items-center gap-2 truncate">
+                          <User className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                          <span
+                            className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate"
+                            title={deposit.trabajador?.nombre}
+                          >
+                            {deposit.trabajador?.nombre || "-"}
+                          </span>
                         </div>
-                        <div className="truncate">
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Teléfono
-                          </p>
-                          {deposit.trabajador?.telefono_origen ? (
-                            <span className="flex items-center gap-1 font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                              <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate">
-                                {deposit.trabajador.telefono_origen}
-                              </span>
-                            </span>
-                          ) : (
-                            <p className="font-semibold text-gray-400 dark:text-gray-500 text-base">
-                              -
-                            </p>
-                          )}
+                        <div className="flex items-center gap-2 truncate">
+                          <Phone className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate">
+                            {deposit.trabajador?.telefono_origen || "-"}
+                          </span>
                         </div>
                       </div>
 
@@ -2353,57 +2300,6 @@ const DepositDetailModal = ({
                   </button>
                 )}
 
-                {/* Pendiente de regularizar: marcar/desmarcar (flag) */}
-                <button
-                  onClick={handleToggleRegularizePending}
-                  disabled={isRegularizing}
-                  className={`px-3 py-1.5 rounded-md font-medium flex items-center justify-center space-x-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                    deposit.pendiente_regularizar
-                      ? "bg-yellow-500 text-yellow-950 hover:bg-yellow-600"
-                      : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500"
-                  }`}
-                  title={
-                    deposit.pendiente_regularizar
-                      ? "Quitar marca de pendiente de regularizar"
-                      : "Marcar como pendiente de regularizar (voucher de formato inválido)"
-                  }
-                >
-                  {isRegularizing ? (
-                    <Loader2 className="animate-spin" size={12} />
-                  ) : (
-                    <FileText size={12} />
-                  )}
-                  <span>
-                    {deposit.pendiente_regularizar
-                      ? "Por regularizar ✓"
-                      : "Pendiente regularizar"}
-                  </span>
-                </button>
-
-                {/* Subir el voucher válido que reemplaza la imagen (solo si está marcado) */}
-                {deposit.pendiente_regularizar && (
-                  <label
-                    className={`px-3 py-1.5 rounded-md font-medium flex items-center justify-center space-x-2 text-sm bg-emerald-600 text-white hover:bg-emerald-700 ${
-                      isRegularizing ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-                    }`}
-                    title="Subir el voucher válido (reemplaza la imagen y quita la marca)"
-                  >
-                    <FileDown size={12} />
-                    <span>Subir voucher válido</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={isRegularizing}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = ""; // permitir re-seleccionar el mismo archivo
-                        if (file) handleUploadRegularizeVoucher(file);
-                      }}
-                    />
-                  </label>
-                )}
-
                 <button
                   onClick={() => {
                     setIsRejectionModalOpen(true);
@@ -2427,8 +2323,11 @@ const DepositDetailModal = ({
                   </button>
                 )}
 
-                {/* Regularizar voucher (solo finanzas/admin, cualquier estado) */}
-                {canRegularize && !deposit.pendiente_regularizar && (
+                {/* Regularizar voucher: solo finanzas/admin y SOLO cuando el
+                    depósito ya está confirmado (validado). */}
+                {canRegularize &&
+                  deposit.estado === "confirmado" &&
+                  !deposit.pendiente_regularizar && (
                   <button
                     onClick={handleMarkRegularize}
                     disabled={isMarkingRegularize}
@@ -2561,9 +2460,11 @@ const DepositDetailModal = ({
           setIsRejectionModalOpen(true);
         }}
         duplicateDeposits={duplicateDeposits}
+        empresas={empresas}
+        bancos={bancos}
         getStatusInfo={getStatusInfo}
         formatCompactMoney={formatCompactMoney}
-      formatDateTime={formatDepositDateTime}
+        formatDateTime={formatDepositDateTime}
       />
 
       {/* Modal de Chatwoot embebido */}

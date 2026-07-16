@@ -353,7 +353,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   const tabId = sender?.tab?.id || null;
 
+  // IMPORTANTE: chrome.sidePanel.open() SOLO puede llamarse dentro del "user
+  // gesture" del clic. Cualquier `await` previo (guardar en storage, setOptions)
+  // rompe ese gesto y open() falla con "may only be called in response to a user
+  // gesture". Por eso abrimos PRIMERO, de forma síncrona, y guardamos el estado
+  // después: el sidepanel escucha chrome.storage.onChanged y se auto-refresca.
+  let openPromise = null;
+  let opened = false;
+  if (sender?.tab?.id && chrome.sidePanel?.open) {
+    try {
+      openPromise = chrome.sidePanel.open({
+        tabId: sender.tab.id,
+        windowId: sender.tab.windowId,
+      });
+      opened = true;
+    } catch (error) {
+      console.warn("No se pudo abrir el panel lateral (gesto):", error);
+    }
+  }
+
   (async () => {
+    // Guarda el estado DESPUÉS de disparar open(): el panel lo tomará por
+    // storage.onChanged apenas cargue.
     const state = await storeVoucherState(
       {
         voucherUrl: message.url || "",
@@ -363,20 +384,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       tabId
     );
 
-    let opened = false;
-    if (sender?.tab?.id && chrome.sidePanel?.setOptions && chrome.sidePanel?.open) {
+    // Asegura path/enabled para próximas aperturas (no crítico para el gesto).
+    if (sender?.tab?.id && chrome.sidePanel?.setOptions) {
       try {
         await chrome.sidePanel.setOptions({
           tabId: sender.tab.id,
           path: "sidepanel.html",
           enabled: true,
         });
-        await chrome.sidePanel.open({
-          tabId: sender.tab.id,
-          windowId: sender.tab.windowId,
-        });
-        opened = true;
+      } catch (_error) {
+        // ignorar
+      }
+    }
+
+    if (openPromise) {
+      try {
+        await openPromise;
       } catch (error) {
+        opened = false;
         console.warn("No se pudo abrir el panel lateral tras recibir el voucher:", error);
       }
     }

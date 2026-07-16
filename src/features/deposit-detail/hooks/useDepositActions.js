@@ -4,19 +4,8 @@ import {
   checkDuplicate,
   confirmDeposit,
   rejectDeposit,
-  markDepositRegularizePending,
-  uploadRegularizeVoucher,
+  fetchDepositById,
 } from "../../deposits/api/depositsApi.js";
-
-// Lee un File y devuelve su contenido en base64 (data URL completa).
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
-    reader.readAsDataURL(file);
-  });
-}
 
 /**
  * Hook que encapsula la lógica de confirmación, rechazo y acciones sobre el depósito.
@@ -28,6 +17,7 @@ export function useDepositActions({
   currentUser,
   empresas,
   bancos,
+  allDeposits = [],
   onUpdateDeposit,
   onClose,
 }) {
@@ -135,10 +125,10 @@ export function useDepositActions({
     setCheckResult({ checked: false, isDuplicate: false, message: "" });
 
     try {
-      // FIX: antes llamaba a "/depositos/check-duplicate" (ruta inexistente,
-      // en espanol) con "numero_operacion_banco" (campo que el backend no
-      // reconoce). La ruta real es /v1/deposits/check-duplicate y el campo
-      // que compara es "numeroOperacion" — ver DepositEndpoints.cs.
+      // Búsqueda en TODA la base de datos (backend): mismo importe + moneda +
+      // operación. Cada duplicado se enriquece con los datos completos del
+      // listado ya cargado cuando está disponible (el backend puede devolver
+      // el depósito con campos incompletos).
       const response = await checkDuplicate({
         monto: editableData.monto,
         moneda: selectedMoneda,
@@ -146,25 +136,71 @@ export function useDepositActions({
         excludeId: deposit.id,
       });
 
-      const duplicates = response.duplicates || [];
       if (response.error) {
         setCheckResult({ checked: true, isDuplicate: true, message: "Error al comprobar: " + response.error });
         return;
       }
+
+      // El backend solo devuelve id + sucursal + trabajador de cada duplicado.
+      // Para mostrar empresa, banco, nro. operación, importe y fechas, traemos
+      // el DETALLE COMPLETO de cada uno por su id (o lo tomamos del listado ya
+      // cargado si está disponible). La sucursal/personal que sí trae el
+      // duplicado se conservan como respaldo.
+      const rawDuplicates = response.duplicates || [];
+      const duplicates = await Promise.all(
+        rawDuplicates.map(async (dup) => {
+          const local = (allDeposits || []).find(
+            (d) => String(d.id) === String(dup.id),
+          );
+          // Si el registro local ya trae la imagen del voucher, lo usamos tal
+          // cual. Si NO la trae (la lista del kanban a veces no incluye el
+          // voucher), traemos el detalle completo para poder mostrar el
+          // comprobante en la card del duplicado.
+          if (local && local.imagen_voucher) {
+            return {
+              ...local,
+              sucursal: local.sucursal || dup.sucursal || null,
+              trabajador: local.trabajador || dup.trabajador || null,
+            };
+          }
+          try {
+            const full = await fetchDepositById(dup.id);
+            if (full) {
+              return {
+                ...(local || {}),
+                ...full,
+                imagen_voucher: full.imagen_voucher || local?.imagen_voucher || null,
+                sucursal: full.sucursal || local?.sucursal || dup.sucursal || null,
+                trabajador: full.trabajador || local?.trabajador || dup.trabajador || null,
+              };
+            }
+          } catch {
+            // Si falla el detalle, se muestra el duplicado con lo que trae.
+          }
+          if (local) {
+            return {
+              ...local,
+              sucursal: local.sucursal || dup.sucursal || null,
+              trabajador: local.trabajador || dup.trabajador || null,
+            };
+          }
+          return dup;
+        }),
+      );
 
       if (duplicates.length > 0) {
         setDuplicateDeposits(duplicates);
         setCheckResult({
           checked: true,
           isDuplicate: true,
-          message: response.message || `¡Alerta! Se encontraron ${duplicates.length} depósito(s) duplicado(s).`,
+          message: `¡Alerta! Se encontraron ${duplicates.length} depósito(s) duplicado(s).`,
         });
       } else {
         setDuplicateDeposits([]);
         setCheckResult({
           checked: true,
           isDuplicate: false,
-          message: response.message || "No se encontraron duplicados. Puede confirmar el depósito.",
+          message: "No se encontraron duplicados. Puede confirmar el depósito.",
         });
       }
     } catch (err) {
@@ -172,7 +208,7 @@ export function useDepositActions({
     } finally {
       setIsChecking(false);
     }
-  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda]);
+  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits]);
 
   // ─── Confirmar depósito ───────────────────────────────────────────────────────
   const handleConfirmDeposit = useCallback(async () => {
@@ -217,8 +253,10 @@ export function useDepositActions({
       });
 
       onUpdateDeposit({ ...deposit, ...payload }, { skipPersist: true });
+      // NO cerramos el modal al confirmar: se queda abierto para que, ya
+      // confirmado, aparezca el botón "Regularizar" y se pueda marcar si el
+      // voucher hay que reemplazarlo.
       alert("✅ Depósito confirmado exitosamente.");
-      onClose();
     } catch (err) {
       alert(`❌ No se pudo confirmar el depósito: ${err.message}`);
     } finally {
@@ -278,66 +316,6 @@ export function useDepositActions({
     }
   }, [buildUpdatePayload, deposit, isProcessing, onClose, onUpdateDeposit]);
 
-  // ─── Pendiente de regularizar (flag independiente) ──────────────────────────
-  // Marca/desmarca el depósito para que su voucher (formato inválido) se
-  // reemplace luego por uno válido. NO cambia el estado del depósito.
-  const [isRegularizing, setIsRegularizing] = useState(false);
-
-  const handleToggleRegularizePending = useCallback(async () => {
-    if (isRegularizing) return;
-    const nuevo = !deposit.pendiente_regularizar;
-
-    setIsRegularizing(true);
-    // Actualización optimista
-    onUpdateDeposit({ ...deposit, pendiente_regularizar: nuevo }, { skipPersist: true });
-
-    try {
-      await markDepositRegularizePending(deposit.id, nuevo);
-    } catch (err) {
-      onUpdateDeposit({ ...deposit, pendiente_regularizar: !nuevo }, { skipPersist: true });
-      alert(`❌ No se pudo actualizar la marca: ${err.message}`);
-    } finally {
-      setIsRegularizing(false);
-    }
-  }, [deposit, isRegularizing, onUpdateDeposit]);
-
-  // Sube el voucher válido que reemplaza la imagen y limpia la marca.
-  const handleUploadRegularizeVoucher = useCallback(
-    async (file) => {
-      if (!file || isRegularizing) return;
-
-      if (!file.type.startsWith("image/")) {
-        alert("Selecciona un archivo de imagen válido (JPG/PNG).");
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        alert("La imagen debe pesar 5 MB o menos.");
-        return;
-      }
-
-      setIsRegularizing(true);
-      try {
-        const base64 = await fileToBase64(file);
-        const result = await uploadRegularizeVoucher(deposit.id, base64);
-        onUpdateDeposit(
-          {
-            ...deposit,
-            pendiente_regularizar: false,
-            imagen_voucher: result?.imagenVoucher || deposit.imagen_voucher,
-          },
-          { skipPersist: true },
-        );
-        alert("✅ Voucher reemplazado. Depósito regularizado.");
-        onClose();
-      } catch (err) {
-        alert(`❌ No se pudo subir el voucher: ${err.message}`);
-      } finally {
-        setIsRegularizing(false);
-      }
-    },
-    [deposit, isRegularizing, onClose, onUpdateDeposit],
-  );
-
   // ─── Guardar cambios (sin confirmar) ────────────────────────────────────────
   const handleSaveChanges = useCallback(() => {
     onUpdateDeposit({
@@ -354,7 +332,6 @@ export function useDepositActions({
     isChecking,
     isProcessing,
     isSending,
-    isRegularizing,
     checkResult,
     setCheckResult,
     duplicateDeposits,
@@ -371,7 +348,5 @@ export function useDepositActions({
     handleConfirmRejection,
     handleRestoreToPending,
     handleSaveChanges,
-    handleToggleRegularizePending,
-    handleUploadRegularizeVoucher,
   };
 }

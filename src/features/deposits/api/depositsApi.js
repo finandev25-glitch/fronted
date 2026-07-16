@@ -287,7 +287,6 @@ function mapDeposit(item) {
       fecha_validacion: item.fechaValidacion || null,
       condicion: item.condicion || null,
       riesgo: item.riesgo ?? false,
-      pendiente_regularizar: item.pendienteRegularizar ?? false,
       empresa_id: item.empresaId ? String(item.empresaId).toLowerCase() : null,
       banco_id: item.bancoId ? String(item.bancoId).toLowerCase() : null,
       sucursal_id: item.sucursalId ? String(item.sucursalId).toLowerCase() : null,
@@ -663,50 +662,6 @@ export async function rejectDeposit(id, { observaciones, anexo } = {}) {
   return data;
 }
 
-<<<<<<< HEAD
-// POST /v1/deposits/{id}/regularize-pending — marca/desmarca el flag
-// "pendiente de regularizar" (no cambia el estado del depósito).
-export async function markDepositRegularizePending(id, pendiente = true) {
-  return apiJson(`${DEPOSITS_BASE}/${id}/regularize-pending`, {
-    method: "POST",
-    body: JSON.stringify({ pendiente }),
-  });
-}
-
-// POST /v1/deposits/{id}/regularize-upload — sube el voucher válido que
-// REEMPLAZA la imagen del depósito marcado y limpia el flag. El endpoint es
-// [FromForm] con campo "ImagenBase64" (base64 SIN el prefijo "data:...;base64,").
-export async function uploadRegularizeVoucher(id, imagenBase64) {
-  const raw = String(imagenBase64 || "").replace(/^data:[^;]+;base64,/, "");
-  const form = new FormData();
-  form.append("ImagenBase64", raw);
-
-  const accessToken = getStoredAccessToken();
-  const response = await fetch(
-    buildApiUrl(`${API_BASE}${DEPOSITS_BASE}/${id}/regularize-upload`),
-    {
-      method: "POST",
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: form,
-    }
-  );
-
-  if (!response.ok) {
-    let message = response.statusText;
-    try {
-      const payload = await response.json();
-      message = payload?.error || payload?.message || message;
-    } catch {
-      // respuesta sin JSON
-    }
-    throw new Error(message);
-  }
-  return response.json();
-}
-
-=======
 // POST /v1/deposits/{id}/mark-regularize — Solo finanzas/admin (el backend
 // valida el rol). A diferencia de regularizeDeposit (flujo del vendedor,
 // exige Estado="rechazado" y SI vuelve a encolar al worker de IA), este
@@ -735,7 +690,6 @@ export async function financeRegularizeImage(id, imagenBase64) {
   });
 }
 
->>>>>>> e4a4e2adbb55727b2277b633b23522539f085b93
 export async function updateDeposit(id, payload) {
   if (payload?.estado === "confirmado") {
     return confirmDeposit(id, { observaciones: payload.observaciones, anexo: payload.anexo });
@@ -762,8 +716,17 @@ export async function unlockDeposit(id) {
 
 export async function checkDuplicate(payload) {
   if (MOCK_MODE_ENABLED) return { duplicates: [] };
-  return apiJson(`${DEPOSITS_BASE}/check-duplicate`, {
+  const data = await apiJson(`${DEPOSITS_BASE}/check-duplicate`, {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
+  // Los duplicados vienen en camelCase (y a veces con relaciones anidadas)
+  // igual que el listado; hay que normalizarlos con mapDeposit para que el
+  // modal muestre empresa/banco/nro operación/importe/fechas y no "-".
+  return {
+    ...data,
+    duplicates: Array.isArray(data?.duplicates)
+      ? data.duplicates.map(mapDeposit)
+      : [],
+  };
 }

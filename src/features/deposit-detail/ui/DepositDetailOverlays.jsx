@@ -257,11 +257,31 @@ export function DuplicateDepositsPortal({
   onClose,
   onReject,
   duplicateDeposits,
+  empresas = [],
+  bancos = [],
   getStatusInfo,
   formatCompactMoney,
   formatDateTime,
 }) {
   if (typeof document === "undefined") return null;
+
+  // Resuelve el nombre de empresa / banco desde los catálogos cuando el
+  // duplicado solo trae el id (el backend a veces no manda el objeto anidado).
+  const resolveEmpresa = (dup) => {
+    if (dup.empresa?.nombre) return dup.empresa.nombre;
+    const match = empresas.find(
+      (e) => String(e.id).toLowerCase() === String(dup.empresa_id || "").toLowerCase(),
+    );
+    return match?.nombre || "-";
+  };
+  const resolveBanco = (dup) => {
+    if (dup.banco?.abreviatura || dup.banco?.nombre)
+      return dup.banco.abreviatura || dup.banco.nombre;
+    const match = bancos.find(
+      (b) => String(b.id).toLowerCase() === String(dup.banco_id || "").toLowerCase(),
+    );
+    return match?.abreviatura || match?.nombre || "-";
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -270,57 +290,49 @@ export function DuplicateDepositsPortal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-[150] flex justify-end bg-black/35"
           onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="relative flex max-h-[90vh] w-full max-w-6xl flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
+            className="relative flex h-full w-full max-w-[420px] flex-col bg-white shadow-2xl dark:bg-gray-800"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between rounded-t-xl border-b border-gray-200 bg-red-50 p-4 dark:border-gray-700 dark:bg-red-900/20">
-              <div className="flex items-center space-x-3">
-                <div className="rounded-lg bg-red-500 p-2">
-                  <AlertCircle className="h-5 w-5 text-white" />
+            <div className="flex items-center justify-between border-b border-gray-200 bg-red-50 px-4 py-2.5 dark:border-gray-700 dark:bg-red-900/20">
+              <div className="flex items-center space-x-2.5">
+                <div className="rounded-md bg-red-500 p-1.5">
+                  <AlertCircle className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-red-900 dark:text-red-100">
-                    Depósitos Duplicados Encontrados
+                  <h3 className="text-sm font-bold text-red-900 dark:text-red-100">
+                    Depósitos Duplicados
                   </h3>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    Se encontraron {duplicateDeposits.length} depósito(s) con datos similares
+                  <p className="text-xs text-red-700 dark:text-red-300">
+                    {duplicateDeposits.length} depósito(s) con datos similares
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="rounded-full p-2 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
+                className="rounded-full p-1.5 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
                 title="Cerrar"
               >
                 <X className="h-5 w-5 text-red-600 dark:text-red-400" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
-                <div className="text-sm font-bold text-red-900 dark:text-red-100">
-                  Depósitos duplicados encontrados
-                </div>
-                <div className="mt-1 text-sm text-red-700 dark:text-red-200">
-                  Se muestran los depósitos encontrados como cards individuales.
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="flex-1 overflow-y-auto p-3">
+              <div className="flex min-h-full flex-col gap-3">
                 {duplicateDeposits.map((dup, index) => {
                   const statusInfo = getStatusInfo(dup.estado);
                   const StatusIcon = statusInfo.Icon;
                   return (
                     <div
                       key={dup.id || `${dup.numero_operacion_banco || dup.numero_operacion || "dup"}-${index}`}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                      className="flex w-full flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -338,8 +350,8 @@ export function DuplicateDepositsPortal({
                       </div>
 
                       <div className="mt-4 grid gap-2 text-sm">
-                        <Field label="Empresa" value={dup.empresa?.nombre || "-"} />
-                        <Field label="Banco" value={dup.banco?.abreviatura || dup.banco?.nombre || "-"} />
+                        <Field label="Empresa" value={resolveEmpresa(dup)} />
+                        <Field label="Banco" value={resolveBanco(dup)} />
                         <Field label="Nro. operación" value={dup.numero_operacion_banco || dup.numero_operacion || "-"} mono />
                         <Field label="Importe" value={formatCompactMoney(dup.monto, dup.moneda)} mono />
                         <Field label="Fecha depósito" value={dup.fecha_deposito || "-"} />
@@ -350,13 +362,49 @@ export function DuplicateDepositsPortal({
                           className="md:col-span-2"
                         />
                       </div>
+
+                      {/* Imagen del voucher del depósito duplicado (confirmado) */}
+                      <div className="mt-3 flex flex-1 flex-col">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          Comprobante
+                        </div>
+                        {dup.imagen_voucher ? (
+                          dup.imagen_voucher.includes(".pdf") ||
+                          dup.imagen_voucher.includes("/preview") ? (
+                            <iframe
+                              src={dup.imagen_voucher}
+                              title={`Voucher duplicado ${index + 1}`}
+                              className="min-h-[320px] w-full flex-1 rounded-lg border border-slate-200 dark:border-gray-700"
+                              style={{ border: "none" }}
+                            />
+                          ) : (
+                            <a
+                              href={dup.imagen_voucher}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-black/5 dark:border-gray-700 dark:bg-black/20"
+                              title="Abrir comprobante en nueva pestaña"
+                            >
+                              <img
+                                src={dup.imagen_voucher}
+                                alt={`Voucher duplicado ${index + 1}`}
+                                className="max-h-full min-h-[320px] w-full object-contain"
+                              />
+                            </a>
+                          )
+                        ) : (
+                          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400 dark:border-gray-700 dark:bg-gray-800/50">
+                            Sin comprobante
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 rounded-b-xl border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+            <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
               <button
                 onClick={onReject}
                 className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700"

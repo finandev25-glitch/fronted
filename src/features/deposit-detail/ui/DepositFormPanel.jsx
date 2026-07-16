@@ -16,13 +16,13 @@ export const DepositFormPanel = ({
 }) => {
   return (
     <>
-                  <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                  <h4 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
                     Datos Editables del Depósito
                   </h4>
 
                   <div className="grid grid-cols-6 gap-3 mb-4">
-                    {/* Primera fila: Empresa (4 cols) + Banco (2 cols) */}
-                    <div className="col-span-4">
+                    {/* Fila 1: Empresa (ancho completo) */}
+                    <div className="col-span-6">
                       <FormRow icon={Building} label="Empresa">
                         <select
                           name="empresa_id"
@@ -31,7 +31,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? false : isFullEditDisabled
                           }
-                          className={`w-full border rounded-lg px-3 py-1.5 focus:ring-2 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
                             !editableData.empresa_id
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
                               : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
@@ -46,7 +46,9 @@ export const DepositFormPanel = ({
                         </select>
                       </FormRow>
                     </div>
-                    <div className="col-span-2">
+
+                    {/* Fila 2: Banco (3 cols) + Anexo (3 cols) */}
+                    <div className="col-span-3">
                       <FormRow icon={CreditCard} label="Banco">
                         <select
                           name="banco_id"
@@ -55,7 +57,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? false : isFullEditDisabled
                           }
-                          className={`w-full border rounded-lg px-3 py-1.5 focus:ring-2 font-mono text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
                             !editableData.banco_id
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
                               : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
@@ -70,8 +72,6 @@ export const DepositFormPanel = ({
                         </select>
                       </FormRow>
                     </div>
-
-                    {/* Segunda fila: Anexo (3 cols) + Fecha Depósito (3 cols) */}
                     <div className="col-span-3">
                       <FormRow icon={Hash} label="Anexo">
                         <select
@@ -79,7 +79,7 @@ export const DepositFormPanel = ({
                           value={editableData.anexo}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                          className={`w-full border rounded-lg px-3 py-1.5 focus:ring-2 font-mono text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
                             !editableData.anexo
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
                               : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
@@ -98,7 +98,9 @@ export const DepositFormPanel = ({
                         </select>
                       </FormRow>
                     </div>
-                    <div className="col-span-3">
+
+                    {/* Fila 3: Fecha Depósito (ancho completo) */}
+                    <div className="col-span-6">
                       <FormRow icon={Calendar} label="Fecha Depósito">
                         <input
                           type="date"
@@ -108,12 +110,12 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
                         />
                       </FormRow>
                     </div>
 
-                    {/* Cuarta fila: Nro. Operación Banco (3 cols) + Nro. Op. Solicitante (3 cols) */}
+                    {/* Fila 4: Nro. Operación Banco (3 cols) + Nro. Op. Solicitante (3 cols) */}
                     <div className="col-span-3">
                       <FormRow icon={Hash} label="Nro. Operación Banco">
                         <input
@@ -124,21 +126,22 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className={`w-full px-3 py-1.5 border rounded-lg focus:ring-2 font-mono transition-colors duration-200 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${nroOperacionClasses}`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono transition-colors duration-200 text-lg disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${nroOperacionClasses}`}
                           placeholder="pega la operacion segun la web del banco"
                         />
                       </FormRow>
                     </div>
                     <div className="col-span-3">
                       <FormRow icon={Hash} label="Nro. Op. Solicitante">
-                        <div className="w-full px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-center">
-                          <p className="font-bold text-blue-800 dark:text-blue-200 text-base tracking-wider font-mono">
+                        <div className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-center">
+                          <p className="font-bold text-blue-800 dark:text-blue-200 text-lg tracking-wider font-mono">
                             {deposit.numero_operacion}
                           </p>
                         </div>
                       </FormRow>
                     </div>
 
+                    {/* Fila 5: Importe (3 cols) + Moneda (3 cols) */}
                     <div className="col-span-3">
                       <FormRow icon={DollarSign} label="Importe">
                         <input
@@ -149,7 +152,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-sm text-right disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-lg font-bold text-right disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
                           placeholder="0.00"
                           step="0.01"
                         />
@@ -164,7 +167,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className={`w-full border rounded-lg px-3 py-1.5 focus:ring-2 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-lg disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
                             !selectedMoneda
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
                               : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
@@ -177,6 +180,7 @@ export const DepositFormPanel = ({
                       </FormRow>
                     </div>
 
+                    {/* Fila 6: Cliente (ancho completo) */}
                     <div className="col-span-6">
                       <FormRow icon={User} label="Cliente">
                         <input
@@ -187,7 +191,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
                           placeholder="Nombre del cliente"
                         />
                       </FormRow>

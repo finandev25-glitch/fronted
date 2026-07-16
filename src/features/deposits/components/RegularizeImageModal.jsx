@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { X, UploadCloud, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 // Modal minimo para que finanzas/admin suba la imagen/pdf nueva de un
@@ -67,6 +67,25 @@ export default function RegularizeImageModal({ deposit, onClose, onSubmit }) {
     e.preventDefault();
     loadFile(pasted);
   };
+
+  // Pegar el recorte con Ctrl+V en cualquier parte del modal, SIN tener que
+  // hacer clic antes en el recuadro. Ignora pegados que no sean imagen.
+  useEffect(() => {
+    const onWindowPaste = (event) => {
+      const items = Array.from(event.clipboardData?.items || []);
+      const imageItem = items.find(
+        (item) => item.kind === "file" && item.type.startsWith("image/"),
+      );
+      if (!imageItem) return;
+      const pasted = imageItem.getAsFile();
+      if (!pasted) return;
+      event.preventDefault();
+      loadFile(pasted);
+    };
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async () => {
     if (!file) {

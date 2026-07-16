@@ -52,6 +52,12 @@ function KanbanSection({ tone, title, count, isOpen, onToggle, children }) {
       bg: "bg-purple-100 dark:bg-purple-900/30",
       border: "border-purple-300 dark:border-purple-700",
     },
+    green: {
+      line: "bg-green-300 dark:bg-green-700",
+      text: "text-green-700 dark:text-green-400",
+      bg: "bg-green-100 dark:bg-green-900/30",
+      border: "border-green-300 dark:border-green-700",
+    },
   };
 
   const palette = tones[tone];
@@ -91,6 +97,11 @@ function KanbanColumnBody({
   groupedDeposits,
   validacionSeparated,
   pendientesSeparated,
+  confirmadoSeparated,
+  showConfirmadoRegularizar,
+  setShowConfirmadoRegularizar,
+  showConfirmadoValidados,
+  setShowConfirmadoValidados,
   showNormales,
   setShowNormales,
   showAntiguos,
@@ -183,6 +194,51 @@ function KanbanColumnBody({
     );
   }
 
+  if (columnId === "confirmado") {
+    return (
+      <>
+        {confirmadoSeparated.regularizar.length > 0 && (
+          <KanbanSection
+            tone="purple"
+            title="Por regularizar"
+            count={confirmadoSeparated.regularizar.length}
+            isOpen={showConfirmadoRegularizar}
+            onToggle={() => setShowConfirmadoRegularizar(!showConfirmadoRegularizar)}
+          >
+            <KanbanColumnContent
+              deposits={confirmadoSeparated.regularizar}
+              onCardClick={handleCardClick}
+              selectedDepositId={selectedDepositId}
+              highlights={highlights}
+            />
+          </KanbanSection>
+        )}
+
+        {confirmadoSeparated.otros.length > 0 && (
+          <KanbanSection
+            tone="green"
+            title="Validados"
+            count={confirmadoSeparated.otros.length}
+            isOpen={showConfirmadoValidados}
+            onToggle={() => setShowConfirmadoValidados(!showConfirmadoValidados)}
+          >
+            <KanbanColumnContent
+              deposits={confirmadoSeparated.otros}
+              onCardClick={handleCardClick}
+              selectedDepositId={selectedDepositId}
+              highlights={highlights}
+            />
+          </KanbanSection>
+        )}
+
+        {confirmadoSeparated.regularizar.length === 0 &&
+          confirmadoSeparated.otros.length === 0 && (
+            <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} />
+          )}
+      </>
+    );
+  }
+
   return (
     <KanbanColumnContent
       deposits={groupedDeposits[columnId]}
@@ -213,12 +269,27 @@ export function KanbanColumns(props) {
 
   const reduce = useReducedMotion();
   const highlights = useRealtimeHighlights(realtimeActivity);
+  const [showConfirmadoRegularizar, setShowConfirmadoRegularizar] = useState(true);
+  const [showConfirmadoValidados, setShowConfirmadoValidados] = useState(true);
+
+  // Separa el tablero "Confirmado": los pendientes de regularizar (voucher a
+  // reemplazar) van en su propia sección, el resto abajo sin encabezado.
+  const confirmados = groupedDeposits["confirmado"] || [];
+  const confirmadoSeparated = {
+    regularizar: confirmados.filter((d) => d?.pendiente_regularizar === true),
+    otros: confirmados.filter((d) => d?.pendiente_regularizar !== true),
+  };
 
   // Props compartidos entre las dos variantes responsive (movil / desktop).
   const bodyProps = {
     groupedDeposits,
     validacionSeparated,
     pendientesSeparated,
+    confirmadoSeparated,
+    showConfirmadoRegularizar,
+    setShowConfirmadoRegularizar,
+    showConfirmadoValidados,
+    setShowConfirmadoValidados,
     showNormales,
     setShowNormales,
     showAntiguos,

@@ -316,7 +316,9 @@ const KanbanPage = ({
         const hasChanges =
           updatedDeposit.es_antiguo !== selectedDeposit.es_antiguo ||
           updatedDeposit.estado !== selectedDeposit.estado ||
-          updatedDeposit.monto !== selectedDeposit.monto;
+          updatedDeposit.monto !== selectedDeposit.monto ||
+          updatedDeposit.pendiente_regularizar !== selectedDeposit.pendiente_regularizar ||
+          updatedDeposit.riesgo !== selectedDeposit.riesgo;
 
         if (hasChanges) {
           console.log(
@@ -784,6 +786,7 @@ const KanbanPage = ({
             cuentas={cuentas}
             sucursales={sucursales}
             personal={personal}
+            allDeposits={deposits}
             onOpenVoucherWindow={onOpenVoucherWindow}
             presentationMode={detailPresentationMode}
           />
