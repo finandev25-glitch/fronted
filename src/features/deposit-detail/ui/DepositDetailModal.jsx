@@ -413,6 +413,13 @@ const DepositDetailModal = ({
   const [compactVoucherUrl, setCompactVoucherUrl] = useState("");
   const canUseChromeSearch = true; // simplificado
 
+  // Fallback PDF: si el <img> falla al cargar (p.ej. la URL /image es en realidad
+  // un PDF, sin extensión que lo delate), pasamos a mostrarlo en iframe.
+  const [voucherImgFailed, setVoucherImgFailed] = useState(false);
+  useEffect(() => {
+    setVoucherImgFailed(false);
+  }, [displayVoucherUrl, compactVoucherUrl]);
+
   // FIX: la vista compacta/móvil usa compactVoucherUrl, pero nunca se poblaba
   // (setCompactVoucherUrl no se llamaba en ningún lado), así que el voucher no
   // se veía en móvil. Lo sincronizamos con la URL real del voucher del hook.
@@ -623,10 +630,10 @@ const DepositDetailModal = ({
                       <div className="min-h-0 flex-1 p-3">
                         <div className="flex h-full min-h-0 items-stretch">
                           {displayVoucherUrl ? (
-                            displayVoucherUrl.includes(".pdf") || displayVoucherUrl.includes("/preview") ? (
+                            displayVoucherUrl.includes(".pdf") || displayVoucherUrl.includes("/preview") || voucherImgFailed ? (
                               <iframe src={displayVoucherUrl} title="Voucher PDF" className="h-full w-full rounded-xl border border-slate-200 bg-white dark:border-gray-700" />
                             ) : (
-                              <img src={displayVoucherUrl} alt={"Voucher " + (deposit.numero_voucher || deposit.numero_operacion)} className="h-full w-full rounded-xl border border-slate-200 object-contain dark:border-gray-700" />
+                              <img src={displayVoucherUrl} alt={"Voucher " + (deposit.numero_voucher || deposit.numero_operacion)} className="h-full w-full rounded-xl border border-slate-200 object-contain dark:border-gray-700" onError={() => { if (displayVoucherUrl) setVoucherImgFailed(true); }} />
                             )
                           ) : (
                             <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm text-slate-500 dark:border-gray-700 dark:bg-gray-950 dark:text-slate-400">
@@ -1383,7 +1390,7 @@ const DepositDetailModal = ({
                     <div className="flex h-full min-h-0 items-center justify-center p-6 text-center text-sm text-slate-300">
                       No hay voucher disponible.
                     </div>
-                  ) : compactUsesIframe ? (
+                  ) : compactUsesIframe || voucherImgFailed ? (
                     <div className="absolute inset-0">
                       <iframe
                         src={`${compactVoucherUrl}#toolbar=1&navpanes=1&scrollbar=1&view=Fit`}
@@ -1397,6 +1404,9 @@ const DepositDetailModal = ({
                         src={compactVoucherUrl}
                         alt={`Voucher ${deposit.numero_voucher || deposit.numero_operacion}`}
                         className="max-h-full max-w-full object-contain object-center"
+                        onError={() => {
+                          if (compactVoucherUrl) setVoucherImgFailed(true);
+                        }}
                       />
                     </div>
                   )}

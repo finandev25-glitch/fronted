@@ -8,6 +8,22 @@ export const DepositVoucherPanel = ({
   setIsFloatingIframeOpen,
   isLoading = false
 }) => {
+  // Detección de PDF: por URL (drive/preview/.pdf) O por fallo de carga del <img>.
+  // El backend a veces manda /v1/deposits/{id}/image (sin extensión) que en
+  // realidad es un PDF; ahí la URL no delata el tipo, así que si el <img> falla
+  // (un PDF no es una imagen válida) hacemos fallback a iframe automáticamente.
+  const [imgFailed, setImgFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgFailed(false);
+  }, [displayVoucherUrl]);
+
+  const urlLooksPdf =
+    !!displayVoucherUrl &&
+    (displayVoucherUrl.toLowerCase().includes(".pdf") ||
+      displayVoucherUrl.includes("/preview"));
+  const showAsPdf = urlLooksPdf || imgFailed;
+
   return (
     <div className="lg:col-span-6 flex flex-col h-full space-y-4">
                 <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-2 border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex flex-col relative overflow-hidden lg:overflow-auto">
@@ -26,9 +42,7 @@ export const DepositVoucherPanel = ({
                           Cargando comprobante...
                         </span>
                       </div>
-                    ) : displayVoucherUrl &&
-                    (displayVoucherUrl.includes(".pdf") ||
-                      displayVoucherUrl.includes("/preview")) ? (
+                    ) : displayVoucherUrl && showAsPdf ? (
                       <div
                         className="flex h-full w-full flex-col overflow-hidden rounded-md"
                         style={{
@@ -73,6 +87,11 @@ export const DepositVoucherPanel = ({
                           alt={`Voucher ${deposit.numero_voucher}`}
                           className="max-w-full object-contain pointer-events-none lg:pointer-events-auto"
                           style={{ maxHeight: "calc(93vh - 160px)" }}
+                          onError={() => {
+                            // Si la URL tenía contenido pero no cargó como imagen,
+                            // probablemente es un PDF (u otro doc): pasamos a iframe.
+                            if (displayVoucherUrl) setImgFailed(true);
+                          }}
                         />
                       </div>
                     )}

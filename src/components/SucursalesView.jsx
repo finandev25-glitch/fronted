@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, Search, Users, Phone, Loader2 } from 'lucide-react';
+import { Building2, Search, Users, Phone, Loader2, ChevronRight } from 'lucide-react';
 import { fetchPersonal } from '../features/deposits/api/depositsApi.js';
 
 // Vista "Sucursales" (solo lectura): muestra el personal AGRUPADO POR SUCURSAL,
@@ -15,6 +15,16 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEmpresa, setFilterEmpresa] = useState('all');
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+
+  const toggleExpanded = useCallback((id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const loadPersonal = useCallback(async () => {
     setLoading(true);
@@ -32,8 +42,6 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
   useEffect(() => {
     loadPersonal();
   }, [loadPersonal]);
-
-  const empresaById = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas]);
 
   // Personal agrupado por sucursal_id, respetando el filtro de empresa.
   const workersBySucursal = useMemo(() => {
@@ -105,14 +113,11 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
     [groups],
   );
 
+  const isSearching = searchTerm.trim().length > 0;
+
   const getInitials = (nombre) => {
     if (!nombre) return '??';
     return nombre.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0]).join('').toUpperCase();
-  };
-
-  const resolveEmpresaNombre = (sucursal, workers) => {
-    const empresaId = sucursal?.empresa_id || workers[0]?.empresa_id;
-    return empresaById.get(empresaId)?.nombre || '';
   };
 
   return (
@@ -157,75 +162,90 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
           No se encontraron sucursales con personal.
         </div>
       ) : (
-        <div className="space-y-5">
-          <AnimatePresence>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-start">
             {groups.map(({ sucursal, workers }) => {
-              const empresaNombre = resolveEmpresaNombre(sucursal, workers);
+              const hasWorkers = workers.length > 0;
+              // Con búsqueda activa, los grupos con coincidencias se muestran abiertos.
+              const isOpen = hasWorkers && (isSearching ? true : expandedIds.has(sucursal.id));
               return (
-                <motion.div
+                <div
                   key={sucursal.id}
-                  layout
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
                 >
-                  {/* Cabecera de la sucursal */}
-                  <div className="flex items-center justify-between gap-3 px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-300 flex-shrink-0">
-                        <Building2 size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                          {sucursal.nombre}
-                        </h3>
-                        {empresaNombre && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{empresaNombre}</p>
-                        )}
-                      </div>
+                  {/* Fila compacta de la sucursal */}
+                  <button
+                    type="button"
+                    onClick={() => hasWorkers && toggleExpanded(sucursal.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                      hasWorkers
+                        ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer'
+                        : 'cursor-default'
+                    }`}
+                  >
+                    <ChevronRight
+                      size={16}
+                      className={`flex-shrink-0 text-gray-400 transition-transform ${
+                        isOpen ? 'rotate-90' : ''
+                      } ${hasWorkers ? '' : 'opacity-0'}`}
+                    />
+                    <div className="h-7 w-7 rounded-md bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-300 flex-shrink-0">
+                      <Building2 size={15} />
                     </div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-200 dark:bg-gray-700 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 flex-shrink-0">
-                      <Users size={12} />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                      {sucursal.nombre}
+                    </span>
+                    <span
+                      className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 ${
+                        hasWorkers
+                          ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                          : 'bg-gray-100 dark:bg-gray-700/60 text-gray-400 dark:text-gray-500'
+                      }`}
+                    >
+                      <Users size={11} />
                       {workers.length}
                     </span>
-                  </div>
+                  </button>
 
-                  {/* Personal de la sucursal */}
-                  {workers.length === 0 ? (
-                    <div className="px-5 py-4 text-sm text-gray-400 dark:text-gray-500">
-                      Sin personal asignado.
-                    </div>
-                  ) : (
-                    <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                      {workers.map((trabajador) => (
-                        <li
-                          key={trabajador.id}
-                          className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
-                        >
-                          <div className="h-8 w-8 rounded-full bg-blue-200 dark:bg-blue-900/50 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-xs flex-shrink-0">
-                            {getInitials(trabajador.nombre)}
-                          </div>
-                          <span className="flex-grow text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {trabajador.nombre}
-                          </span>
-                          <span className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 flex-shrink-0">
-                            <Phone size={12} className="text-gray-400" />
-                            {trabajador.telefono_origen || 'No especificado'}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </motion.div>
+                  {/* Personal (colapsable) */}
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.ul
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden bg-gray-50/60 dark:bg-gray-900/30"
+                      >
+                        {workers.map((trabajador) => (
+                          <li
+                            key={trabajador.id}
+                            className="flex items-center gap-2.5 pl-9 pr-3 py-2 border-t border-gray-100 dark:border-gray-700/50"
+                          >
+                            <div className="h-6 w-6 rounded-full bg-blue-200 dark:bg-blue-900/50 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-[10px] flex-shrink-0">
+                              {getInitials(trabajador.nombre)}
+                            </div>
+                            <span className="flex-grow text-sm text-gray-800 dark:text-gray-200 truncate">
+                              {trabajador.nombre}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                              <Phone size={11} className="text-gray-400" />
+                              {trabajador.telefono_origen || '—'}
+                            </span>
+                          </li>
+                        ))}
+                      </motion.ul>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
-          </AnimatePresence>
+          </div>
 
-          <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 pt-3">
             {groups.length} sucursal(es) · {totalTrabajadores} trabajador(es)
           </p>
-        </div>
+        </>
       )}
     </div>
   );
