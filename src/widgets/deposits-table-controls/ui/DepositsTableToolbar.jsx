@@ -85,16 +85,7 @@ export default function DepositsTableToolbar({
           <Calendar size={14} className="text-gray-400" />
           <select
             value={filterPeriod}
-            onChange={(event) => {
-              setFilterPeriod(event.target.value);
-              if (onFetchDepositsByPeriod) {
-                const period =
-                  event.target.value === "month"
-                    ? `month:${selectedMonth}`
-                    : event.target.value;
-                onFetchDepositsByPeriod(period);
-              }
-            }}
+            onChange={(event) => setFilterPeriod(event.target.value)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-blue-400"
           >
             <option value="all">Todo el tiempo</option>
@@ -110,12 +101,7 @@ export default function DepositsTableToolbar({
             <input
               type="month"
               value={selectedMonth}
-              onChange={(event) => {
-                setSelectedMonth(event.target.value);
-                if (onFetchDepositsByPeriod) {
-                  onFetchDepositsByPeriod(`month:${event.target.value}`);
-                }
-              }}
+              onChange={(event) => setSelectedMonth(event.target.value)}
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-blue-400"
             />
           </div>

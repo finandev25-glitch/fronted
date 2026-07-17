@@ -335,12 +335,17 @@ function fetchMockDepositsList({ desde, hasta } = {}) {
     .map(mapMockDeposit);
 }
 
+// Un mes puede traer ~6000 depositos; se pide todo en UNA sola consulta
+// (el backend no tiene tope de pageSize) y la paginacion se hace en el
+// cliente (TablePage) para no pintar miles de filas en el DOM.
+const LIST_PAGE_SIZE = 10000;
+
 async function fetchDepositsList(params = {}) {
   if (MOCK_MODE_ENABLED) return fetchMockDepositsList(params);
 
   const query = new URLSearchParams();
   query.set("page", "1");
-  query.set("pageSize", "600");
+  query.set("pageSize", String(LIST_PAGE_SIZE));
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       query.set(key, value);
@@ -348,7 +353,13 @@ async function fetchDepositsList(params = {}) {
   });
 
   const data = await apiJson(`${DEPOSITS_BASE}?${query.toString()}`);
-  return (data?.items || []).map(mapDeposit);
+  const items = data?.items || [];
+  if (typeof data?.total === "number" && data.total > items.length) {
+    console.warn(
+      `Listado de depositos truncado: mostrando ${items.length} de ${data.total} registros.`
+    );
+  }
+  return items.map(mapDeposit);
 }
 
 // UTC "ingenuo": construye el limite de dia (00:00:00 o 23:59:59) tomando la

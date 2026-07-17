@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 import DepositDetailModal from "../../../features/deposit-detail/ui/DepositDetailModal.jsx";
@@ -35,7 +35,6 @@ const TablePage = ({
   onOpenVoucherWindow,
   detailPresentationMode = "default",
 }) => {
-  const [filteredDeposits, setFilteredDeposits] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState(() => {
@@ -50,6 +49,8 @@ const TablePage = ({
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [specificDate, setSpecificDate] = useState("");
+  const [isLoadingDeposits, setIsLoadingDeposits] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedDeposit, setSelectedDeposit] = useState(null);
   const [modalEditMode, setModalEditMode] = useState("full"); // 'full' or 'fields-only'
   const [regularizeUploadDeposit, setRegularizeUploadDeposit] = useState(null);
@@ -90,50 +91,69 @@ const TablePage = ({
     localStorage.setItem("tableView_selectedMonth", selectedMonth);
   }, [selectedMonth]);
 
-  // useEffect para cargar datos cuando cambia el período a "month"
+  // Carga de datos por período CENTRALIZADA en un solo efecto (o al montar).
+  // Antes había DOBLE fetch de red: el <select> del toolbar disparaba
+  // onFetchDepositsByPeriod y este efecto también, provocando dos llamadas por
+  // cada cambio a "month". Ahora el toolbar solo actualiza el estado y el fetch
+  // ocurre una sola vez aquí. (specificDate tiene su propio flujo por fecha.)
+  //
+  // DEBOUNCE: el <input type="month"> dispara onChange en cada edición parcial
+  // (mes, luego cada dígito del año), lo que antes lanzaba 3-5 fetches de
+  // miles de filas por una sola selección. Se espera 350ms de inactividad
+  // antes de pedir al backend; el cleanup cancela el timer pendiente. Además
+  // no se dispara nada si el mes está incompleto/vacío. Las respuestas que
+  // llegan fuera de orden se descartan en useDepositRecords (loadSeqRef).
   React.useEffect(() => {
-    if (filterPeriod === "month" && selectedMonth && onFetchDepositsByPeriod) {
-      console.log("📅 TableView: Auto-cargando depósitos del mes:", selectedMonth);
-      onFetchDepositsByPeriod(`month:${selectedMonth}`);
+    if (
+      !onFetchDepositsByPeriod ||
+      specificDate ||
+      (filterPeriod === "month" && !/^\d{4}-\d{2}$/.test(selectedMonth))
+    ) {
+      setIsLoadingDeposits(false);
+      return;
     }
-  }, [filterPeriod]); // Solo cuando cambia filterPeriod, no selectedMonth
 
-  React.useEffect(() => {
-    let filtered = deposits;
+    const period =
+      filterPeriod === "month" ? `month:${selectedMonth}` : filterPeriod;
+
+    let active = true;
+    setIsLoadingDeposits(true);
+    const timer = setTimeout(() => {
+      Promise.resolve(onFetchDepositsByPeriod(period)).finally(() => {
+        if (active) setIsLoadingDeposits(false);
+      });
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterPeriod, selectedMonth, specificDate]);
+
+  // Filtrado local (búsqueda, estado, fecha específica) MEMOIZADO: antes se
+  // guardaba en estado vía useEffect+setFilteredDeposits, lo que causaba un
+  // render extra en cada cambio. useMemo evita ese render y recalcula solo
+  // cuando cambian sus dependencias reales.
+  const filteredDeposits = useMemo(() => {
+    let filtered = deposits || [];
 
     if (searchTerm) {
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
+      const q = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (deposit) =>
-          (deposit.empresa?.nombre &&
-            deposit.empresa.nombre
-              .toLowerCase()
-              .includes(lowerCaseSearchTerm)) ||
-          (deposit.sucursal?.nombre &&
-            deposit.sucursal.nombre
-              .toLowerCase()
-              .includes(lowerCaseSearchTerm)) ||
-          (deposit.trabajador?.nombre &&
-            deposit.trabajador.nombre
-              .toLowerCase()
-              .includes(lowerCaseSearchTerm)) ||
-          (deposit.anexo &&
-            deposit.anexo.toLowerCase().includes(lowerCaseSearchTerm)) ||
-          (deposit.monto &&
-            deposit.monto.toString().includes(lowerCaseSearchTerm)) ||
-          (deposit.numero_operacion &&
-            deposit.numero_operacion
-              .toLowerCase()
-              .includes(lowerCaseSearchTerm)) ||
-          (deposit.estado &&
-            deposit.estado
-              .replace("_", " ")
-              .toLowerCase()
-              .includes(lowerCaseSearchTerm)) ||
-          (deposit.ruc_cliente &&
-            deposit.ruc_cliente.toLowerCase().includes(lowerCaseSearchTerm)) ||
-          formatDate(deposit.fecha_deposito).includes(lowerCaseSearchTerm) ||
-          formatDateTime(deposit.fecha_registro).includes(lowerCaseSearchTerm)
+          deposit.empresa?.nombre?.toLowerCase().includes(q) ||
+          deposit.sucursal?.nombre?.toLowerCase().includes(q) ||
+          deposit.trabajador?.nombre?.toLowerCase().includes(q) ||
+          deposit.anexo?.toLowerCase().includes(q) ||
+          (deposit.monto != null && deposit.monto.toString().includes(q)) ||
+          deposit.numero_operacion?.toLowerCase().includes(q) ||
+          deposit.numero_operacion_banco?.toLowerCase().includes(q) ||
+          deposit.estado?.replace("_", " ").toLowerCase().includes(q) ||
+          deposit.ruc_cliente?.toLowerCase().includes(q) ||
+          deposit.cliente?.toLowerCase().includes(q) ||
+          formatDate(deposit.fecha_deposito).includes(q) ||
+          formatDateTime(deposit.fecha_registro).includes(q)
       );
     }
 
@@ -141,23 +161,32 @@ const TablePage = ({
       filtered = filtered.filter((deposit) => deposit.estado === filterStatus);
     }
 
-    // Ya no filtramos localmente por período porque App.jsx nos envía los datos pre-filtrados
-    // Solo mantenemos el filtro local para búsqueda, estado y fecha específica
-
-    // Filtro por fecha específica (solo cuando se selecciona una fecha específica)
+    // El período viene pre-filtrado del backend; aquí solo el filtro por fecha exacta.
     if (specificDate) {
-      console.log("📅 TABLE: Aplicando filtro por fecha:", specificDate);
-      filtered = filtered.filter((deposit) => {
-        if (!deposit.fecha_solo_date) return false;
-        return deposit.fecha_solo_date === specificDate;
-      });
-      console.log(
-        `✅ TABLE: ${filtered.length} de ${deposits.length} depósitos filtrados`
+      filtered = filtered.filter(
+        (deposit) => deposit.fecha_solo_date === specificDate
       );
     }
 
-    setFilteredDeposits(filtered);
-  }, [deposits, searchTerm, filterStatus, specificDate]); // Removimos filterPeriod ya que ahora se maneja en App.jsx
+    return filtered;
+  }, [deposits, searchTerm, filterStatus, specificDate]);
+
+  // Paginación EN CLIENTE: la consulta trae el mes completo (~6000 filas) en
+  // un solo viaje, pero renderizar todas esas filas en el DOM congela la
+  // tabla. Se pinta solo la página actual; el Excel sigue exportando TODO
+  // filteredDeposits, no solo la página visible.
+  const PAGE_SIZE = 100;
+  const totalPages = Math.max(1, Math.ceil(filteredDeposits.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedDeposits = useMemo(
+    () => filteredDeposits.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredDeposits, safePage]
+  );
+
+  // Volver a la página 1 cuando cambian los datos o cualquier filtro.
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [deposits, searchTerm, filterStatus, specificDate]);
 
   const handleEditClick = (deposit) => {
     setModalEditMode("full");
@@ -191,6 +220,7 @@ const TablePage = ({
               : deposit.trabajador.telefono_origen)
           : "",
         "Anexo Banco": deposit.anexo || "",
+        "Nro Operación": deposit.numero_operacion || "",
         "Nro Operación Banco": deposit.numero_operacion_banco || "",
         "Fecha Depósito": formatDate(deposit.fecha_deposito),
         Importe: deposit.monto || 0,
@@ -368,8 +398,15 @@ const TablePage = ({
           onOpenExportVouchers={() => setShowExportModal(true)}
         />
 
+        {isLoadingDeposits && (
+          <div className="mb-2 flex shrink-0 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+            <Loader2 size={16} className="animate-spin" />
+            <span>Buscando depósitos…</span>
+          </div>
+        )}
+
         <DepositsTable
-          filteredDeposits={filteredDeposits}
+          filteredDeposits={paginatedDeposits}
           formatDate={formatDate}
           formatDateTime={formatDateTime}
           getStatusBadge={getStatusBadge}
@@ -380,6 +417,39 @@ const TablePage = ({
           onUnmarkRegularize={handleUnmarkRegularize}
           onOpenRegularizeUpload={handleOpenRegularizeUpload}
         />
+
+        {filteredDeposits.length > PAGE_SIZE && (
+          <div className="mt-3 flex shrink-0 items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+            <span>
+              Mostrando {(safePage - 1) * PAGE_SIZE + 1}–
+              {Math.min(safePage * PAGE_SIZE, filteredDeposits.length)} de{" "}
+              {filteredDeposits.length.toLocaleString("es-ES")} depósitos
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={safePage <= 1}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Anterior
+              </button>
+              <span className="px-1">
+                Página {safePage} de {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                }
+                disabled={safePage >= totalPages}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       {regularizeUploadDeposit && (
         <RegularizeImageModal

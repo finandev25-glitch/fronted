@@ -28,6 +28,11 @@ export function useDepositRecords({
   const currentSelectedDateRef = useRef(currentSelectedDate);
   const depositsRef = useRef([]);
   const lastQueryRef = useRef({ type: null, value: null });
+  // Numero de secuencia de la ultima carga de listado lanzada. Si mientras
+  // una peticion estaba en vuelo se lanzo otra mas nueva (p.ej. el usuario
+  // cambio de mes dos veces seguidas), la respuesta vieja se descarta en vez
+  // de pisar los datos de la nueva.
+  const loadSeqRef = useRef(0);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -84,7 +89,9 @@ export function useDepositRecords({
   }, []);
 
   const loadAllDeposits = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     const data = await fetchAllDeposits();
+    if (seq !== loadSeqRef.current) return data;
     setDeposits(data);
     setCurrentSelectedDate(null);
     lastQueryRef.current = { type: "all", value: null };
@@ -96,7 +103,9 @@ export function useDepositRecords({
       return loadAllDeposits();
     }
 
+    const seq = ++loadSeqRef.current;
     const data = await fetchDepositsByDate(date);
+    if (seq !== loadSeqRef.current) return data;
     setDeposits(data);
     setCurrentSelectedDate(date);
     lastQueryRef.current = { type: "date", value: date };
@@ -104,7 +113,9 @@ export function useDepositRecords({
   }, [loadAllDeposits]);
 
   const loadDepositsByPeriod = useCallback(async (period) => {
+    const seq = ++loadSeqRef.current;
     const data = await fetchDepositsByPeriod(period);
+    if (seq !== loadSeqRef.current) return data;
     setDeposits(data);
     setCurrentSelectedDate(null);
     lastQueryRef.current = { type: "period", value: period };
@@ -309,26 +320,27 @@ export function useDepositRecords({
   const depositsWithFullData = useMemo(() => {
     if (!deposits) return [];
 
+    // Con ~6000 depositos por mes, un .find() por catalogo y por fila se
+    // vuelve costoso; se indexan los catalogos una sola vez por recalculo.
+    const byId = (list) => new Map(list.map((item) => [String(item.id), item]));
+    const empresasById = byId(empresas);
+    const bancosById = byId(bancos);
+    const sucursalesById = byId(sucursales);
+    const personalById = byId(personal);
+    const usersById = byId(users);
+
     return deposits.map((deposit) => {
       const empresa =
-        deposit.empresa ||
-        empresas.find((item) => String(item.id) === String(deposit.empresa_id)) ||
-        null;
+        deposit.empresa || empresasById.get(String(deposit.empresa_id)) || null;
       const banco =
-        deposit.banco ||
-        bancos.find((item) => String(item.id) === String(deposit.banco_id)) ||
-        null;
+        deposit.banco || bancosById.get(String(deposit.banco_id)) || null;
       const sucursal =
-        deposit.sucursal ||
-        sucursales.find((item) => String(item.id) === String(deposit.sucursal_id)) ||
-        null;
+        deposit.sucursal || sucursalesById.get(String(deposit.sucursal_id)) || null;
       const trabajador =
-        deposit.trabajador ||
-        personal.find((item) => String(item.id) === String(deposit.trabajador_id)) ||
-        null;
+        deposit.trabajador || personalById.get(String(deposit.trabajador_id)) || null;
       const validadoPorUsuario =
         deposit.validado_por_usuario ||
-        users.find((item) => String(item.id) === String(deposit.validado_por)) ||
+        usersById.get(String(deposit.validado_por)) ||
         null;
 
       return {

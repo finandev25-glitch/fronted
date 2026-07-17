@@ -1,5 +1,39 @@
 import React from "react";
-import { Edit, Eye, AlertTriangle, UploadCloud, XCircle as XCircleIcon } from "lucide-react";
+import { Building2, User } from "lucide-react";
+
+// Badge de moneda con color e ícono según PEN (soles) o USD (dólares).
+const monedaBadge = (moneda) => {
+  const m = String(moneda || "").toUpperCase();
+  if (m === "USD") {
+    return {
+      symbol: "$",
+      label: "USD",
+      className:
+        "bg-blue-100 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:ring-blue-800",
+    };
+  }
+  return {
+    symbol: "S/",
+    label: "PEN",
+    className:
+      "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-800",
+  };
+};
+
+// Etiqueta y color del estado para la columna "Validado por".
+const estadoInfo = (estado) => {
+  switch (estado) {
+    case "confirmado":
+    case "validado":
+      return { label: "CONFIRMADO", className: "text-blue-900 dark:text-blue-200" };
+    case "rechazado":
+      return { label: "RECHAZADO", className: "text-red-600 dark:text-red-400" };
+    case "en_validacion":
+      return { label: "EN VALIDACIÓN", className: "text-blue-600 dark:text-blue-300" };
+    default:
+      return { label: "PENDIENTE", className: "text-amber-600 dark:text-amber-400" };
+  }
+};
 
 export default function DepositsTable({
   filteredDeposits,
@@ -8,204 +42,141 @@ export default function DepositsTable({
   getStatusBadge,
   onEditDeposit,
   onViewVoucher,
-  // Regularizar imagen (solo finanzas/admin): marcar/desmarcar el deposito
-  // (independiente de su Estado) y, una vez marcado, subir el archivo nuevo.
-  // canRegularize se resuelve en TablePage a partir de currentUser.rol.
+  // Se conservan en la firma para no romper el llamado desde TablePage.
   canRegularize = false,
   onMarkRegularize,
   onUnmarkRegularize,
   onOpenRegularizeUpload,
 }) {
+  const th =
+    "border-b-2 border-gray-200 dark:border-gray-700 px-4 py-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400";
+  // Borde vertical entre columnas (todas menos la primera).
+  const cellBorder = "border-l border-gray-200 dark:border-gray-700";
+
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-      <div className="overflow-x-auto">
+    <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <table className="w-full">
-          <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
+          <thead className="sticky top-0 z-10 bg-white shadow-sm dark:bg-gray-800">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Empresa</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Sucursal - Contacto</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Anexo Banco</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Nro Operación Banco</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Fecha Depósito</th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Importe</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Estado</th>
-              <th className="w-20 max-w-20 px-2 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Motivo</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Validado por</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Fecha Recibido</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Nombre Cliente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">RUC/DNI Cliente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Ref. Cliente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">URL Voucher</th>
-              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Acciones</th>
+              <th className={`${th} text-left`}>Solicitante</th>
+              <th className={th}>Recibido</th>
+              <th className={th}>Depósito</th>
+              <th className="border-b-2 border-gray-200 dark:border-gray-700 px-4 pr-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Importe</th>
+              <th className={th}>Validado por</th>
+              <th className={th}>Cliente</th>
+              <th className={th}>Voucher</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
-            {filteredDeposits.map((deposit) => (
-              <tr
-                key={deposit.id}
-                className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
-              >
-                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {deposit.empresa?.nombre || "-"}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200">
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {deposit.sucursal?.nombre || "-"}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {deposit.trabajador?.nombre || "-"}
-                    </span>
-                    {deposit.trabajador?.telefono_origen && (
-                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
-                        {deposit.trabajador.telefono_origen.startsWith("51")
-                          ? deposit.trabajador.telefono_origen.slice(2)
-                          : deposit.trabajador.telefono_origen}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {deposit.anexo || "-"}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {deposit.numero_operacion_banco || "-"}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {formatDate(deposit.fecha_deposito)}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {(deposit.monto || 0).toLocaleString("es-ES", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {deposit.moneda}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4">
-                  <div className="flex flex-col gap-1">
-                    {getStatusBadge(deposit.estado)}
-                    {deposit.pendiente_regularizar && (
-                      <span
-                        className="inline-flex w-fit items-center space-x-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
-                        title="Marcado para regularizar el voucher"
-                      >
-                        <AlertTriangle size={12} />
-                        <span>Regularizar</span>
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td
-                  className="w-20 max-w-20 truncate px-2 py-4 align-top text-xs text-red-600 dark:text-red-400"
-                  title={
-                    deposit.estado === "rechazado"
-                      ? String(
-                          deposit.observaciones || deposit.motivo_rechazo || "",
-                        ).trim()
-                      : ""
-                  }
+          <tbody>
+            {filteredDeposits.map((deposit) => {
+              const est = estadoInfo(deposit.estado);
+              return (
+                <tr
+                  key={deposit.id}
+                  className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/40"
                 >
-                  {deposit.estado === "rechazado"
-                    ? String(
-                        deposit.observaciones || deposit.motivo_rechazo || "",
-                      ).trim()
-                    : "-"}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {deposit.validado_por_usuario?.nombre || "-"}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {formatDateTime(deposit.fecha_registro)}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200">
-                  {deposit.cliente || "-"}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-gray-500 dark:text-gray-400">
-                  {deposit.ruc_cliente || "-"}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {deposit.referencia_cliente || "-"}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {deposit.imagen_voucher ? (
-                    <a
-                      href={deposit.imagen_voucher}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block max-w-xs truncate text-blue-600 hover:underline dark:text-blue-400"
-                      title={deposit.imagen_voucher}
-                    >
-                      {deposit.imagen_voucher.length > 40
-                        ? `${deposit.imagen_voucher.substring(0, 40)}...`
-                        : deposit.imagen_voucher}
-                    </a>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-center">
-                  <div className="flex items-center justify-center space-x-2">
-                    {deposit.imagen_voucher && (
-                      <button
-                        onClick={() => onViewVoucher(deposit.imagen_voucher)}
-                        className="inline-flex items-center space-x-1.5 rounded-md bg-blue-100 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                        title="Ver voucher del registro manual"
-                      >
-                        <Eye size={14} />
-                        <span>Ver Voucher</span>
-                      </button>
-                    )}
+                  {/* Solicitante */}
+                  <td className="px-4 py-4 align-middle">
+                    <div className="flex flex-col gap-0.5 leading-tight">
+                      <span className="text-sm font-bold uppercase text-blue-900 dark:text-blue-200">
+                        {deposit.empresa?.nombre || "-"}
+                      </span>
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-blue-900 dark:text-blue-200">
+                        <Building2 size={13} className="flex-shrink-0 text-blue-800 dark:text-blue-300" />
+                        {deposit.sucursal?.nombre || "-"}
+                      </span>
+                      <span className="flex items-center gap-1.5 text-sm text-blue-900/90 dark:text-blue-200/90">
+                        <User size={13} className="flex-shrink-0 text-blue-800 dark:text-blue-300" />
+                        {deposit.trabajador?.nombre || "-"}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Recibido */}
+                  <td className={`px-4 py-4 text-center align-middle text-sm text-gray-700 dark:text-gray-300 ${cellBorder}`}>
+                    {formatDateTime(deposit.fecha_registro)}
+                  </td>
+
+                  {/* Depósito: anexo + fecha depósito + operación */}
+                  <td className={`px-4 py-4 align-middle ${cellBorder}`}>
+                    <div className="flex flex-col gap-0.5 leading-tight">
+                      <span className="text-sm font-bold text-blue-900 dark:text-blue-200">
+                        {deposit.anexo || "-"}
+                      </span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {formatDate(deposit.fecha_deposito)}
+                      </span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        OP:{deposit.numero_operacion || deposit.numero_operacion_banco || "-"}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Importe */}
+                  <td className={`px-4 pr-6 py-4 text-right align-middle ${cellBorder}`}>
+                    {(() => {
+                      const mb = monedaBadge(deposit.moneda);
+                      return (
+                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          <span className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                            <span className="mr-0.5 text-sm text-gray-400">{mb.symbol}</span>
+                            {(deposit.monto || 0).toLocaleString("es-ES", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${mb.className}`}
+                          >
+                            {mb.label}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </td>
+
+                  {/* Validado por: estado + validador */}
+                  <td className={`px-4 py-4 text-center align-middle ${cellBorder}`}>
+                    <div className="flex flex-col gap-0.5 leading-tight">
+                      <span className={`text-sm font-bold ${est.className}`}>{est.label}</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {deposit.validado_por_usuario?.nombre || "-"}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Cliente */}
+                  <td className={`px-4 py-4 text-center align-middle text-sm text-gray-700 dark:text-gray-300 ${cellBorder}`}>
+                    {deposit.cliente || "-"}
+                  </td>
+
+                  {/* Voucher */}
+                  <td className={`px-4 py-4 text-center align-middle ${cellBorder}`}>
                     <button
-                      onClick={() => onEditDeposit(deposit)}
-                      className="rounded-md p-2 transition-colors hover:bg-gray-200 dark:hover:bg-gray-600"
-                      title="Editar depósito"
+                      type="button"
+                      onClick={() =>
+                        onEditDeposit
+                          ? onEditDeposit(deposit)
+                          : onViewVoucher?.(deposit.imagen_voucher)
+                      }
+                      className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
                     >
-                      <Edit
-                        size={14}
-                        className="text-gray-600 dark:text-gray-300"
-                      />
+                      Ver Voucher
                     </button>
-                    {canRegularize && !deposit.pendiente_regularizar && (
-                      <button
-                        onClick={() => onMarkRegularize?.(deposit)}
-                        className="inline-flex items-center space-x-1.5 rounded-md bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
-                        title="Marcar para regularizar el voucher (independiente del estado)"
-                      >
-                        <AlertTriangle size={14} />
-                        <span>Regularizar</span>
-                      </button>
-                    )}
-                    {canRegularize && deposit.pendiente_regularizar && (
-                      <>
-                        <button
-                          onClick={() => onOpenRegularizeUpload?.(deposit)}
-                          className="inline-flex items-center space-x-1.5 rounded-md bg-purple-100 px-3 py-1.5 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
-                          title="Subir la nueva imagen/pdf del voucher"
-                        >
-                          <UploadCloud size={14} />
-                          <span>Subir imagen</span>
-                        </button>
-                        <button
-                          onClick={() => onUnmarkRegularize?.(deposit)}
-                          className="rounded-md p-2 transition-colors hover:bg-gray-200 dark:hover:bg-gray-600"
-                          title="Quitar la marca de regularizar"
-                        >
-                          <XCircleIcon size={14} className="text-gray-500 dark:text-gray-300" />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  </td>
+                </tr>
+              );
+            })}
+
+            {filteredDeposits.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No hay depósitos para mostrar.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
-
-        {filteredDeposits.length === 0 && (
-          <div className="py-16 text-center text-gray-500 dark:text-gray-400">
-            <p>No se encontraron depósitos.</p>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
