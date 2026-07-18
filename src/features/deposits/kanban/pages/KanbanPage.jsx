@@ -315,6 +315,7 @@ const KanbanPage = ({
         // Verificar si hay cambios reales
         const hasChanges =
           updatedDeposit.es_antiguo !== selectedDeposit.es_antiguo ||
+          updatedDeposit.condicion !== selectedDeposit.condicion ||
           updatedDeposit.estado !== selectedDeposit.estado ||
           updatedDeposit.monto !== selectedDeposit.monto ||
           updatedDeposit.pendiente_regularizar !== selectedDeposit.pendiente_regularizar ||

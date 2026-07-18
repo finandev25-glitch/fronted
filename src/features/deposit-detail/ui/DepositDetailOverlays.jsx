@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   CheckCircle,
-  Clock,
   Loader2,
   X,
 } from "lucide-react";
@@ -149,11 +148,9 @@ export function NoDuplicatePortal({
   onClose,
   snapshotText,
   onConfirm,
-  onToggleOld,
   canConfirm,
   isSending,
   isProcessing,
-  isOld,
 }) {
   if (typeof document === "undefined") return null;
 
@@ -221,19 +218,6 @@ export function NoDuplicatePortal({
                     <CheckCircle className="h-4 w-4" />
                   )}
                   Confirmar
-                </button>
-                <button
-                  type="button"
-                  onClick={onToggleOld}
-                  disabled={isProcessing}
-                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
-                    isOld
-                      ? "bg-slate-700 text-white hover:bg-slate-800"
-                      : "bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
-                  }`}
-                >
-                  <Clock className="h-4 w-4" />
-                  {isOld ? "Antiguo ✓" : "Antiguo"}
                 </button>
                 <button
                   type="button"

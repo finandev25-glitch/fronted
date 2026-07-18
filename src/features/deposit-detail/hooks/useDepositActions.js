@@ -76,41 +76,6 @@ export function useDepositActions({
 
   // ─── Comprobar duplicados ────────────────────────────────────────────────────
 
-  const handleToggleEsAntiguo = async () => {
-    if (isProcessing) return; 
-
-    setIsProcessing(true);
-    const trace = `deposit.revision:${deposit.id}`;
-    console.time(trace);
-    
-    const newValue = !deposit.es_antiguo;
-
-    // ACTUALIZACIÓN OPTIMISTA INMEDIATA
-    const updatedDeposit = {
-      ...deposit,
-      es_antiguo: newValue,
-    };
-
-    onUpdateDeposit(updatedDeposit);
-
-    try {
-      const response = await apiPut(`/depositos/${deposit.id}`, {
-        es_antiguo: newValue,
-      });
-
-      if (response.error) {
-        onUpdateDeposit(deposit);
-        alert(`Error al actualizar: ${response.error}`);
-        return;
-      }
-    } catch (error) {
-      onUpdateDeposit(deposit);
-      alert(`Error inesperado: ${error.message}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const handleCheckDuplicates = useCallback(async () => {
     if (!canCheckDuplicates) {
       setCheckResult({
@@ -343,7 +308,6 @@ export function useDepositActions({
     // Handlers
     buildUpdatePayload,
     handleCheckDuplicates,
-    handleToggleEsAntiguo,
     handleConfirmDeposit,
     handleConfirmRejection,
     handleRestoreToPending,

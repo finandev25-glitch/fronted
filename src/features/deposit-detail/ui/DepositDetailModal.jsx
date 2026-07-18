@@ -23,6 +23,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthContext } from "../../auth/context/AuthContext.jsx";
 import { apiGet, apiPost, apiPut } from "../../../services/backendApi.js";
+import { isDepositAntiguo } from "../../../utils/depositStatusHelpers.js";
 import {
   X, User, Building2, CreditCard, Calendar, Clock, DollarSign,
   CheckCircle, XCircle, AlertCircle, FileText, Hash, Building, Info,
@@ -54,9 +55,10 @@ import {
   getSqlPeriodRangeFromYYYYMM,
   getSqlServerCompanyConfigFromEmpresaId,
   getSqlServerDefaultRange,
+  getMovimientosBancariosEmpresaCodigo,
+  getMovimientosBancariosDefaultRange,
   getStatusInfo,
   getYYYYMMFromDate,
-  hasSqlMovementAttentionData,
   normalizeDateForInput,
   normalizeDepositCurrency,
   normalizeSqlServerRow,
@@ -129,7 +131,6 @@ const DepositDetailModal = ({
     handleConfirmRejection,
     handleRestoreToPending,
     handleSaveChanges,
-    handleToggleEsAntiguo,
   } = useDepositActions({
     deposit,
     editableData,
@@ -158,6 +159,12 @@ const DepositDetailModal = ({
     sqlCortadoMeta,
     sqlMovementsSearch,
     setSqlMovementsSearch,
+    sqlMovementsEmpresa,
+    setSqlMovementsEmpresa,
+    sqlMovementsFechaDesde,
+    setSqlMovementsFechaDesde,
+    sqlMovementsFechaHasta,
+    setSqlMovementsFechaHasta,
     sqlCortadoPeriod,
     setSqlCortadoPeriod,
     sqlCortadoNroOperacionFilter,
@@ -769,25 +776,63 @@ const DepositDetailModal = ({
                               </div>
                             </>
                           ) : (
-                            <div className="w-[50ch] max-w-full flex-none">
-                              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                                Buscar en movimientos
-                              </label>
-                              <input
-                                type="text"
-                                inputMode="text"
-                                value={sqlMovementsSearch}
-                                onChange={(e) => setSqlMovementsSearch(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    void loadSqlMovements(sqlMovementsSearch);
-                                  }
-                                }}
-                                placeholder="Nro. operacion, banco, sucursal, contacto, RUC, observacion..."
-                                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                              />
-                            </div>
+                            <>
+                              <div className="w-[120px] flex-none">
+                                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                                  Empresa
+                                </label>
+                                <select
+                                  value={sqlMovementsEmpresa}
+                                  onChange={(e) => setSqlMovementsEmpresa(e.target.value)}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                >
+                                  <option value="">Seleccionar</option>
+                                  <option value="JCH">JCH</option>
+                                  <option value="EVO">EVO</option>
+                                </select>
+                              </div>
+                              <div className="w-[150px] flex-none">
+                                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                                  Desde
+                                </label>
+                                <input
+                                  type="date"
+                                  value={sqlMovementsFechaDesde}
+                                  onChange={(e) => setSqlMovementsFechaDesde(e.target.value)}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                />
+                              </div>
+                              <div className="w-[150px] flex-none">
+                                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                                  Hasta
+                                </label>
+                                <input
+                                  type="date"
+                                  value={sqlMovementsFechaHasta}
+                                  onChange={(e) => setSqlMovementsFechaHasta(e.target.value)}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                />
+                              </div>
+                              <div className="w-[36ch] max-w-full flex-none">
+                                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                                  Buscar en movimientos
+                                </label>
+                                <input
+                                  type="text"
+                                  inputMode="text"
+                                  value={sqlMovementsSearch}
+                                  onChange={(e) => setSqlMovementsSearch(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      void loadSqlMovements(sqlMovementsSearch);
+                                    }
+                                  }}
+                                  placeholder="Nro. operacion, banco, descripcion..."
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                />
+                              </div>
+                            </>
                           )}
 
                           <div className="flex flex-wrap gap-2">
@@ -814,6 +859,12 @@ const DepositDetailModal = ({
                               type="button"
                               onClick={() => {
                                 setSqlMovementsSearch("");
+                                setSqlMovementsEmpresa(
+                                  getMovimientosBancariosEmpresaCodigo(editableData.empresa_id, empresas),
+                                );
+                                const defaultRange = getMovimientosBancariosDefaultRange();
+                                setSqlMovementsFechaDesde(defaultRange.fechaInicio);
+                                setSqlMovementsFechaHasta(defaultRange.fechaFin);
                                 setSqlCortadoPeriod("");
                                 setSqlCortadoNroOperacionFilter("");
                                 setSqlCortadoBancoFilter("");
@@ -821,7 +872,6 @@ const DepositDetailModal = ({
                                 setSqlCortadoImporteFilter("");
                                 setSqlCortadoPage(1);
                                 setSqlCortadoTotalCount(0);
-                                void loadSqlMovements("");
                               }}
                               disabled={sqlMovementsLoading || sqlCortadoLoading}
                               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -830,17 +880,6 @@ const DepositDetailModal = ({
                             </button>
                           </div>
                         </div>
-
-                        {sqlActiveTab === "movimientos" ? (
-                          <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                            <span className="rounded-full bg-slate-200 px-2 py-1 dark:bg-slate-700">
-                              Desde: {sqlMovementsMeta?.fechaInicio || getSqlServerDefaultRange().fechaInicio}
-                            </span>
-                            <span className="rounded-full bg-slate-200 px-2 py-1 dark:bg-slate-700">
-                              Hasta: {sqlMovementsMeta?.fechaFin || getSqlServerDefaultRange().fechaFin}
-                            </span>
-                          </div>
-                        ) : null}
 
                         {sqlMovementsActionMessage ? (
                           <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-200">
@@ -887,40 +926,20 @@ const DepositDetailModal = ({
                                     <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Nro. op.</th>
                                     <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Descripcion</th>
                                     <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Abono</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Reg</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Sucursal</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Contacto</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Validado por</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Observación</th>
                                     <th className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">Accion</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
                                   {sqlMovementsRows.map((row, index) => (
                                     <tr
-                                      key={String(row.CUO || row.ID || index)}
-                                      className={"align-top text-sm transition-colors border-b-2 border-slate-300 dark:border-gray-600 " +
-                                        (String(row.REGISTRO || "").trim()
-                                          ? "bg-emerald-100/80 text-emerald-950 hover:bg-emerald-200/80 dark:bg-emerald-900/35 dark:text-emerald-50 dark:hover:bg-emerald-800/45"
-                                          : hasSqlMovementAttentionData(row)
-                                            ? "bg-orange-300/95 text-orange-950 hover:bg-orange-400/95 dark:bg-orange-900/55 dark:text-orange-50 dark:hover:bg-orange-800/60"
-                                            : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-gray-800/60")}
+                                      key={String(row.NRO_OPER || index)}
+                                      className="align-top text-sm transition-colors border-b-2 border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-gray-600 dark:text-slate-200 dark:hover:bg-gray-800/60"
                                     >
                                       <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{formatSqlMovementDate(row.FECHA)}</td>
                                       <td className="w-[15ch] max-w-[15ch] overflow-hidden whitespace-nowrap px-4 py-3 text-ellipsis" title={row.BANCO || "-"}>{row.BANCO || "-"}</td>
-                                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{row.NRO_OPER || row.CUO || "-"}</td>
+                                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{row.NRO_OPER || "-"}</td>
                                       <td className="whitespace-nowrap px-4 py-3 text-xs">{row.DESCRIPCION || "-"}</td>
                                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{formatCompactMoney(row.ABONO, "PEN")}</td>
-                                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{formatCompactMoney(row.REG, "PEN")}</td>
-                                      <td className="whitespace-nowrap px-4 py-3">{row.Sucursal || "-"}</td>
-                                      <td className="whitespace-nowrap px-4 py-3">
-                                        <div className="space-y-0.5">
-                                          <div>{row.Contacto || "-"}</div>
-                                          <div className="text-xs text-current/75">{row.TelefonoContacto || ""}</div>
-                                        </div>
-                                      </td>
-                                      <td className="whitespace-nowrap px-4 py-3">{row.ValidadoPor || "-"}</td>
-                                      <td className="whitespace-nowrap px-4 py-3">{row.Observacion || row.OBSERVACION || "-"}</td>
                                       <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-gray-700 dark:bg-inherit">
                                         <button type="button" onClick={() => void executeSqlMovementSelection(row)} className="inline-flex items-center rounded-lg border border-amber-400 bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600">Seleccionar</button>
                                       </td>
@@ -1311,29 +1330,18 @@ const DepositDetailModal = ({
                         <AlertCircle className="h-4 w-4" />
                         Duplicados
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleToggleEsAntiguo}
-                        disabled={isProcessing}
-                        className={`shrink-0 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
-                          deposit?.es_antiguo
-                            ? "bg-slate-700 text-white hover:bg-slate-800"
-                            : "bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
-                        }`}
-                      >
-                        <Clock className="h-4 w-4" />
-                        {deposit?.es_antiguo ? "Antiguo ✓" : "Antiguo"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={openSqlMovementsModal}
-                        disabled={isProcessing}
-                        className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Ver movimientos SQL por identificar"
-                      >
-                        <Search className="h-4 w-4" />
-                        SQL
-                      </button>
+                      {isDepositAntiguo(deposit) && (
+                        <button
+                          type="button"
+                          onClick={openSqlMovementsModal}
+                          disabled={isProcessing}
+                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Ver movimientos SQL por identificar"
+                        >
+                          <Search className="h-4 w-4" />
+                          SQL
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setIsRejectionModalOpen(true)}
@@ -1783,15 +1791,17 @@ const DepositDetailModal = ({
                 <span>{statusLabel}</span>
               </span>
 
-              <button
-                type="button"
-                onClick={openSqlMovementsModal}
-                className="flex items-center space-x-2 px-2 md:px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors"
-                title="Ver movimientos SQL por identificar"
-              >
-                <Search className="h-4 w-4" />
-                <span className="hidden md:inline">SQL</span>
-              </button>
+              {isDepositAntiguo(deposit) && (
+                <button
+                  type="button"
+                  onClick={openSqlMovementsModal}
+                  className="flex items-center space-x-2 px-2 md:px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors"
+                  title="Ver movimientos SQL por identificar"
+                >
+                  <Search className="h-4 w-4" />
+                  <span className="hidden md:inline">SQL</span>
+                </button>
+              )}
 
               {deposit.estado === "rechazado" && (
                 <button
@@ -2286,30 +2296,6 @@ const DepositDetailModal = ({
                   </button>
                 )}
 
-                {/* Botón para marcar/desmarcar como antiguo - Solo para pendiente y en_validacion */}
-                {(deposit.estado === "recibido" ||
-                  deposit.estado === "en_validacion") && (
-                  <button
-                    onClick={handleToggleEsAntiguo}
-                    disabled={isProcessing}
-                    className={`px-3 py-1.5 rounded-md font-medium flex items-center justify-center space-x-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                      deposit.es_antiguo
-                        ? "bg-orange-600 text-white hover:bg-orange-700"
-                        : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500"
-                    }`}
-                    title={
-                      deposit.es_antiguo
-                        ? "Desmarcar como antiguo"
-                        : "Marcar como antiguo"
-                    }
-                  >
-                    <AlertTriangle size={12} />
-                    <span>
-                      {deposit.es_antiguo ? "Antiguo ✓" : "Marcar Antiguo"}
-                    </span>
-                  </button>
-                )}
-
                 <button
                   onClick={() => {
                     setIsRejectionModalOpen(true);
@@ -2452,11 +2438,9 @@ const DepositDetailModal = ({
         }}
         snapshotText={compactStoreDataSnapshot}
         onConfirm={handleConfirmDeposit}
-        onToggleOld={handleToggleEsAntiguo}
         canConfirm={canConfirm}
         isSending={isSending}
         isProcessing={isProcessing}
-        isOld={!!deposit?.es_antiguo}
       />
       <DuplicateDepositsPortal
         isOpen={duplicateModalMode === "duplicate"}

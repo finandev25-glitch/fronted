@@ -166,6 +166,38 @@ export const getSqlServerDefaultRange = () => {
   };
 };
 
+// El endpoint /api/v1/movimientos-bancarios usa el código de empresa del
+// mirror SQL Server -> Cloud SQL ("JCH" / "EVO"), distinto del "1"/"2" que
+// usa getSqlServerCompanyConfigFromEmpresaId para el resto del modal SQL.
+export const getMovimientosBancariosEmpresaCodigo = (empresaId, empresas = []) => {
+  const { empresa } = getSqlServerCompanyConfigFromEmpresaId(empresaId, empresas);
+  if (empresa === "1") return "JCH";
+  if (empresa === "2") return "EVO";
+  return "";
+};
+
+// Rango por defecto para /api/v1/movimientos-bancarios: el endpoint rechaza
+// rangos mayores a 62 días, así que NO se puede reusar getSqlServerDefaultRange
+// (que arranca en 1-enero y puede superar ese límite). Se usan los últimos 30
+// días como default razonable, editable por el usuario en el modal.
+export const getMovimientosBancariosDefaultRange = () => {
+  const toInputDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const hoy = new Date();
+  const hace30 = new Date(hoy);
+  hace30.setDate(hace30.getDate() - 30);
+
+  return {
+    fechaInicio: toInputDate(hace30),
+    fechaFin: toInputDate(hoy),
+  };
+};
+
 export const getYYYYMMFromDate = (date, monthOffset = 0) => {
   const base = new Date(date);
   base.setMonth(base.getMonth() + monthOffset);

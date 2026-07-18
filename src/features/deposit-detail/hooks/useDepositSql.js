@@ -10,6 +10,8 @@ import {
   getSqlServerCompanyConfigFromEmpresaId,
   getSqlServerDefaultRange,
   getSqlPeriodRangeFromYYYYMM,
+  getMovimientosBancariosEmpresaCodigo,
+  getMovimientosBancariosDefaultRange,
   normalizeSqlServerRow,
   extractSqlSelectionValues,
 } from "../../deposits/components/depositDetailModalHelpers.jsx";
@@ -27,6 +29,15 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
   const [sqlCortadoRows, setSqlCortadoRows] = useState([]);
   const [sqlCortadoMeta, setSqlCortadoMeta] = useState(null);
   const [sqlMovementsSearch, setSqlMovementsSearch] = useState("");
+  const [sqlMovementsEmpresa, setSqlMovementsEmpresa] = useState(() =>
+    getMovimientosBancariosEmpresaCodigo(empresaId, empresas),
+  );
+  const [sqlMovementsFechaDesde, setSqlMovementsFechaDesde] = useState(
+    () => getMovimientosBancariosDefaultRange().fechaInicio,
+  );
+  const [sqlMovementsFechaHasta, setSqlMovementsFechaHasta] = useState(
+    () => getMovimientosBancariosDefaultRange().fechaFin,
+  );
   const [sqlCortadoPeriod, setSqlCortadoPeriod] = useState("");
   const [sqlCortadoNroOperacionFilter, setSqlCortadoNroOperacionFilter] = useState("");
   const [sqlCortadoBancoFilter, setSqlCortadoBancoFilter] = useState("");
@@ -105,14 +116,60 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     [empresaId, empresas],
   );
 
+  // Movimientos por identificar -> /api/v1/movimientos-bancarios (mirror SQL
+  // Server -> Cloud SQL). Requiere empresa (JCH/EVO) + rango de fechas de
+  // hasta 62 dias; la busqueda de texto libre viaja como parametro "search" al
+  // backend (filtra nro_oper/banco/descripcion con ILIKE), no se filtra en
+  // cliente -- el WHERE de empresa+fecha+abono ya acota el conjunto antes de
+  // aplicar el ILIKE, asi que no hace falta traer todo para filtrar aca.
   const loadSqlMovements = useCallback(
     async (searchValue = "") => {
       setSqlMovementsLoading(true);
       setSqlMovementsError("");
       try {
-        const { rows, meta } = await fetchSqlServerRows({ endpoint: "movimientos", searchValue, paginate: true, limit: 1000 });
-        setSqlMovementsRows(rows.map(normalizeSqlServerRow));
-        setSqlMovementsMeta(meta);
+        if (!sqlMovementsEmpresa) {
+          throw new Error("Selecciona una empresa (JCH o EVO) para consultar movimientos.");
+        }
+        if (!sqlMovementsFechaDesde || !sqlMovementsFechaHasta) {
+          throw new Error("Selecciona el rango de fechas (desde / hasta).");
+        }
+
+        const rangeDays =
+          (new Date(sqlMovementsFechaHasta) - new Date(sqlMovementsFechaDesde)) / (1000 * 60 * 60 * 24);
+        if (rangeDays < 0) {
+          throw new Error("La fecha 'Hasta' no puede ser anterior a 'Desde'.");
+        }
+        if (rangeDays > 62) {
+          throw new Error("El rango de fechas no puede superar 62 días.");
+        }
+
+        const params = new URLSearchParams({
+          empresa: sqlMovementsEmpresa,
+          fechaDesde: sqlMovementsFechaDesde,
+          fechaHasta: sqlMovementsFechaHasta,
+        });
+        const term = String(searchValue || "").trim();
+        if (term) params.set("search", term);
+
+        const response = await apiGet(`/v1/movimientos-bancarios?${params.toString()}`);
+        const rawRows = Array.isArray(response) ? response : [];
+
+        const mappedRows = rawRows.map((row) => ({
+          ID_ORIGEN: row.idOrigen,
+          EMPRESA: sqlMovementsEmpresa,
+          FECHA: row.fecha,
+          BANCO: row.banco,
+          NRO_OPER: row.nroOper,
+          DESCRIPCION: row.descripcion,
+          ABONO: row.abono,
+        }));
+
+        setSqlMovementsRows(mappedRows.map(normalizeSqlServerRow));
+        setSqlMovementsMeta({
+          count: mappedRows.length,
+          fechaInicio: sqlMovementsFechaDesde,
+          fechaFin: sqlMovementsFechaHasta,
+        });
       } catch (err) {
         setSqlMovementsError(err.message || "Error al cargar movimientos.");
         setSqlMovementsRows([]);
@@ -120,7 +177,7 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
         setSqlMovementsLoading(false);
       }
     },
-    [fetchSqlServerRows],
+    [sqlMovementsEmpresa, sqlMovementsFechaDesde, sqlMovementsFechaHasta],
   );
 
   const loadSqlCortado = useCallback(
@@ -183,14 +240,42 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     [deposit, onUpdateDeposit],
   );
 
+  // Al seleccionar un movimiento, ademas de cargar los campos al formulario del
+  // deposito, se marca ese movimiento como "identificado" con el nombre del
+  // cliente del voucher -- se escribe en el campo TIPO, tanto en Postgres como
+  // (via la cola que consume el BankSyncWorker) en el SQL Server de oficina.
+  // Si esta escritura falla, no se bloquea la seleccion (lo mas importante es
+  // que el formulario del deposito quede cargado); solo se avisa en el toast.
   const handleSelectSqlMovement = useCallback(
     async (row) => {
       setSqlSelectedMovement(row || null);
       await applySqlMovementSelectionToDeposit(row);
-      setSqlSelectionToast("Campos cargados desde Movimientos por identificar.");
+
+      const clienteNombre = String(editableData?.cliente || deposit?.cliente || "").trim();
+      let tipoMarcado = false;
+
+      if (row?.ID_ORIGEN && sqlMovementsEmpresa && clienteNombre) {
+        try {
+          await apiPost("/v1/movimientos-bancarios/marcar-tipo", {
+            empresa: sqlMovementsEmpresa,
+            idOrigen: row.ID_ORIGEN,
+            tipo: clienteNombre,
+            depositoId: deposit?.id || null,
+          });
+          tipoMarcado = true;
+        } catch (err) {
+          console.warn("No se pudo marcar el TIPO del movimiento:", err.message);
+        }
+      }
+
+      setSqlSelectionToast(
+        tipoMarcado
+          ? "Campos cargados. El movimiento quedó marcado con el cliente (se sincroniza con SQL Server en breve)."
+          : "Campos cargados desde Movimientos por identificar.",
+      );
       closeSqlMovementsModal();
     },
-    [applySqlMovementSelectionToDeposit, closeSqlMovementsModal],
+    [applySqlMovementSelectionToDeposit, closeSqlMovementsModal, editableData, deposit, sqlMovementsEmpresa],
   );
 
   const handleSelectSqlCortado = useCallback(
@@ -229,6 +314,12 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     sqlCortadoMeta,
     sqlMovementsSearch,
     setSqlMovementsSearch,
+    sqlMovementsEmpresa,
+    setSqlMovementsEmpresa,
+    sqlMovementsFechaDesde,
+    setSqlMovementsFechaDesde,
+    sqlMovementsFechaHasta,
+    setSqlMovementsFechaHasta,
     sqlCortadoPeriod,
     setSqlCortadoPeriod,
     sqlCortadoNroOperacionFilter,

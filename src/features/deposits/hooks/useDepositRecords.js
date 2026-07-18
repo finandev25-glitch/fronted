@@ -85,6 +85,15 @@ export function useDepositRecords({
       }
     });
 
+    // "condicion" determina si el depósito es "antiguo" (muestra el botón SQL en
+    // el detalle). Algunos eventos de Realtime (updates parciales) no la incluyen
+    // y llega como null/undefined -- sin este resguardo, el spread de arriba la
+    // pisaba y el depósito "perdía" su condición de antiguo apenas llegaba
+    // cualquier otro evento de Realtime para ese depósito.
+    if ((incoming.condicion == null || incoming.condicion === "") && existing.condicion) {
+      merged.condicion = existing.condicion;
+    }
+
     return merged;
   }, []);
 
