@@ -233,6 +233,10 @@ const TablePage = ({
         "RUC/DNI Cliente": deposit.ruc_cliente || "",
         "Ref. Cliente": deposit.referencia_cliente || "",
         "URL Voucher": deposit.imagen_voucher || "",
+        // Solo depositos antiguos migrados desde Google Drive (columna
+        // Deposito.ImagenUrl en el backend). No se muestra en la tabla del
+        // listado, solo se agrega acá al exportar.
+        "Imagen URL (Drive)": deposit.imagen_url_legacy || "",
       };
     });
 

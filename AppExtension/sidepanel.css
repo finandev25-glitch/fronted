@@ -23,39 +23,10 @@ body {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  overflow-y: auto;
+  overflow: hidden;
   background:
     radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 40%),
     linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-}
-
-.summary,
-.voucher-card {
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  border-radius: 18px;
-}
-
-.summary {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 5px;
-}
-
-.field-row {
-  display: flex;
-  gap: 4px;
-  min-width: 0;
-  width: 100%;
-}
-
-.field {
-  padding: 4px 7px;
-  border-radius: 9px;
-  background: #f8fafc;
-  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .label {
@@ -80,61 +51,6 @@ body {
   word-break: break-word;
 }
 
-.field--half {
-  min-width: 0;
-  flex: 1 1 0;
-}
-
-.field--importe {
-  min-width: 0;
-  flex: 0 0 26%;
-}
-
-.field--moneda {
-  min-width: 72px;
-  max-width: 92px;
-  flex: 0 0 auto;
-}
-
-.field--cliente {
-  min-width: 0;
-  flex: 1 1 auto;
-  width: 100%;
-  max-width: none;
-}
-
-.voucher-card {
-  flex: 11.5;
-  min-height: 67vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.voucher-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 10px 10px 0;
-  flex-wrap: wrap;
-}
-
-.voucher-toolbar > * {
-  min-width: 0;
-}
-
-.link-button--secondary {
-  background: linear-gradient(135deg, #0f172a, #334155);
-}
-
-.hint {
-  display: block;
-  margin-top: 3px;
-  font-size: 12px;
-  color: #64748b;
-}
-
 .link-button {
   display: inline-flex;
   align-items: center;
@@ -152,16 +68,17 @@ body {
   flex: 1 1 0;
 }
 
+.link-button--secondary {
+  background: linear-gradient(135deg, #0f172a, #334155);
+}
+
 .search-status {
-  padding: 6px 10px 0;
+  padding: 4px 2px 0;
   font-size: 11px;
   color: #64748b;
 }
 
 .preview {
-  margin: 10px;
-  flex: 1;
-  min-height: 0;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -169,6 +86,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 280px;
 }
 
 .preview.empty {
@@ -193,9 +111,6 @@ body {
   display: block;
 }
 
-/* La imagen se muestra a su tamaño natural, reducida solo si excede el
-   contenedor. NO se fuerza a width/height 100% para que no se agrande
-   (evita el efecto "zoom" al hacer upscale de vouchers de baja resolución). */
 .preview img {
   max-width: 100%;
   max-height: 100%;
@@ -206,31 +121,318 @@ body {
   display: block;
 }
 
+/* ── Cola de depósitos ──────────────────────────────────────────────────── */
+
+.queue-card {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.queue-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #334155;
+}
+
+.queue-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.queue-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.queue-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.queue-item {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.queue-item.is-attended {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(209, 250, 229, 0.35);
+}
+
+/* Resalta el depósito que el usuario tiene expandido/seleccionado, para que
+   quede claro cuál está editando (sobre todo con varios en la cola). Se
+   combina con is-attended (verde) sin pisarlo -- el anillo azul manda. */
+.queue-item.is-open {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
+}
+
+.queue-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.queue-item-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.queue-item.is-attended .queue-item-dot {
+  background: #10b981;
+}
+
+.queue-item-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.queue-item-bank {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-sub {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-amount {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Cuenta regresiva del candado de 4 min (ver getLockRemainingMs/
+   updateLockBadges en sidepanel.js). Vacío/ausente si el depósito no está
+   "procesado" o no tiene fechaBloqueo -- solo informativo, el que libera de
+   verdad es el backend (o el panel principal si la pestaña sigue abierta). */
+.queue-item-lock-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.queue-item-lock-badge:empty {
+  display: none;
+}
+
+.queue-item-lock-badge.is-low {
+  background: rgba(220, 38, 38, 0.14);
+  color: #b91c1c;
+}
+
+.queue-item-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: #94a3b8;
+  transition: transform 0.18s ease;
+}
+
+.queue-item.is-open .queue-item-chevron {
+  transform: rotate(180deg);
+}
+
+/* Acordeón: se usa un tope generoso (no el scrollHeight exacto) porque el
+   contenido incluye una <img> que carga async y cambia de alto después de la
+   primera medición -- con un tope fijo el CSS transition sigue siendo suave
+   sin tener que recalcular la altura cuando la imagen termina de cargar. */
+.queue-item-detail {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
+.queue-item.is-open .queue-item-detail {
+  max-height: 1050px;
+  overflow-y: auto;
+}
+
+.queue-item-detail-inner {
+  padding: 10px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+/* Campos editables: sin caja/borde propio (eso era espacio interno
+   desperdiciado) -- solo la etiqueta y, debajo, un input grande y fácil de
+   leer/tocar. El "aire" que antes se iba en el padding de cada mini-tarjeta
+   ahora es tipografía más grande. */
+.queue-item-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 10px;
+}
+
+.queue-item-fields .field--full {
+  grid-column: 1 / -1;
+}
+
+/* Fila superior: Banco (editable) + Sucursal (solo lectura) + Anexo
+   (editable) en 3 columnas -- antes Banco/Sucursal se repetían acá y en el
+   encabezado de la fila colapsada; ahora solo se muestran una vez cada uno,
+   y Banco pasó a ser un campo editable más. Va DESPUÉS de .queue-item-fields
+   en el archivo a propósito, para ganarle el grid-template-columns. */
+.queue-item-fields--trio {
+  grid-template-columns: repeat(3, 1fr);
+  padding-bottom: 10px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.queue-item-fields--trio .queue-item-field .value {
+  font-size: 13px;
+}
+
+/* Con 3 columnas hay menos ancho por campo que en el grid de 2 -- se achica
+   un poco la tipografía de los inputs/selects para que no corten texto como
+   "Interbank" o "Scotiabank". */
+.queue-item-fields--trio .queue-edit-input {
+  font-size: 12px;
+  padding: 6px 5px;
+}
+
+.queue-item-field {
+  padding: 0;
+  border: none;
+  background: transparent;
+  min-width: 0;
+}
+
+.queue-item-field .label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.queue-item-field .value {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.queue-edit-input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #0f172a;
+  padding: 7px 9px;
+  line-height: 1.3;
+}
+
+.queue-edit-input::placeholder {
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.queue-edit-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+select.queue-edit-input {
+  cursor: pointer;
+}
+
+.queue-item-preview {
+  height: 540px;
+}
+
+.queue-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.queue-item-actions .link-button {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+.queue-item-attend-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.queue-item.is-attended .queue-item-attend-btn {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+
+.queue-item-remove-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
 @media (max-width: 420px) {
   .panel {
     padding: 8px;
     gap: 6px;
   }
 
-  .summary {
-    padding: 8px;
-  }
-
-  .voucher-toolbar {
-    padding: 8px 8px 0;
-  }
-
-  .preview {
-    margin: 8px;
-  }
-
-  .preview,
-  .preview iframe,
-  .preview img {
-    min-height: 0;
-  }
-
-  .voucher-card {
-    min-height: 60vh;
+  .queue-item-preview {
+    height: 400px;
   }
 }

@@ -83,6 +83,22 @@ export function AppShell({ uiMode = "default" }) {
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "es"));
   }, [dashboard.currentSelectedDate, dashboard.depositsWithFullData]);
 
+  // El catálogo completo de usuarios (AuthContext.users) arrancaba con
+  // SOLO el usuario logueado (setUsers([normalizedUser]) en el login) y
+  // antes recién se completaba si el usuario entraba a "/usuarios" (ver
+  // shouldRefreshOnEnter más abajo). Pero el Kanban también necesita la
+  // lista completa para resolver nombres de OTROS validadores -- tanto acá
+  // (attendedUsersSummary en KanbanPage.jsx) como en depositsWithFullData
+  // (useDepositRecords.js, usersById.get(validado_por)). Si nunca se
+  // visitó "/usuarios" en la sesión, esas búsquedas fallaban y caían al
+  // fallback de mostrar el id crudo (o "Usuario") en vez del nombre. Se
+  // pide una vez apenas hay sesión, para que esté disponible en toda la app.
+  useEffect(() => {
+    if (currentUser) {
+      refreshUsers?.();
+    }
+  }, [currentUser, refreshUsers]);
+
   useEffect(() => {
     if (!currentUser) return;
 

@@ -116,12 +116,12 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     [empresaId, empresas],
   );
 
-  // Movimientos por identificar -> /api/v1/movimientos-bancarios (mirror SQL
-  // Server -> Cloud SQL). Requiere empresa (JCH/EVO) + rango de fechas de
-  // hasta 62 dias; la busqueda de texto libre viaja como parametro "search" al
-  // backend (filtra nro_oper/banco/descripcion con ILIKE), no se filtra en
-  // cliente -- el WHERE de empresa+fecha+abono ya acota el conjunto antes de
-  // aplicar el ILIKE, asi que no hace falta traer todo para filtrar aca.
+  // Movimientos por identificar -> /api/v1/movimientos-bancarios/por-identificar
+  // (mirror SQL Server -> Cloud SQL + conciliacion contra RegistrosConcar +
+  // match con depositos por CUO). Requiere empresa (JCH/EVO) + rango de fechas
+  // de hasta 62 dias; la busqueda de texto libre viaja como parametro "search"
+  // al backend (filtra nro_oper/banco/sucursal/contacto/ruc/observacion con
+  // ILIKE), no se filtra en cliente.
   const loadSqlMovements = useCallback(
     async (searchValue = "") => {
       setSqlMovementsLoading(true);
@@ -147,21 +147,32 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
           empresa: sqlMovementsEmpresa,
           fechaDesde: sqlMovementsFechaDesde,
           fechaHasta: sqlMovementsFechaHasta,
+          limit: "500",
         });
         const term = String(searchValue || "").trim();
         if (term) params.set("search", term);
 
-        const response = await apiGet(`/v1/movimientos-bancarios?${params.toString()}`);
+        const response = await apiGet(`/v1/movimientos-bancarios/por-identificar?${params.toString()}`);
         const rawRows = Array.isArray(response) ? response : [];
 
         const mappedRows = rawRows.map((row) => ({
           ID_ORIGEN: row.idOrigen,
           EMPRESA: sqlMovementsEmpresa,
+          CUO: row.cuo,
           FECHA: row.fecha,
           BANCO: row.banco,
           NRO_OPER: row.nroOper,
           DESCRIPCION: row.descripcion,
           ABONO: row.abono,
+          CARGO: row.cargo,
+          REG: row.reg,
+          DIF: row.dif,
+          REGISTRO: row.registro,
+          Sucursal: row.sucursal,
+          Contacto: row.contacto,
+          TelefonoContacto: row.telefonoContacto,
+          ValidadoPor: row.validadoPor,
+          Observacion: row.observacion,
         }));
 
         setSqlMovementsRows(mappedRows.map(normalizeSqlServerRow));

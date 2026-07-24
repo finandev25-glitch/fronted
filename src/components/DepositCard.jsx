@@ -7,6 +7,8 @@ import {
   Clock,
   Hourglass,
   AlertTriangle,
+  ListPlus,
+  CheckCircle2,
 } from "lucide-react";
 import {
   getStatusInfo,
@@ -17,9 +19,35 @@ import { formatDate, formatShortDateFromDateOnly } from "../utils/dateFormatters
 import { getBankBadgeClassName } from "../utils/bankColors";
 import { getCompanyLogo } from "../utils/companyLogos";
 import { getCurrencyBadge } from "../utils/currencyBadge";
+import { getDepositLockRemainingMs, formatLockRemaining } from "../utils/depositLockHelpers";
 
-const DepositCard = ({ deposit, onClick, isSelected = false }) => {
+const DepositCard = ({
+  deposit,
+  onClick,
+  isSelected = false,
+  onAddToQueue,
+  isQueued = false,
+  isAttended = false,
+}) => {
   const [elapsedTime, setElapsedTime] = useState("");
+  const [lockRemainingMs, setLockRemainingMs] = useState(null);
+
+  // Temporizador de 4 min del candado: mientras el depósito siga "procesado"
+  // y tomado (validado_por + fecha_bloqueo), cuenta regresivo hasta que el
+  // backend lo libere automáticamente (ver utils/depositLockHelpers.js y
+  // useDepositLockTimer.js, que además lo libera proactivamente del lado
+  // del cliente al llegar a 0).
+  useEffect(() => {
+    if (deposit.estado !== "procesado" || !deposit.fecha_bloqueo) {
+      setLockRemainingMs(null);
+      return undefined;
+    }
+
+    const tick = () => setLockRemainingMs(getDepositLockRemainingMs(deposit));
+    tick();
+    const intervalId = setInterval(tick, 1000);
+    return () => clearInterval(intervalId);
+  }, [deposit.estado, deposit.fecha_bloqueo]);
 
   useEffect(() => {
     const calculateTime = () => {
@@ -146,6 +174,31 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
           </span>
         </div>
         <div className="flex items-center space-x-2.5 flex-shrink-0">
+          {onAddToQueue && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToQueue(deposit);
+              }}
+              title={
+                isAttended
+                  ? "Atendido en la cola (extensión)"
+                  : isQueued
+                    ? "Ya está en la cola"
+                    : "Agregar a la cola"
+              }
+              className={`flex items-center justify-center rounded-full p-1.5 transition-colors ${
+                isAttended
+                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  : isQueued
+                    ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300"
+                    : "bg-gray-100 text-gray-400 hover:bg-indigo-100 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-500 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300"
+              }`}
+            >
+              {isAttended ? <CheckCircle2 size={14} /> : <ListPlus size={14} />}
+            </button>
+          )}
           <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
             <Clock size={13} className={statusStyles.iconColor} />
             <span className="font-medium">
@@ -226,12 +279,29 @@ const DepositCard = ({ deposit, onClick, isSelected = false }) => {
               siempre que exista validado_por_usuario (tomado, confirmado o
               rechazado). No se gatea por estado porque el backend real usa
               procesado/confirmado/rechazado y nunca "en_validacion". */}
-          {deposit.validado_por_usuario?.nombre && (
-            <div
-              className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs flex-shrink-0 ring-1 ring-white shadow-sm dark:ring-gray-800"
-              title={`Por: ${deposit.validado_por_usuario.nombre}`}
-            >
-              {getUserInitials(deposit.validado_por_usuario.nombre)}
+          {(deposit.validado_por_usuario?.nombre || lockRemainingMs !== null) && (
+            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+              {deposit.validado_por_usuario?.nombre && (
+                <div
+                  className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs ring-1 ring-white shadow-sm dark:ring-gray-800"
+                  title={`Por: ${deposit.validado_por_usuario.nombre}`}
+                >
+                  {getUserInitials(deposit.validado_por_usuario.nombre)}
+                </div>
+              )}
+              {lockRemainingMs !== null && (
+                <div
+                  className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+                    lockRemainingMs <= 60000
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                  }`}
+                  title="Se libera automáticamente si nadie lo confirma en 4 minutos"
+                >
+                  <Hourglass size={10} />
+                  {formatLockRemaining(lockRemainingMs)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -295,6 +365,7 @@ const MemoizedDepositCard = memo(DepositCard, (prevProps, nextProps) => {
     prevProps.deposit.monto === nextProps.deposit.monto &&
     prevProps.deposit.fecha_registro === nextProps.deposit.fecha_registro &&
     prevProps.deposit.validado_por === nextProps.deposit.validado_por &&
+    prevProps.deposit.fecha_bloqueo === nextProps.deposit.fecha_bloqueo &&
     prevProps.deposit.rechazado_por === nextProps.deposit.rechazado_por &&
     prevProps.deposit.observaciones === nextProps.deposit.observaciones &&
     prevProps.deposit.en_validacion_por ===
@@ -305,6 +376,8 @@ const MemoizedDepositCard = memo(DepositCard, (prevProps, nextProps) => {
     prevProps.deposit.pendiente_regularizar ===
       nextProps.deposit.pendiente_regularizar &&
     prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isQueued === nextProps.isQueued &&
+    prevProps.isAttended === nextProps.isAttended &&
     prevProps.deposit.trabajador?.telefono_origen ===
       nextProps.deposit.trabajador?.telefono_origen;
 

@@ -113,7 +113,12 @@ function KanbanColumnBody({
   handleCardClick,
   selectedDepositId,
   highlights,
+  onAddToQueue,
+  queuedIds,
+  attendedIds,
 }) {
+  const queueProps = { onAddToQueue, queuedIds, attendedIds };
+
   if (columnId === "en_validacion") {
     return (
       <>
@@ -130,6 +135,7 @@ function KanbanColumnBody({
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
+              {...queueProps}
             />
           </KanbanSection>
         )}
@@ -147,12 +153,13 @@ function KanbanColumnBody({
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
+              {...queueProps}
             />
           </KanbanSection>
         )}
 
         {validacionSeparated.antiguos.length === 0 && validacionSeparated.normales.length === 0 && (
-          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} />
+          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
         )}
       </>
     );
@@ -174,6 +181,7 @@ function KanbanColumnBody({
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
+              {...queueProps}
             />
           </KanbanSection>
         )}
@@ -184,11 +192,12 @@ function KanbanColumnBody({
             onCardClick={handleCardClick}
             selectedDepositId={selectedDepositId}
             highlights={highlights}
+            {...queueProps}
           />
         )}
 
         {pendientesSeparated.especiales.length === 0 && pendientesSeparated.otros.length === 0 && (
-          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} />
+          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
         )}
       </>
     );
@@ -210,6 +219,7 @@ function KanbanColumnBody({
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
+              {...queueProps}
             />
           </KanbanSection>
         )}
@@ -227,13 +237,14 @@ function KanbanColumnBody({
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
+              {...queueProps}
             />
           </KanbanSection>
         )}
 
         {confirmadoSeparated.regularizar.length === 0 &&
           confirmadoSeparated.otros.length === 0 && (
-            <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} />
+            <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
           )}
       </>
     );
@@ -245,6 +256,7 @@ function KanbanColumnBody({
       onCardClick={handleCardClick}
       selectedDepositId={selectedDepositId}
       highlights={highlights}
+      {...queueProps}
     />
   );
 }
@@ -265,6 +277,9 @@ export function KanbanColumns(props) {
     handleCardClick,
     selectedDepositId,
     realtimeActivity,
+    onAddToQueue,
+    queuedIds,
+    attendedIds,
   } = props;
 
   const reduce = useReducedMotion();
@@ -301,6 +316,9 @@ export function KanbanColumns(props) {
     handleCardClick,
     selectedDepositId,
     highlights,
+    onAddToQueue,
+    queuedIds,
+    attendedIds,
   };
 
   return (

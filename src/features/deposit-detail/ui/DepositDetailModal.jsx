@@ -1,3 +1,7 @@
+import {
+  getBancoOptions,
+  getCuentasBancariasForEmpresa,
+} from "../../deposits/utils/depositQueueCatalogHelpers.js";
 import { useDepositForm } from "../hooks/useDepositForm.js";
 import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
@@ -28,7 +32,7 @@ import {
   X, User, Building2, CreditCard, Calendar, Clock, DollarSign,
   CheckCircle, XCircle, AlertCircle, FileText, Hash, Building, Info,
   Search, Loader2, Ban, MessageSquare, PanelRightOpen, Save, Fingerprint,
-  Eye, AlertTriangle, Phone, FileDown, ExternalLink, UploadCloud,
+  Eye, AlertTriangle, Phone, FileDown, ExternalLink, UploadCloud, RotateCw,
 } from "lucide-react";
 import RejectionModal from "../../../components/RejectionModal";
 import GoogleDrivePicker from "../../../components/GoogleDrivePicker.jsx";
@@ -426,6 +430,16 @@ const DepositDetailModal = ({
   useEffect(() => {
     setVoucherImgFailed(false);
   }, [displayVoucherUrl, compactVoucherUrl]);
+
+  // Rotación del voucher (botón "Rotar imagen" del panel principal, en
+  // múltiplos de 90°) -- se resetea cada vez que cambia el voucher mostrado,
+  // mismo comportamiento que el botón equivalente del panel lateral de la
+  // extensión (sidepanel.js, rotateVoucherImage).
+  const [voucherRotation, setVoucherRotation] = useState(0);
+  useEffect(() => {
+    setVoucherRotation(0);
+  }, [displayVoucherUrl, compactVoucherUrl]);
+  const rotateVoucherImage = () => setVoucherRotation((prev) => (prev + 90) % 360);
 
   // FIX: la vista compacta/móvil usa compactVoucherUrl, pero nunca se poblaba
   // (setCompactVoucherUrl no se llamaba en ningún lado), así que el voucher no
@@ -828,7 +842,7 @@ const DepositDetailModal = ({
                                       void loadSqlMovements(sqlMovementsSearch);
                                     }
                                   }}
-                                  placeholder="Nro. operacion, banco, descripcion..."
+                                  placeholder="Nro. operacion, banco, sucursal, contacto, RUC, observacion..."
                                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                 />
                               </div>
@@ -921,30 +935,71 @@ const DepositDetailModal = ({
                               <table className="w-max min-w-max table-auto border-separate border-spacing-0 whitespace-nowrap">
                                 <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-gray-800">
                                   <tr className="text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Fecha</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 w-[15ch] max-w-[15ch]">Banco</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Nro. op.</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Descripcion</th>
-                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Abono</th>
+                                    {SQL_MOVEMENTS_COLUMNS.map((col) => (
+                                      <th
+                                        key={col.key}
+                                        className={
+                                          "border-b border-slate-200 px-4 py-3 dark:border-gray-700" +
+                                          (["ABONO", "REG"].includes(col.key) ? " text-right" : "") +
+                                          (col.key === "BANCO" ? " w-[15ch] max-w-[15ch]" : "")
+                                        }
+                                      >
+                                        {col.label}
+                                      </th>
+                                    ))}
                                     <th className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">Accion</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
-                                  {sqlMovementsRows.map((row, index) => (
-                                    <tr
-                                      key={String(row.NRO_OPER || index)}
-                                      className="align-top text-sm transition-colors border-b-2 border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-gray-600 dark:text-slate-200 dark:hover:bg-gray-800/60"
-                                    >
-                                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{formatSqlMovementDate(row.FECHA)}</td>
-                                      <td className="w-[15ch] max-w-[15ch] overflow-hidden whitespace-nowrap px-4 py-3 text-ellipsis" title={row.BANCO || "-"}>{row.BANCO || "-"}</td>
-                                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{row.NRO_OPER || "-"}</td>
-                                      <td className="whitespace-nowrap px-4 py-3 text-xs">{row.DESCRIPCION || "-"}</td>
-                                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{formatCompactMoney(row.ABONO, "PEN")}</td>
-                                      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-gray-700 dark:bg-inherit">
-                                        <button type="button" onClick={() => void executeSqlMovementSelection(row)} className="inline-flex items-center rounded-lg border border-amber-400 bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600">Seleccionar</button>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {sqlMovementsRows.map((row, index) => {
+                                    // Coloreado: verde = ya hay match con deposito Y algun registro
+                                    // en Concar (reg>0); ambar = hay match con deposito pero todavia
+                                    // no esta en Concar; blanco = sin match de deposito (CUO) todavia.
+                                    const tieneDeposito = Boolean(row.Sucursal || row.Contacto || row.ValidadoPor);
+                                    const tieneRegistro = Number(row.REG || 0) > 0;
+                                    const rowTone = tieneDeposito
+                                      ? tieneRegistro
+                                        ? "bg-emerald-100/80 text-emerald-950 hover:bg-emerald-200/80 dark:bg-emerald-900/35 dark:text-emerald-50 dark:hover:bg-emerald-800/45"
+                                        : "bg-amber-200/90 text-amber-950 hover:bg-amber-300/90 dark:bg-amber-900/40 dark:text-amber-50 dark:hover:bg-amber-800/50"
+                                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-gray-800/60";
+
+                                    return (
+                                      <tr
+                                        key={String(row.CUO || row.NRO_OPER || index)}
+                                        className={"align-top text-sm transition-colors border-b-2 border-slate-300 dark:border-gray-600 " + rowTone}
+                                      >
+                                        {SQL_MOVEMENTS_COLUMNS.map((col) => {
+                                          if (col.key === "Contacto") {
+                                            return (
+                                              <td key={col.key} className="whitespace-nowrap px-4 py-3 text-xs">
+                                                <div>{row.Contacto || "-"}</div>
+                                                {row.TelefonoContacto ? (
+                                                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.TelefonoContacto}</div>
+                                                ) : null}
+                                              </td>
+                                            );
+                                          }
+                                          return (
+                                            <td
+                                              key={col.key}
+                                              className={
+                                                "whitespace-nowrap px-4 py-3 text-xs" +
+                                                (["ABONO", "REG"].includes(col.key) ? " text-right font-mono" : "") +
+                                                (col.key === "NRO_OPER" ? " font-mono" : "") +
+                                                (col.key === "BANCO" ? " w-[15ch] max-w-[15ch] overflow-hidden text-ellipsis" : "")
+                                              }
+                                              title={col.key === "BANCO" ? row.BANCO || "-" : undefined}
+                                            >
+                                              {renderSqlCell(row[col.key], col.key)}
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-gray-700 dark:bg-inherit">
+                                          <button type="button" onClick={() => void executeSqlMovementSelection(row)} className="inline-flex items-center rounded-lg border border-amber-400 bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600">Seleccionar</button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -1380,17 +1435,29 @@ const DepositDetailModal = ({
                   <p className="min-w-0 truncate text-sm font-medium text-slate-900 dark:text-gray-100">
                     {deposit?.cliente || "Sin cliente"}
                   </p>
-                  {compactVoucherUrl && (
-                    <a
-                      href={compactVoucherUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Abrir
-                    </a>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {compactVoucherUrl && !compactUsesIframe && !voucherImgFailed && (
+                      <button
+                        type="button"
+                        onClick={rotateVoucherImage}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+                        title="Rotar imagen"
+                      >
+                        <RotateCw className="h-4 w-4" />
+                      </button>
+                    )}
+                    {compactVoucherUrl && (
+                      <a
+                        href={compactVoucherUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Abrir
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/80">
@@ -1411,7 +1478,8 @@ const DepositDetailModal = ({
                       <img
                         src={compactVoucherUrl}
                         alt={`Voucher ${deposit.numero_voucher || deposit.numero_operacion}`}
-                        className="max-h-full max-w-full object-contain object-center"
+                        className="max-h-full max-w-full object-contain object-center transition-transform duration-150"
+                        style={{ transform: `rotate(${voucherRotation}deg)` }}
                         onError={() => {
                           if (compactVoucherUrl) setVoucherImgFailed(true);
                         }}
@@ -2232,6 +2300,24 @@ const DepositDetailModal = ({
                         importe: editableData.monto || deposit.monto,
                         moneda: selectedMoneda || "",
                         cliente: editableData.cliente || deposit.cliente,
+                        anexo: editableData.anexo || deposit.anexo || "",
+                        anexoOptions: filteredAnexos,
+                        bancoOptions: getBancoOptions(activeBancos),
+                        cuentasBancarias: getCuentasBancariasForEmpresa(
+                          deposit,
+                          cuentas,
+                        ),
+                        empresaId:
+                          editableData.empresa_id ||
+                          deposit.empresa?.id ||
+                          deposit.empresa_id ||
+                          "",
+                        empresa: deposit.empresa?.nombre || "",
+                        bancoId:
+                          editableData.banco_id ||
+                          deposit.banco?.id ||
+                          deposit.banco_id ||
+                          "",
                         estado: deposit.estado,
                         sucursal: deposit.sucursal?.nombre || "",
                         banco:
@@ -2280,6 +2366,24 @@ const DepositDetailModal = ({
                         importe: editableData.monto || deposit.monto,
                         moneda: selectedMoneda || "",
                         cliente: editableData.cliente || deposit.cliente,
+                        anexo: editableData.anexo || deposit.anexo || "",
+                        anexoOptions: filteredAnexos,
+                        bancoOptions: getBancoOptions(activeBancos),
+                        cuentasBancarias: getCuentasBancariasForEmpresa(
+                          deposit,
+                          cuentas,
+                        ),
+                        empresaId:
+                          editableData.empresa_id ||
+                          deposit.empresa?.id ||
+                          deposit.empresa_id ||
+                          "",
+                        empresa: deposit.empresa?.nombre || "",
+                        bancoId:
+                          editableData.banco_id ||
+                          deposit.banco?.id ||
+                          deposit.banco_id ||
+                          "",
                         estado: deposit.estado,
                         sucursal: deposit.sucursal?.nombre || "",
                         banco:

@@ -9,6 +9,7 @@ import {
 } from "../api/depositsApi.js";
 import { toLocalISOString } from "../../../utils/dateFormatters";
 import { isDepositAntiguo } from "../../../utils/depositStatusHelpers";
+import { getDepositLockRemainingMs } from "../../../utils/depositLockHelpers";
 
 export function useDepositRecords({
   currentUser,
@@ -274,21 +275,30 @@ export function useDepositRecords({
     // Proteccion en el cliente: el endpoint de lock del backend NO valida si
     // el deposito ya esta tomado por otro usuario (solo revisa que el estado
     // sea "procesado"), asi que evitamos siquiera intentarlo si ya vemos que
-    // "validado_por" pertenece a alguien mas.
-    if (
+    // "validado_por" pertenece a alguien mas -- SALVO que ese candado ya haya
+    // vencido (más de 4 min desde fecha_bloqueo): en ese caso se manda igual
+    // la solicitud, porque el backend es quien decide si reasignarlo (ver
+    // FechaBloqueo/TTL en POST /lock) y no queremos bloquear al usuario con
+    // un mensaje de "ya está siendo validado" cuando en realidad ya se
+    // liberó.
+    const isLockedByOther =
       deposit.validado_por &&
-      String(deposit.validado_por).toLowerCase() !== String(currentUserRef.current.id).toLowerCase()
-    ) {
+      String(deposit.validado_por).toLowerCase() !== String(currentUserRef.current.id).toLowerCase();
+    const lockExpired = isLockedByOther && getDepositLockRemainingMs(deposit) === 0;
+
+    if (isLockedByOther && !lockExpired) {
       alert("Este depósito ya está siendo validado por otro usuario.");
       return null;
     }
 
     try {
       await lockDeposit(deposit.id);
+      const nowIso = new Date().toISOString();
       const updatedDeposit = {
         ...deposit,
         validado_por: currentUserRef.current.id,
-        fecha_validacion: new Date().toISOString(),
+        fecha_validacion: nowIso,
+        fecha_bloqueo: nowIso,
       };
       setDeposits((prev) => prev.map((item) => (item.id === deposit.id ? { ...item, ...updatedDeposit } : item)));
       return updatedDeposit;
@@ -299,7 +309,8 @@ export function useDepositRecords({
   }, []);
 
   // Libera el candado cuando el usuario cierra el modal SIN confirmar ni
-  // rechazar (para que otro usuario pueda tomarlo). No hace nada si el
+  // rechazar (para que otro usuario pueda tomarlo), o cuando se cumplen los
+  // 4 min del temporizador (useDepositLockTimer.js). No hace nada si el
   // deposito ya no le pertenece o si ya salio del estado "procesado".
   const handleUnlockDeposit = useCallback(async (deposit) => {
     if (!deposit || !currentUserRef.current) return;
@@ -309,7 +320,7 @@ export function useDepositRecords({
     try {
       await unlockDeposit(deposit.id);
       setDeposits((prev) =>
-        prev.map((item) => (item.id === deposit.id ? { ...item, validado_por: null } : item))
+        prev.map((item) => (item.id === deposit.id ? { ...item, validado_por: null, fecha_bloqueo: null } : item))
       );
     } catch (error) {
       console.warn("No se pudo liberar el depósito:", error.message);

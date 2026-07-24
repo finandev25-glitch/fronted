@@ -282,10 +282,25 @@ function mapDeposit(item) {
       numero_operacion_banco: item.numeroOperacionBanco,
       fecha_deposito: item.fechaDeposito,
       imagen_voucher: hasVoucher ? buildVoucherImageUrl(item.id) : null,
+      // OJO: "imagenUrl" significa cosas distintas segun el endpoint que
+      // responda. En el LISTADO (GET /v1/deposits, de donde sale esto) es la
+      // URL directa a Google Drive que se guardo para depositos antiguos
+      // (columna nueva Deposito.ImagenUrl -- backend ya la expone). En el
+      // DETALLE individual (GET /v1/deposits/{id}) el mismo campo JSON es
+      // en cambio la URL firmada de GCS (vive 20 min), un valor totalmente
+      // distinto que ya se usaba arriba solo para el check hasVoucher. Por
+      // eso esto se guarda aparte, con nombre propio, y NO se mezcla con
+      // imagen_voucher -- ver TablePage.jsx (handleExportExcel), que es el
+      // unico lugar que lo usa hoy (solo para el Excel, no la tabla visible).
+      imagen_url_legacy: item.imagenUrl || null,
       anexo: item.anexo || null,
       observaciones: item.observaciones || null,
       motivo_rechazo: item.motivoRechazo || null,
       fecha_validacion: item.fechaValidacion || null,
+      // Marca cuándo se tomó el candado actual (POST /lock) -- distinto de
+      // fecha_validacion, que también se pisa al confirmar. Se usa para el
+      // temporizador de 4 min (ver utils/depositLockHelpers.js).
+      fecha_bloqueo: item.fechaBloqueo || null,
       condicion: item.condicion || null,
       riesgo: item.riesgo ?? false,
       empresa_id: item.empresaId ? String(item.empresaId).toLowerCase() : null,

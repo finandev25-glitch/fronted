@@ -21,6 +21,9 @@ import {
 import { KanbanToolbar } from "../../../../widgets/deposits-kanban-board/ui/KanbanToolbar.jsx";
 import { KanbanColumns } from "../../../../widgets/deposits-kanban-board/ui/KanbanColumns.jsx";
 import { fetchDepositById } from "../../api/depositsApi.js";
+import { useDepositQueue } from "../../hooks/useDepositQueue.js";
+import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
+import { ListChecks, ChevronRight } from "lucide-react";
 import {
   getKanbanBucket,
   isDepositAntiguo,
@@ -113,6 +116,27 @@ const KanbanPage = ({
   detailPresentationMode = "default",
 }) => {
   const { currentUser, users } = useContext(AuthContext);
+  const depositQueue = useDepositQueue({
+    deposits,
+    cuentas,
+    bancos,
+    currentUser,
+    onTakeDeposit,
+    onUnlockDeposit,
+  });
+  // Candado con vencimiento de 4 min: libera proactivamente mis propios
+  // depósitos tomados si se pasaron de tiempo sin confirmar (ver
+  // useDepositLockTimer.js -- el respaldo real vive en el backend).
+  useDepositLockTimer({
+    deposits,
+    currentUser,
+    onUnlockDeposit,
+    removeFromQueue: depositQueue.removeFromQueue,
+  });
+  // Marca si el depósito actualmente abierto se abrió desde el flujo de "cola
+  // de atendidos" (botón "Confirmar siguiente marcado"), para saber si
+  // corresponde saltar automáticamente al próximo tras confirmarlo.
+  const queueFlowActiveRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [amountSearch, setAmountSearch] = useState("");
@@ -482,11 +506,15 @@ const KanbanPage = ({
 
     filteredDeposits.forEach((deposit) => {
       const validatorId = deposit?.validado_por ?? deposit?.validado_por_usuario?.id ?? null;
+      // OJO: a propósito NO se cae acá a deposit?.validado_por como nombre --
+      // eso es el id crudo (GUID), no un nombre para mostrar. Si no se
+      // resuelve un nombre real por ningún lado, mejor mostrar "Usuario"
+      // (ver `name` abajo) que un GUID en la pantalla. El fix real de fondo
+      // es que `users` (AuthContext) ahora se refresca completo apenas hay
+      // sesión (ver AppShell.jsx) y no solo al entrar a "/usuarios" -- así
+      // resolvedUser encuentra al validador la gran mayoría de las veces.
       const validatorName = String(
-        deposit?.validado_por_usuario?.nombre ||
-          deposit?.validado_por_nombre ||
-          deposit?.validado_por ||
-          "",
+        deposit?.validado_por_usuario?.nombre || deposit?.validado_por_nombre || "",
       ).trim();
 
       if (!validatorId && !validatorName) return;
@@ -629,7 +657,41 @@ const KanbanPage = ({
       });
 
       console.log("📂 KANBAN: Abriendo modal de forma optimista");
-      setSelectedDeposit(deposit);
+
+      // Si este depósito está en la cola de la extensión y el usuario ya
+      // corrigió algún campo desde el side panel (fecha, número de
+      // operación, importe, moneda, cliente), esos valores editados tienen
+      // prioridad sobre los del depósito real -- así "viajan" al formulario
+      // del detalle sin que el usuario tenga que volver a tipearlos acá.
+      // useDepositForm.js inicializa editableData UNA sola vez por
+      // deposit.id leyendo directo de este objeto, así que alcanza con
+      // pisar los campos acá antes de abrir el modal.
+      //
+      // numero_operacion (NO numero_operacion_banco -- vestigio de un
+      // sistema anterior que ya no usa ni el backend ni la BD) no es parte
+      // de editableData/useDepositForm.js: se lee directo de `deposit` en
+      // los lugares de solo lectura (DepositCard, "Nro. Op. Solicitante" en
+      // el modal), así que alcanza con pisarlo acá también.
+      const queueItem = depositQueue.queueItems.find((item) => item.id === deposit.id);
+      const queueEdits = queueItem?.depositData;
+      const depositToOpen = queueEdits
+        ? {
+            ...deposit,
+            fecha_deposito: queueEdits.fecha_deposito || deposit.fecha_deposito,
+            numero_operacion:
+              queueEdits.numero_operacion_solicitante || deposit.numero_operacion,
+            monto:
+              queueEdits.monto !== undefined && queueEdits.monto !== ""
+                ? queueEdits.monto
+                : deposit.monto,
+            moneda: queueEdits.moneda || deposit.moneda,
+            cliente: queueEdits.cliente || deposit.cliente,
+            anexo: queueEdits.anexo || deposit.anexo,
+            banco_id: queueEdits.bancoId || deposit.banco_id,
+          }
+        : deposit;
+
+      setSelectedDeposit(depositToOpen);
 
       // FIX: candado de validacion. El backend no permite que otro usuario
       // confirme/rechace un deposito ya tomado (ValidadoPor seteado), pero el
@@ -685,9 +747,31 @@ const KanbanPage = ({
       fetchDepositById(deposit.id)
         .then((fullDeposit) => {
           if (!fullDeposit) return;
-          setSelectedDeposit((prev) =>
-            prev && prev.id === deposit.id ? { ...prev, ...fullDeposit } : prev
-          );
+          setSelectedDeposit((prev) => {
+            if (!prev || prev.id !== deposit.id) return prev;
+            // Reaplicar las ediciones de la cola encima del detalle completo
+            // recién llegado: si no, fullDeposit (valores reales del backend)
+            // pisaría lo que el usuario corrigió en el side panel.
+            return {
+              ...prev,
+              ...fullDeposit,
+              ...(queueEdits
+                ? {
+                    fecha_deposito: queueEdits.fecha_deposito || fullDeposit.fecha_deposito,
+                    numero_operacion:
+                      queueEdits.numero_operacion_solicitante || fullDeposit.numero_operacion,
+                    monto:
+                      queueEdits.monto !== undefined && queueEdits.monto !== ""
+                        ? queueEdits.monto
+                        : fullDeposit.monto,
+                    moneda: queueEdits.moneda || fullDeposit.moneda,
+                    cliente: queueEdits.cliente || fullDeposit.cliente,
+                    anexo: queueEdits.anexo || fullDeposit.anexo,
+                    banco_id: queueEdits.bancoId || fullDeposit.banco_id,
+                  }
+                : null),
+            };
+          });
         })
         .catch((error) => {
           console.warn("⚠️ KANBAN: No se pudo obtener el detalle completo del deposito:", error);
@@ -695,7 +779,64 @@ const KanbanPage = ({
 
       console.log("🎬 KANBAN: Fin de handleCardClick");
     },
-    [currentUser, onTakeDeposit],
+    [currentUser, onTakeDeposit, depositQueue],
+  );
+
+  // Abre el modal del primer depósito marcado como "atendido" en la cola
+  // (extensión) que todavía esté presente en el listado -- botón "Confirmar
+  // siguiente marcado" del banner de la cola.
+  const handleOpenNextQueued = useCallback(() => {
+    const nextId = depositQueue.attendedQueueIds[0];
+    if (!nextId) return;
+
+    const found = (deposits || []).find((d) => d.id === nextId);
+    if (!found) {
+      // El depósito ya no está en el listado local (p. ej. se filtró o ya no
+      // existe) -- se quita de la cola para no dejar un marcado fantasma.
+      depositQueue.removeFromQueue(nextId);
+      return;
+    }
+
+    queueFlowActiveRef.current = true;
+    void handleCardClick(found);
+  }, [depositQueue, deposits, handleCardClick]);
+
+  // Envuelve onUpdateDeposit: cuando un depósito que estaba en la cola llega
+  // a un estado final (confirmado O rechazado), lo saca de la cola y, si el
+  // modal se abrió desde el flujo de "Confirmar siguiente marcado", salta
+  // automáticamente al próximo atendido -- así el usuario no tiene que
+  // volver a buscarlo manualmente cada vez. Antes solo se sacaba de la cola
+  // al confirmar; un rechazo dejaba el item fantasma en el panel lateral
+  // aunque el depósito ya hubiera cambiado de estado.
+  const handleUpdateDepositFromModal = useCallback(
+    (updatedDeposit, options) => {
+      onUpdateDeposit(updatedDeposit, options);
+
+      const isFinalState =
+        updatedDeposit?.estado === "confirmado" || updatedDeposit?.estado === "rechazado";
+      if (!isFinalState) return;
+      if (!depositQueue.queuedIds.has(updatedDeposit.id)) return;
+
+      depositQueue.removeFromQueue(updatedDeposit.id);
+
+      if (updatedDeposit.estado === "confirmado" && queueFlowActiveRef.current) {
+        queueFlowActiveRef.current = false;
+        // El alert() de "Depósito confirmado" (useDepositActions.js) bloquea
+        // el hilo hasta que el usuario lo cierra -- este setTimeout igual
+        // corre recién después de eso, no hace falta esperar más que un
+        // tick para que la UI ya haya asentado el cambio de estado.
+        setTimeout(() => {
+          const nextId = depositQueue.attendedQueueIds.find((id) => id !== updatedDeposit.id);
+          if (!nextId) return;
+          const found = (deposits || []).find((d) => d.id === nextId);
+          if (found) {
+            queueFlowActiveRef.current = true;
+            void handleCardClick(found);
+          }
+        }, 250);
+      }
+    },
+    [onUpdateDeposit, depositQueue, deposits, handleCardClick],
   );
 
   const handleCloseModal = useCallback(() => {
@@ -728,8 +869,15 @@ const KanbanPage = ({
       void onUnlockDeposit(depositBeingClosed);
     }
 
+    // Si además estaba en la cola del panel lateral, se saca de ahí también
+    // -- si no, quedaba como un item fantasma que ya no tiene el candado que
+    // lo protegía (otro usuario podría tomarlo mientras sigue "en cola" acá).
+    if (depositBeingClosed && depositQueue.queuedIds.has(depositBeingClosed.id)) {
+      depositQueue.removeFromQueue(depositBeingClosed.id);
+    }
+
     setSelectedDeposit(null);
-  }, [onUnlockDeposit]);
+  }, [onUnlockDeposit, depositQueue]);
 
 
   return (
@@ -758,6 +906,25 @@ const KanbanPage = ({
           onFetchDepositsByDate={onFetchDepositsByDate}
         />
 
+        {depositQueue.attendedQueueIds.length > 0 && (
+          <button
+            type="button"
+            onClick={handleOpenNextQueued}
+            className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50"
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+              <ListChecks size={16} />
+              <span>
+                {depositQueue.attendedQueueIds.length} depósito(s) marcado(s) como atendido(s) en la cola, listos para confirmar
+              </span>
+            </div>
+            <span className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+              Confirmar siguiente
+              <ChevronRight size={16} />
+            </span>
+          </button>
+        )}
+
         <KanbanColumns
           columns={KANBAN_COLUMN_DEFS}
           groupedDeposits={groupedDeposits}
@@ -774,6 +941,9 @@ const KanbanPage = ({
           handleCardClick={handleCardClick}
           selectedDepositId={selectedDeposit?.id}
           realtimeActivity={realtimeActivity}
+          onAddToQueue={depositQueue.addToQueue}
+          queuedIds={depositQueue.queuedIds}
+          attendedIds={depositQueue.attendedIds}
         />
       </div>
       <AnimatePresence>
@@ -781,7 +951,7 @@ const KanbanPage = ({
           <DepositDetailModal
             deposit={selectedDeposit}
             onClose={handleCloseModal}
-            onUpdateDeposit={onUpdateDeposit}
+            onUpdateDeposit={handleUpdateDepositFromModal}
             empresas={empresas}
             bancos={bancos}
             cuentas={cuentas}

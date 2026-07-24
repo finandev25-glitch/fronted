@@ -1,14 +1,91 @@
-const STORAGE_KEY = "voucher_side_panel_state";
+const QUEUE_STORAGE_KEY = "voucher_queue_state";
 
-async function storeVoucherState(payload, tabId) {
-  const state = {
-    ...payload,
-    updatedAt: new Date().toISOString(),
-    sourceTabId: tabId || null,
-  };
+// ── Cola de depósitos: ÚNICO mecanismo del side panel ───────────────────────
+//
+// Tanto agregar varios depósitos desde el Kanban como abrir uno solo con el
+// botón "Panel Lateral" del detalle usan el mismo camino (ADD_TO_QUEUE) -- la
+// única diferencia es que "Panel Lateral" pide abrir el side panel de una
+// (openPanel: true), mientras que agregar desde el Kanban no (el usuario
+// puede seguir triando depósitos sin que el panel se abra solo cada vez).
+//
+// Modelo: { items: [{ id, depositData, addedAt, atendido, atendidoAt }] }
+// guardado en chrome.storage.local bajo QUEUE_STORAGE_KEY, leído de forma
+// reactiva por sidepanel.js vía chrome.storage.onChanged.
 
-  await chrome.storage.local.set({ [STORAGE_KEY]: state });
+async function getQueueState() {
+  const result = await chrome.storage.local.get(QUEUE_STORAGE_KEY);
+  return result[QUEUE_STORAGE_KEY] || { items: [] };
+}
+
+async function setQueueState(state) {
+  await chrome.storage.local.set({ [QUEUE_STORAGE_KEY]: state });
   return state;
+}
+
+async function addToQueue({ id, depositData }) {
+  if (!id) return getQueueState();
+  const state = await getQueueState();
+  const items = Array.isArray(state.items) ? state.items.slice() : [];
+  const existingIndex = items.findIndex((item) => item.id === id);
+  const nowIso = new Date().toISOString();
+
+  if (existingIndex >= 0) {
+    // Ya estaba en la cola: se actualiza la info del depósito pero se
+    // conserva el estado "atendido" que ya tuviera (no se pisa el progreso
+    // del usuario si vuelve a agregar el mismo depósito por error).
+    items[existingIndex] = {
+      ...items[existingIndex],
+      depositData: depositData || items[existingIndex].depositData,
+    };
+  } else {
+    items.push({
+      id,
+      depositData: depositData || null,
+      addedAt: nowIso,
+      atendido: false,
+      atendidoAt: null,
+    });
+  }
+
+  return setQueueState({ items });
+}
+
+async function removeFromQueue({ id }) {
+  if (!id) return getQueueState();
+  const state = await getQueueState();
+  const items = (state.items || []).filter((item) => item.id !== id);
+  return setQueueState({ items });
+}
+
+async function markQueueItemAttended({ id, atendido }) {
+  if (!id) return getQueueState();
+  const state = await getQueueState();
+  const items = (state.items || []).map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          atendido: !!atendido,
+          atendidoAt: atendido ? new Date().toISOString() : null,
+        }
+      : item,
+  );
+  return setQueueState({ items });
+}
+
+// Edición de campos desde el side panel (fecha, nro. op. banco, importe,
+// moneda, cliente): se fusionan sobre el depositData ya guardado, sin tocar
+// el resto (voucherUrl, banco, sucursal, etc.). Esto es lo que luego lee
+// KanbanPage.jsx (vía confirmo:queue-updated) para precargar el formulario
+// del detalle del depósito con lo que el usuario corrigió acá.
+async function updateQueueItemFields({ id, fields }) {
+  if (!id || !fields) return getQueueState();
+  const state = await getQueueState();
+  const items = (state.items || []).map((item) =>
+    item.id === id
+      ? { ...item, depositData: { ...item.depositData, ...fields } }
+      : item,
+  );
+  return setQueueState({ items });
 }
 
 function normalizeSearchValue(value) {
@@ -337,6 +414,79 @@ chrome.action.onClicked.addListener(async (tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return false;
 
+  if (message.type === "ADD_TO_QUEUE") {
+    // IMPORTANTE: chrome.sidePanel.open() SOLO puede llamarse dentro del
+    // "user gesture" del clic. Cualquier `await` previo (guardar en storage,
+    // setOptions) rompe ese gesto y open() falla con "may only be called in
+    // response to a user gesture". Por eso, cuando se pide abrir el panel
+    // (openPanel: true, usado por el botón "Panel Lateral"), se llama PRIMERO
+    // y de forma síncrona, y recién después se guarda el estado en la cola.
+    let openPromise = null;
+    if (message.openPanel && sender?.tab?.id && chrome.sidePanel?.open) {
+      try {
+        openPromise = chrome.sidePanel.open({
+          tabId: sender.tab.id,
+          windowId: sender.tab.windowId,
+        });
+      } catch (error) {
+        console.warn("No se pudo abrir el panel lateral (gesto):", error);
+      }
+    }
+
+    (async () => {
+      const state = await addToQueue({ id: message.id, depositData: message.depositData });
+
+      if (sender?.tab?.id && chrome.sidePanel?.setOptions) {
+        try {
+          await chrome.sidePanel.setOptions({
+            tabId: sender.tab.id,
+            path: "sidepanel.html",
+            enabled: true,
+          });
+        } catch (_error) {
+          // ignorar
+        }
+      }
+
+      let opened = false;
+      if (openPromise) {
+        try {
+          await openPromise;
+          opened = true;
+        } catch (error) {
+          console.warn("No se pudo abrir el panel lateral tras agregar a la cola:", error);
+        }
+      }
+
+      sendResponse({ ok: true, state, opened });
+    })().catch((error) => {
+      sendResponse({ ok: false, error: error.message });
+    });
+
+    return true;
+  }
+
+  if (message.type === "REMOVE_FROM_QUEUE") {
+    removeFromQueue({ id: message.id })
+      .then((state) => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "MARK_QUEUE_ITEM_ATTENDED") {
+    markQueueItemAttended({ id: message.id, atendido: message.atendido })
+      .then((state) => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "EDIT_QUEUE_ITEM_FIELDS") {
+    updateQueueItemFields({ id: message.id, fields: message.fields })
+      .then((state) => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "SEARCH_VOUCHER_IN_PAGE") {
     (async () => {
       const result = await searchInActiveTab(message.depositData || {}, message.searchType || "both");
@@ -347,69 +497,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type !== "LOAD_VOUCHER") {
-    return false;
-  }
-
-  const tabId = sender?.tab?.id || null;
-
-  // IMPORTANTE: chrome.sidePanel.open() SOLO puede llamarse dentro del "user
-  // gesture" del clic. Cualquier `await` previo (guardar en storage, setOptions)
-  // rompe ese gesto y open() falla con "may only be called in response to a user
-  // gesture". Por eso abrimos PRIMERO, de forma síncrona, y guardamos el estado
-  // después: el sidepanel escucha chrome.storage.onChanged y se auto-refresca.
-  let openPromise = null;
-  let opened = false;
-  if (sender?.tab?.id && chrome.sidePanel?.open) {
-    try {
-      openPromise = chrome.sidePanel.open({
-        tabId: sender.tab.id,
-        windowId: sender.tab.windowId,
-      });
-      opened = true;
-    } catch (error) {
-      console.warn("No se pudo abrir el panel lateral (gesto):", error);
-    }
-  }
-
-  (async () => {
-    // Guarda el estado DESPUÉS de disparar open(): el panel lo tomará por
-    // storage.onChanged apenas cargue.
-    const state = await storeVoucherState(
-      {
-        voucherUrl: message.url || "",
-        depositData: message.depositData || null,
-        sourceUrl: message.sourceUrl || null,
-      },
-      tabId
-    );
-
-    // Asegura path/enabled para próximas aperturas (no crítico para el gesto).
-    if (sender?.tab?.id && chrome.sidePanel?.setOptions) {
-      try {
-        await chrome.sidePanel.setOptions({
-          tabId: sender.tab.id,
-          path: "sidepanel.html",
-          enabled: true,
-        });
-      } catch (_error) {
-        // ignorar
-      }
-    }
-
-    if (openPromise) {
-      try {
-        await openPromise;
-      } catch (error) {
-        opened = false;
-        console.warn("No se pudo abrir el panel lateral tras recibir el voucher:", error);
-      }
-    }
-
-    sendResponse({ ok: true, state, opened });
-  })().catch((error) => {
-    sendResponse({ ok: false, error: error.message });
-  });
-
-  return true;
+  return false;
 });
