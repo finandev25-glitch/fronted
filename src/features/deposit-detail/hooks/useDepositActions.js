@@ -63,6 +63,12 @@ export function useDepositActions({
         monto: parseFloat(editableData.monto) || 0,
         moneda: selectedMoneda || null,
         numero_operacion_banco: editableData.numero_operacion_banco || null,
+        // "numero_operacion" (sin "_banco") es el campo que de verdad lee el
+        // resto de la app (tarjetas del Kanban, etc.) -- mapea a la columna
+        // real Deposito.NumeroOperacion. Se refleja acá para que la
+        // actualización optimista se vea correcta hasta el próximo refetch
+        // (que ya va a traer el valor limpio que aplicó el backend).
+        numero_operacion: editableData.numero_operacion_banco || null,
         fecha_deposito: editableData.fecha_deposito || null,
         imagen_voucher: finalVoucherUrl,
         cliente: editableData.cliente || null,
@@ -71,6 +77,27 @@ export function useDepositActions({
         referencia_cliente: editableData.referencia_cliente || null,
       };
     },
+    [editableData, selectedMoneda],
+  );
+
+  // Todos los campos editables del modal, en la forma que espera confirmDeposit/
+  // rejectDeposit -- se usa tanto al confirmar como al rechazar, porque lo que
+  // trajo el OCR/IA al crear el depósito no necesariamente es correcto y
+  // finanzas puede corregir cualquiera de estos antes de resolverlo (antes solo
+  // viajaban "anexo" y "observaciones", el resto se descartaba en el cliente).
+  const buildEditableFieldsForRequest = useCallback(
+    () => ({
+      anexo: editableData.anexo || undefined,
+      numeroOperacion: editableData.numero_operacion_banco || undefined,
+      empresaId: editableData.empresa_id || undefined,
+      bancoId: editableData.banco_id || undefined,
+      monto: editableData.monto || undefined,
+      moneda: selectedMoneda || undefined,
+      fechaDeposito: editableData.fecha_deposito || undefined,
+      cliente: editableData.cliente || undefined,
+      rucCliente: editableData.ruc_cliente || undefined,
+      referenciaCliente: editableData.referencia_cliente || undefined,
+    }),
     [editableData, selectedMoneda],
   );
 
@@ -207,7 +234,7 @@ export function useDepositActions({
     try {
       await confirmDeposit(deposit.id, {
         observaciones: editableData.observaciones || undefined,
-        anexo: editableData.anexo || undefined,
+        ...buildEditableFieldsForRequest(),
       });
 
       const payload = buildUpdatePayload({
@@ -228,7 +255,7 @@ export function useDepositActions({
       setIsSending(false);
       setIsProcessing(false);
     }
-  }, [buildUpdatePayload, checkResult, currentUser, deposit, editableData, onClose, onUpdateDeposit, selectedMoneda]);
+  }, [buildEditableFieldsForRequest, buildUpdatePayload, checkResult, currentUser, deposit, editableData, onClose, onUpdateDeposit, selectedMoneda]);
 
   // ─── Rechazar depósito ───────────────────────────────────────────────────────
   // FIX: ahora llama al endpoint real POST /v1/deposits/{id}/reject, que
@@ -240,7 +267,7 @@ export function useDepositActions({
     try {
       await rejectDeposit(deposit.id, {
         observaciones: reason,
-        anexo: editableData.anexo || undefined,
+        ...buildEditableFieldsForRequest(),
       });
 
       const finalPayload = {
@@ -259,7 +286,7 @@ export function useDepositActions({
     } finally {
       setIsProcessing(false);
     }
-  }, [currentUser, deposit, editableData, isProcessing, onClose, onUpdateDeposit]);
+  }, [buildEditableFieldsForRequest, currentUser, deposit, editableData, isProcessing, onClose, onUpdateDeposit]);
 
   // ─── Restaurar a pendiente ───────────────────────────────────────────────────
   const handleRestoreToPending = useCallback(async () => {

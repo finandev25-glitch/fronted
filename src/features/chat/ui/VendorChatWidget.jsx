@@ -106,6 +106,9 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   const [sendError, setSendError] = useState(null);
 
   const [unreadVendedorIds, setUnreadVendedorIds] = useState(() => new Set());
+  // Timestamp (ms) del ultimo mensaje visto por vendedor, usado para ordenar
+  // la lista con el mas reciente arriba (ver sortedVendedores mas abajo).
+  const [vendedorActivity, setVendedorActivity] = useState({});
   // Solicitud pendiente de abrir el chat de un trabajador (desde el evento
   // global "confirmo:open-vendor-chat", p. ej. desde el modal de detalle).
   const [pendingVendorMatch, setPendingVendorMatch] = useState(null);
@@ -234,6 +237,15 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
       const mapped = mapVendorChatMessage(rawMessage, vendedorId);
       const vendedorIdStr = String(vendedorId);
 
+      // Cualquier mensaje nuevo (entrante o saliente via eco) sube a este
+      // vendedor al tope de la lista, sin importar si su conversacion esta
+      // abierta o no.
+      const activityTs = mapped.createdAt ? new Date(mapped.createdAt).getTime() : Date.now();
+      setVendedorActivity((prev) => {
+        if ((prev[vendedorIdStr] || 0) >= activityTs) return prev;
+        return { ...prev, [vendedorIdStr]: activityTs };
+      });
+
       if (vendedorIdStr === selectedVendedorIdRef.current) {
         setMessages((prev) => {
           if (mapped.id && prev.some((item) => String(item.id) === String(mapped.id))) return prev;
@@ -284,17 +296,31 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     };
   }, [canUseChat]);
 
+  // Vendedores ordenados con el mensaje mas reciente arriba. Los que no
+  // tienen actividad registrada todavia (timestamp 0) mantienen su orden
+  // original (el que devuelve la API), gracias a que Array.sort es estable.
+  const sortedVendedores = useMemo(() => {
+    if (!vendedores.length) return vendedores;
+    const hasActivity = Object.keys(vendedorActivity).length > 0;
+    if (!hasActivity) return vendedores;
+    return [...vendedores].sort((a, b) => {
+      const tsA = vendedorActivity[String(a.id)] || 0;
+      const tsB = vendedorActivity[String(b.id)] || 0;
+      return tsB - tsA;
+    });
+  }, [vendedores, vendedorActivity]);
+
   const filteredVendedores = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return vendedores;
-    return vendedores.filter((vendedor) => {
+    if (!term) return sortedVendedores;
+    return sortedVendedores.filter((vendedor) => {
       return (
         vendedor.nombre?.toLowerCase().includes(term) ||
         vendedor.telefono?.toLowerCase().includes(term) ||
         vendedor.email?.toLowerCase().includes(term)
       );
     });
-  }, [vendedores, search]);
+  }, [sortedVendedores, search]);
 
   const openVendedor = (vendedor) => {
     setSelectedVendedor(vendedor);
@@ -337,6 +363,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
 
     setMessages((prev) => [...prev, optimisticMessage]);
     setDraft("");
+    setVendedorActivity((prev) => ({ ...prev, [String(selectedVendedor.id)]: Date.now() }));
 
     try {
       // sendVendedorChatMessage devuelve el mensaje YA persistido (con el id

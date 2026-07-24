@@ -663,10 +663,44 @@ export async function deletePersonal(id) {
 // El backend espera el ANEXO como texto libre (columna Deposito.Anexo, string),
 // no como un id de cuentasbancarias — por eso aqui se manda tal cual viene de
 // editableData.anexo (que ya es el valor de texto del anexo seleccionado).
-export async function confirmDeposit(id, { observaciones, anexo } = {}) {
+// Todos los campos editables del modal de detalle viajan acá al confirmar o
+// rechazar -- lo que trajo el OCR/IA al crear el depósito no necesariamente
+// es correcto, y finanzas puede corregir cualquiera de estos antes de
+// resolverlo. El backend solo pisa el campo que llega con valor (no
+// vacío/null), así que mandar solo lo que cambió es seguro. La imagen del
+// voucher NO se manda acá a propósito: el reemplazo de imagen tiene su
+// propio flujo dedicado (finanzas-regularize-image).
+function buildEditableFieldsBody({
+  anexo,
+  numeroOperacion,
+  empresaId,
+  bancoId,
+  monto,
+  moneda,
+  fechaDeposito,
+  cliente,
+  rucCliente,
+  referenciaCliente,
+} = {}) {
   const body = {};
-  if (observaciones) body.observaciones = observaciones;
   if (anexo) body.anexo = anexo;
+  // El backend limpia letras/espacios antes de guardar (NumeroOperacion es
+  // solo numeros) -- acá se manda tal cual lo editó finanzas.
+  if (numeroOperacion) body.numeroOperacion = numeroOperacion;
+  if (empresaId) body.empresaId = empresaId;
+  if (bancoId) body.bancoId = bancoId;
+  if (monto !== undefined && monto !== null && monto !== "") body.monto = Number(monto);
+  if (moneda) body.moneda = moneda;
+  if (fechaDeposito) body.fechaDeposito = fechaDeposito;
+  if (cliente) body.cliente = cliente;
+  if (rucCliente) body.rucCliente = rucCliente;
+  if (referenciaCliente) body.referenciaCliente = referenciaCliente;
+  return body;
+}
+
+export async function confirmDeposit(id, { observaciones, ...editableFields } = {}) {
+  const body = buildEditableFieldsBody(editableFields);
+  if (observaciones) body.observaciones = observaciones;
 
   const data = await apiJson(`${DEPOSITS_BASE}/${id}/confirm`, {
     method: "POST",
@@ -676,11 +710,10 @@ export async function confirmDeposit(id, { observaciones, anexo } = {}) {
 }
 
 // POST /v1/deposits/{id}/reject — "observaciones" es obligatorio para el
-// backend (RejectDepositRequest.Observaciones no es nullable); "anexo" es
-// opcional, igual que en confirm.
-export async function rejectDeposit(id, { observaciones, anexo } = {}) {
-  const body = { observaciones: observaciones || "" };
-  if (anexo) body.anexo = anexo;
+// backend (RejectDepositRequest.Observaciones no es nullable); el resto de
+// los campos editables son opcionales, igual que en confirm.
+export async function rejectDeposit(id, { observaciones, ...editableFields } = {}) {
+  const body = { ...buildEditableFieldsBody(editableFields), observaciones: observaciones || "" };
 
   const data = await apiJson(`${DEPOSITS_BASE}/${id}/reject`, {
     method: "POST",
