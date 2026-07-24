@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, Search, Users, Phone, Loader2, ChevronRight } from 'lucide-react';
+import { Building2, Search, Users, Phone, Loader2, ChevronRight, X } from 'lucide-react';
 import { fetchPersonal } from '../features/deposits/api/depositsApi.js';
 
 // Vista "Sucursales" (solo lectura): muestra el personal AGRUPADO POR SUCURSAL,
@@ -15,16 +15,23 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEmpresa, setFilterEmpresa] = useState('all');
-  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  // En vez de expandir el personal en línea dentro de la grilla (lo que
+  // desarmaba el layout cuando una sucursal tenía muchos trabajadores), se
+  // abre en una ventana flotante (modal) centrada sobre el contenido.
+  const [openSucursalId, setOpenSucursalId] = useState(null);
 
-  const toggleExpanded = useCallback((id) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const openSucursal = useCallback((id) => setOpenSucursalId(id), []);
+  const closeSucursal = useCallback(() => setOpenSucursalId(null), []);
+
+  // Cierra la ventana flotante con Escape.
+  useEffect(() => {
+    if (!openSucursalId) return undefined;
+    const handler = (e) => {
+      if (e.key === 'Escape') closeSucursal();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [openSucursalId, closeSucursal]);
 
   const loadPersonal = useCallback(async () => {
     setLoading(true);
@@ -113,7 +120,18 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
     [groups],
   );
 
-  const isSearching = searchTerm.trim().length > 0;
+  // Sucursal actualmente mostrada en la ventana flotante (si hay alguna abierta).
+  const openGroup = useMemo(
+    () => (openSucursalId ? groups.find((g) => g.sucursal.id === openSucursalId) || null : null),
+    [groups, openSucursalId],
+  );
+
+  // Si el filtro/búsqueda hace que la sucursal abierta deje de estar en la
+  // lista (o se quede sin personal), cierra la ventana flotante para no
+  // dejarla "colgada" con datos obsoletos.
+  useEffect(() => {
+    if (openSucursalId && !openGroup) setOpenSucursalId(null);
+  }, [openSucursalId, openGroup]);
 
   const getInitials = (nombre) => {
     if (!nombre) return '??';
@@ -166,17 +184,21 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-start">
             {groups.map(({ sucursal, workers }) => {
               const hasWorkers = workers.length > 0;
-              // Con búsqueda activa, los grupos con coincidencias se muestran abiertos.
-              const isOpen = hasWorkers && (isSearching ? true : expandedIds.has(sucursal.id));
+              const isOpen = openSucursalId === sucursal.id;
               return (
                 <div
                   key={sucursal.id}
-                  className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
+                  className={`rounded-xl border bg-white dark:bg-gray-800 overflow-hidden transition-colors ${
+                    isOpen
+                      ? 'border-indigo-300 dark:border-indigo-600 ring-1 ring-indigo-200 dark:ring-indigo-800'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
                 >
-                  {/* Fila compacta de la sucursal */}
+                  {/* Fila compacta de la sucursal: al hacer clic abre el
+                      personal en una ventana flotante (ver modal más abajo). */}
                   <button
                     type="button"
-                    onClick={() => hasWorkers && toggleExpanded(sucursal.id)}
+                    onClick={() => hasWorkers && openSucursal(sucursal.id)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
                       hasWorkers
                         ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer'
@@ -185,9 +207,7 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
                   >
                     <ChevronRight
                       size={16}
-                      className={`flex-shrink-0 text-gray-400 transition-transform ${
-                        isOpen ? 'rotate-90' : ''
-                      } ${hasWorkers ? '' : 'opacity-0'}`}
+                      className={`flex-shrink-0 text-gray-400 ${hasWorkers ? '' : 'opacity-0'}`}
                     />
                     <div className="h-7 w-7 rounded-md bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-300 flex-shrink-0">
                       <Building2 size={15} />
@@ -206,37 +226,6 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
                       {workers.length}
                     </span>
                   </button>
-
-                  {/* Personal (colapsable) */}
-                  <AnimatePresence initial={false}>
-                    {isOpen && (
-                      <motion.ul
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.18 }}
-                        className="overflow-hidden bg-gray-50/60 dark:bg-gray-900/30"
-                      >
-                        {workers.map((trabajador) => (
-                          <li
-                            key={trabajador.id}
-                            className="flex items-center gap-2.5 pl-9 pr-3 py-2 border-t border-gray-100 dark:border-gray-700/50"
-                          >
-                            <div className="h-6 w-6 rounded-full bg-blue-200 dark:bg-blue-900/50 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-[10px] flex-shrink-0">
-                              {getInitials(trabajador.nombre)}
-                            </div>
-                            <span className="flex-grow text-sm text-gray-800 dark:text-gray-200 truncate">
-                              {trabajador.nombre}
-                            </span>
-                            <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                              <Phone size={11} className="text-gray-400" />
-                              {trabajador.telefono_origen || '—'}
-                            </span>
-                          </li>
-                        ))}
-                      </motion.ul>
-                    )}
-                  </AnimatePresence>
                 </div>
               );
             })}
@@ -247,6 +236,75 @@ const SucursalesView = ({ sucursales = [], empresas = [] }) => {
           </p>
         </>
       )}
+
+      {/* Ventana flotante con el personal de la sucursal seleccionada. */}
+      <AnimatePresence>
+        {openGroup && (
+          <motion.div
+            key="sucursal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeSucursal();
+            }}
+          >
+            <motion.div
+              key="sucursal-panel"
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="w-full max-w-md max-h-[80vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden"
+            >
+              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-900/20 dark:to-gray-800">
+                <div className="h-9 w-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-300 flex-shrink-0">
+                  <Building2 size={17} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                    {openGroup.sucursal.nombre}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <Users size={11} />
+                    {openGroup.workers.length} trabajador(es)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeSucursal}
+                  aria-label="Cerrar"
+                  className="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <ul className="overflow-y-auto flex-1 divide-y divide-gray-100 dark:divide-gray-700/60">
+                {openGroup.workers.map((trabajador) => (
+                  <li
+                    key={trabajador.id}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-blue-200 dark:bg-blue-900/50 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-[11px] flex-shrink-0">
+                      {getInitials(trabajador.nombre)}
+                    </div>
+                    <span className="flex-grow text-sm text-gray-800 dark:text-gray-200 truncate">
+                      {trabajador.nombre}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                      <Phone size={11} className="text-gray-400" />
+                      {trabajador.telefono_origen || '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

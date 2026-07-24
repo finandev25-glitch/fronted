@@ -1,5 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 import { AuthContext } from '../contexts/AuthContext.jsx';
 import ToggleSwitch from './ToggleSwitch';
 import UserFormModal from './UserFormModal.jsx';
@@ -12,7 +13,8 @@ import {
   Calendar,
   Mail,
   Plus,
-  Edit
+  Edit,
+  Download
 } from 'lucide-react';
 
 const UsuariosView = ({ empresas = [], sucursales = [] }) => {
@@ -92,6 +94,24 @@ const UsuariosView = ({ empresas = [], sucursales = [] }) => {
     });
   };
 
+  const roleLabels = { admin: 'Administrador', finanzas: 'Finanzas' };
+
+  const handleExportExcel = () => {
+    const dataToExport = filteredUsuarios.map((usuario) => ({
+      Nombre: usuario.nombre || '',
+      Usuario: usuario.usuario || '',
+      Correo: usuario.email || '',
+      Rol: roleLabels[usuario.user_rol] || usuario.user_rol || '',
+      Estado: usuario.estado === 'activo' ? 'Activo' : 'Inactivo',
+      'Último Acceso': usuario.last_sign_in_at ? formatDateTime(usuario.last_sign_in_at) : 'Nunca',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Usuarios');
+    XLSX.writeFile(workbook, 'listado_usuarios.xlsx');
+  };
+
   return (
     <div className="h-full p-6 overflow-y-auto">
       <div className="flex items-center justify-between mb-6">
@@ -99,13 +119,22 @@ const UsuariosView = ({ empresas = [], sucursales = [] }) => {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Gestión de Usuarios</h2>
           <p className="text-gray-600 dark:text-gray-400">Administra usuarios y permisos del sistema.</p>
         </div>
-        <button
-          onClick={handleOpenCreateModal}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={14} />
-          <span>Añadir Usuario</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download size={14} />
+            <span>Exportar Excel</span>
+          </button>
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={14} />
+            <span>Añadir Usuario</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4 mb-6">

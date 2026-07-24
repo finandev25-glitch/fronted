@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, Phone, Loader2, Users as UsersIcon } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Plus, Search, Edit, Trash2, Phone, Loader2, Users as UsersIcon, Download } from 'lucide-react';
 import ToggleSwitch from './ToggleSwitch';
 import AddPersonModal from './AddPersonModal.jsx';
 import EditTrabajadorModal from './EditTrabajadorModal.jsx';
@@ -125,6 +126,21 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
     return nombre.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0]).join('').toUpperCase();
   };
 
+  const handleExportExcel = () => {
+    const dataToExport = filteredPersonal.map((trabajador) => ({
+      Trabajador: trabajador.nombre || '',
+      Empresa: empresaById.get(trabajador.empresa_id)?.nombre || '',
+      Sucursal: sucursalById.get(trabajador.sucursal_id)?.nombre || 'Sin asignar',
+      Teléfono: trabajador.telefono_origen || '',
+      Estado: trabajador.estado === 'activo' ? 'Activo' : 'Inactivo',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Trabajadores');
+    XLSX.writeFile(workbook, 'listado_trabajadores.xlsx');
+  };
+
   return (
     <>
       <div className="h-full p-6 overflow-y-auto">
@@ -133,13 +149,22 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Trabajadores</h2>
             <p className="text-gray-600 dark:text-gray-400">Administra el personal de todas las sucursales.</p>
           </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={14} />
-            <span>Añadir Trabajador</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Download size={14} />
+              <span>Exportar Excel</span>
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={14} />
+              <span>Añadir Trabajador</span>
+            </button>
+          </div>
         </div>
 
         <div className="mb-6 flex flex-col md:flex-row items-center gap-4">
