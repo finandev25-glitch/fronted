@@ -11,8 +11,7 @@ export const DepositFormPanel = ({
   activeBancos,
   filteredAnexos,
   selectedMoneda,
-  nroOperacionClasses,
-  deposit
+  nroOperacionClasses
 }) => {
   return (
     <>
@@ -115,9 +114,19 @@ export const DepositFormPanel = ({
                       </FormRow>
                     </div>
 
-                    {/* Fila 4: Nro. Operación Banco (3 cols) + Nro. Op. Solicitante (3 cols) */}
-                    <div className="col-span-3">
-                      <FormRow icon={Hash} label="Nro. Operación Banco">
+                    {/* Fila 4: Nro. de operación (ancho completo, un único campo).
+                        Antes habia dos cajas separadas: esta (editable, atada a
+                        editableData.numero_operacion_banco) y una de solo lectura
+                        "Nro. Op. Solicitante" mostrando deposit.numero_operacion.
+                        Eso confundia porque parecian dos numeros distintos, cuando
+                        en realidad solo NumeroOperacion se persiste en el backend
+                        (ver useDepositActions.js: buildEditableFieldsForRequest ya
+                        mapea este mismo campo a numeroOperacion). El valor de
+                        deposit.numero_operacion (lo que tipeo el solicitante) sigue
+                        siendo el que precarga este campo por defecto -- ver
+                        useDepositForm.js -- solo se dejo de mostrar por separado. */}
+                    <div className="col-span-6">
+                      <FormRow icon={Hash} label="Número de operación">
                         <input
                           type="text"
                           name="numero_operacion_banco"
@@ -129,15 +138,6 @@ export const DepositFormPanel = ({
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono transition-colors duration-200 text-lg disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${nroOperacionClasses}`}
                           placeholder="pega la operacion segun la web del banco"
                         />
-                      </FormRow>
-                    </div>
-                    <div className="col-span-3">
-                      <FormRow icon={Hash} label="Nro. Op. Solicitante">
-                        <div className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-center">
-                          <p className="font-bold text-blue-800 dark:text-blue-200 text-lg tracking-wider font-mono">
-                            {deposit.numero_operacion}
-                          </p>
-                        </div>
                       </FormRow>
                     </div>
 
