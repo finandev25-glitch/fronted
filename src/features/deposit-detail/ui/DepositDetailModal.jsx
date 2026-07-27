@@ -194,17 +194,17 @@ const DepositDetailModal = ({
     loadSqlMovements,
     loadSqlCortado,
     exportSqlMovementsToExcel,
+    exportSqlCortadoToExcel,
     handleSelectSqlMovement,
     handleSelectSqlCortado,
     persistSelectedSqlTipoIfNeeded,
     executeSqlMovementSelection,
-    fetchSqlServerRows,
   } = useDepositSql({
     empresaId: editableData.empresa_id,
     empresas,
     deposit,
-    onUpdateDeposit,
     editableData,
+    setEditableData,
     selectedMoneda
   });
 
@@ -1082,7 +1082,7 @@ const DepositDetailModal = ({
                               </div>
                               <div className="flex items-center gap-2">
                                 <button type="button" onClick={() => void loadSqlCortado(Math.max(1, sqlCortadoPage - 1))} disabled={sqlCortadoLoading || sqlCortadoPage <= 1} className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">Anterior</button>
-                                <span className="min-w-[7rem] text-center font-semibold">P?gina {sqlCortadoPage} / {Math.max(1, Math.ceil((sqlCortadoTotalCount || 0) / sqlCortadoPageSize))}</span>
+                                <span className="min-w-[7rem] text-center font-semibold">Página {sqlCortadoPage} / {Math.max(1, Math.ceil((sqlCortadoTotalCount || 0) / sqlCortadoPageSize))}</span>
                                 <button type="button" onClick={() => void loadSqlCortado(sqlCortadoPage + 1)} disabled={sqlCortadoLoading || sqlCortadoPage >= Math.max(1, Math.ceil((sqlCortadoTotalCount || 0) / sqlCortadoPageSize))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">Siguiente</button>
                               </div>
                             </div>
@@ -1095,12 +1095,21 @@ const DepositDetailModal = ({
 
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-slate-300">
                     <div>
-                      {sqlMovementsMeta?.count != null
-                        ? sqlMovementsMeta.count + " movimiento(s) cargado(s)"
-                        : "Consulta SQL Server"}
+                      {sqlActiveTab === "cortado"
+                        ? sqlCortadoTotalCount
+                          ? sqlCortadoTotalCount + " registro(s) encontrado(s)"
+                          : "Consulta SQL Server"
+                        : sqlMovementsMeta?.count != null
+                          ? sqlMovementsMeta.count + " movimiento(s) cargado(s)"
+                          : "Consulta SQL Server"}
                     </div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={exportSqlMovementsToExcel} disabled={!sqlMovementsRows.length} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+                      <button
+                        type="button"
+                        onClick={sqlActiveTab === "cortado" ? exportSqlCortadoToExcel : exportSqlMovementsToExcel}
+                        disabled={sqlActiveTab === "cortado" ? !sqlCortadoRows.length : !sqlMovementsRows.length}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
                         <Save className="h-4 w-4" />
                         Exportar Excel
                       </button>

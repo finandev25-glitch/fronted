@@ -6,6 +6,7 @@ import MobileHeader from "../components/MobileHeader.jsx";
 import Sidebar from "../components/Sidebar";
 import VoucherExtensionPanel from "../components/VoucherExtensionPanel.jsx";
 import VendorChatWidget from "../features/chat/ui/VendorChatWidget.jsx";
+import SyncStatusIndicator from "../components/SyncStatusIndicator.jsx";
 import { AuthContext } from "../features/auth/context/AuthContext.jsx";
 import { useDepositDashboard } from "../features/deposits/hooks/useDepositDashboard.js";
 import AuthPage from "../features/auth/pages/AuthPage.jsx";
@@ -264,6 +265,11 @@ export function AppShell({ uiMode = "default" }) {
           en cualquier pantalla del panel. El propio componente se oculta
           para otros roles (ver FINANCE_ROLES en VendorChatWidget.jsx). */}
       <VendorChatWidget currentUser={currentUser} />
+
+      {/* Indicador flotante del estado de sincronización SQL Server -> Cloud
+          SQL (bank-sync-worker), siempre visible sin importar la pantalla.
+          Mismo criterio de rol que el chat de vendedores. */}
+      <SyncStatusIndicator />
     </div>
   );
 }

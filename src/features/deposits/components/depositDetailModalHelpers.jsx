@@ -348,8 +348,15 @@ export const extractSqlSelectionValues = (row) => {
     )
       .trim()
       .toUpperCase();
-    const selectedFecha =
-      row?.FECHA_EMISION || row?.FECHA_DOC || row?.FECHA_DEPOSITO || "";
+    // FIX: antes esto se llamaba "selectedFecha" pero el consumidor
+    // (applySqlMovementSelectionToDeposit) destructuraba "selectedFechaDeposito"
+    // -- siempre llegaba undefined. Ademas solo buscaba FECHA_EMISION/FECHA_DOC/
+    // FECHA_DEPOSITO, claves que ninguna fila real tiene: tanto "Movimientos por
+    // identificar" como "Cortado vs RegistrosConcar" devuelven la fecha en la
+    // clave FECHA. Se normaliza a YYYY-MM-DD para que calce con el <input type="date">.
+    const selectedFechaDeposito = normalizeDateForInput(
+      row?.FECHA_EMISION || row?.FECHA_DOC || row?.FECHA_DEPOSITO || row?.FECHA || "",
+    );
     let selectedMonto = 0;
     if (row && typeof row === "object") {
       const keys = Object.keys(row);
@@ -360,6 +367,11 @@ export const extractSqlSelectionValues = (row) => {
         selectedMonto = Number(row[possibleAmountKeys[0]]) || 0;
       } else if ("MONTO" in row) {
         selectedMonto = Number(row.MONTO) || 0;
+      } else if ("ABONO" in row) {
+        // Las filas reales de SQL Server (Movimientos/Cortado) no traen
+        // IMPORTE/MONTO, traen ABONO -- sin este fallback el importe
+        // siempre quedaba en 0.
+        selectedMonto = Number(row.ABONO) || 0;
       }
     }
     const selectedTipoMov = (
@@ -371,7 +383,7 @@ export const extractSqlSelectionValues = (row) => {
     return {
       selectedRow,
       selectedNroOperacion,
-      selectedFecha,
+      selectedFechaDeposito,
       selectedMonto,
       selectedTipoMov,
     };

@@ -7,8 +7,6 @@
 import { useState, useCallback } from "react";
 import { apiGet, apiPost } from "../../../services/backendApi.js";
 import {
-  getSqlServerCompanyConfigFromEmpresaId,
-  getSqlServerDefaultRange,
   getSqlPeriodRangeFromYYYYMM,
   getMovimientosBancariosEmpresaCodigo,
   getMovimientosBancariosDefaultRange,
@@ -17,7 +15,7 @@ import {
 } from "../../deposits/components/depositDetailModalHelpers.jsx";
 import * as XLSX from "xlsx";
 
-export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, editableData, selectedMoneda }) {
+export function useDepositSql({ empresaId, empresas, deposit, editableData, setEditableData, selectedMoneda }) {
   const [isSqlMovementsModalOpen, setIsSqlMovementsModalOpen] = useState(false);
   const [sqlMovementsLoading, setSqlMovementsLoading] = useState(false);
   const [sqlMovementsError, setSqlMovementsError] = useState("");
@@ -59,62 +57,6 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     setSqlMovementsActionMessage("");
     setSqlCortadoError("");
   }, []);
-
-  const fetchSqlServerRows = useCallback(
-    async ({ endpoint, searchValue, fechaInicio, fechaFin, period, paginate = true, limit = 1000, offset = 0, filters = {} }) => {
-      const { empresa, empresaNombre } = getSqlServerCompanyConfigFromEmpresaId(empresaId, empresas);
-      if (!empresa) throw new Error("Selecciona una empresa válida en el modal Detalle depósito.");
-
-      const defaultRange = getSqlServerDefaultRange();
-      const effectiveFechaInicio = fechaInicio || defaultRange.fechaInicio;
-      const effectiveFechaFin = fechaFin || defaultRange.fechaFin;
-      const pageSize = Math.max(Number(limit) || 1000, 1);
-      let currentOffset = Math.max(Number(offset) || 0, 0);
-      let loadedRows = [];
-      let lastMeta = null;
-
-      const makeRequest = async (requestOffset) => {
-        const params = new URLSearchParams({ empresa, empresaNombre });
-        if (searchValue) params.set("searchTerm", searchValue);
-        if (filters.nroOperacion) params.set("nroOperacion", filters.nroOperacion);
-        if (filters.banco) params.set("banco", filters.banco);
-        if (filters.fecha) params.set("fecha", filters.fecha);
-        if (filters.importe) params.set("importe", filters.importe);
-        if (period) { params.set("period", period); }
-        else { params.set("fechaInicio", effectiveFechaInicio); params.set("fechaFin", effectiveFechaFin); }
-        params.set("limit", String(pageSize));
-        params.set("offset", String(requestOffset));
-        const response = await apiGet(`/sqlserver/${endpoint}?${params.toString()}`);
-        const rows = Array.isArray(response?.data) ? response.data : [];
-        return { rows, meta: response?.meta || null };
-      };
-
-      if (!paginate) {
-        const response = await makeRequest(currentOffset);
-        loadedRows = response.rows;
-        lastMeta = response.meta;
-      } else {
-        while (true) {
-          const response = await makeRequest(currentOffset);
-          loadedRows = loadedRows.concat(response.rows);
-          lastMeta = response.meta;
-          if (response.rows.length < pageSize) break;
-          currentOffset += pageSize;
-        }
-      }
-
-      return {
-        rows: loadedRows,
-        meta: lastMeta ? {
-          ...lastMeta,
-          count: loadedRows.length,
-          fechaInicio: effectiveFechaInicio,
-          fechaFin: effectiveFechaFin,
-        } : { count: loadedRows.length, fechaInicio: effectiveFechaInicio, fechaFin: effectiveFechaFin },
-      };
-    },
-    [empresaId, empresas],
-  );
 
   // Movimientos por identificar -> /api/v1/movimientos-bancarios/por-identificar
   // (mirror SQL Server -> Cloud SQL + conciliacion contra RegistrosConcar +
@@ -191,40 +133,91 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     [sqlMovementsEmpresa, sqlMovementsFechaDesde, sqlMovementsFechaHasta],
   );
 
+  // Cortado vs RegistrosConcar -> /api/v1/movimientos-bancarios/cortado
+  // (mismo mirror movimientos_bancarios, cruzado contra registros_concar por
+  // CUO/MCUO, replicando la logica del reporte del sistema anterior). Antes
+  // esto pegaba a "/sqlserver/cortado", un endpoint que nunca existio en el
+  // backend real -- por eso siempre devolvia "sin registros".
   const loadSqlCortado = useCallback(
     async (page = 1) => {
       setSqlCortadoLoading(true);
       setSqlCortadoError("");
-      const offset = (page - 1) * sqlCortadoPageSize;
       try {
-        const periodRange = sqlCortadoPeriod && /^\d{6}$/.test(sqlCortadoPeriod) ? getSqlPeriodRangeFromYYYYMM(sqlCortadoPeriod) : null;
-        const { rows, meta } = await fetchSqlServerRows({
-          endpoint: "cortado",
-          period: periodRange ? undefined : undefined,
-          fechaInicio: periodRange?.fechaInicio,
-          fechaFin: periodRange?.fechaFin,
-          paginate: false,
-          limit: sqlCortadoPageSize,
-          offset,
-          filters: {
-            nroOperacion: sqlCortadoNroOperacionFilter,
-            banco: sqlCortadoBancoFilter,
-            fecha: sqlCortadoFechaFilter,
-            importe: sqlCortadoImporteFilter,
-          },
+        if (!/^\d{6}$/.test(sqlCortadoPeriod || "")) {
+          throw new Error("Ingresa el periodo del reporte en formato YYYYMM (ej. 202606).");
+        }
+        const empresa = getMovimientosBancariosEmpresaCodigo(empresaId, empresas);
+        if (!empresa) {
+          throw new Error("Selecciona una empresa válida en el modal Detalle depósito.");
+        }
+        const periodRange = getSqlPeriodRangeFromYYYYMM(sqlCortadoPeriod);
+        if (!periodRange) {
+          throw new Error("Periodo invalido.");
+        }
+
+        const offset = (page - 1) * sqlCortadoPageSize;
+        const params = new URLSearchParams({
+          empresa,
+          fechaDesde: periodRange.fechaInicio,
+          fechaHasta: periodRange.fechaFin,
+          offset: String(offset),
+          limit: String(sqlCortadoPageSize),
         });
-        setSqlCortadoRows(rows.map(normalizeSqlServerRow));
-        setSqlCortadoMeta(meta);
-        setSqlCortadoTotalCount(meta?.total ?? rows.length);
+        if (sqlCortadoNroOperacionFilter.trim()) params.set("nroOperacion", sqlCortadoNroOperacionFilter.trim());
+        if (sqlCortadoBancoFilter.trim()) params.set("banco", sqlCortadoBancoFilter.trim());
+        if (sqlCortadoFechaFilter) params.set("fecha", sqlCortadoFechaFilter);
+        if (sqlCortadoImporteFilter !== "" && !Number.isNaN(Number(sqlCortadoImporteFilter))) {
+          params.set("importe", String(Number(sqlCortadoImporteFilter)));
+        }
+
+        const response = await apiGet(`/v1/movimientos-bancarios/cortado?${params.toString()}`);
+        const rawRows = Array.isArray(response?.rows) ? response.rows : [];
+        const totalCount = Number(response?.totalCount) || 0;
+
+        const mappedRows = rawRows.map((row) => ({
+          ID: row.idOrigen,
+          CUO: row.cuo,
+          PERIODO: row.periodo,
+          BANCO: row.banco,
+          FECHA: row.fecha,
+          DESCRIPCION: row.descripcion,
+          NRO_OPER: row.nroOper,
+          CARGO: row.cargo,
+          ABONO: row.abono,
+          SD: row.sd,
+          COMP: row.comp,
+          TIPO: row.tipo,
+          DOC: row.doc,
+          AREA: row.area,
+          Observacion: row.observacion,
+          REGISTRO: row.registro,
+          GLOSA: row.glosa,
+          REG: row.reg,
+          DIF: row.dif,
+        }));
+
+        setSqlCortadoRows(mappedRows.map(normalizeSqlServerRow));
+        setSqlCortadoMeta({ count: mappedRows.length, total: totalCount });
+        setSqlCortadoTotalCount(totalCount);
         setSqlCortadoPage(page);
       } catch (err) {
         setSqlCortadoError(err.message || "Error al cargar cortado.");
         setSqlCortadoRows([]);
+        setSqlCortadoTotalCount(0);
       } finally {
         setSqlCortadoLoading(false);
       }
     },
-    [fetchSqlServerRows, sqlCortadoPageSize, sqlCortadoPeriod, sqlCortadoNroOperacionFilter, sqlCortadoBancoFilter, sqlCortadoFechaFilter, sqlCortadoImporteFilter],
+    [
+      empresaId,
+      empresas,
+      sqlCortadoPageSize,
+      sqlCortadoPeriod,
+      sqlCortadoNroOperacionFilter,
+      sqlCortadoBancoFilter,
+      sqlCortadoFechaFilter,
+      sqlCortadoImporteFilter,
+    ],
   );
 
   const exportSqlMovementsToExcel = useCallback(() => {
@@ -235,20 +228,39 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     XLSX.writeFile(wb, `movimientos_${deposit?.id || "export"}.xlsx`);
   }, [sqlMovementsRows, deposit?.id]);
 
+  // Antes el boton "Exportar Excel" del tab Cortado exportaba por error las
+  // filas del otro tab (sqlMovementsRows); esta funcion exporta las suyas.
+  const exportSqlCortadoToExcel = useCallback(() => {
+    if (!sqlCortadoRows.length) return;
+    const ws = XLSX.utils.json_to_sheet(sqlCortadoRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Cortado");
+    XLSX.writeFile(wb, `cortado_${sqlCortadoPeriod || deposit?.id || "export"}.xlsx`);
+  }, [sqlCortadoRows, sqlCortadoPeriod, deposit?.id]);
+
+  // FIX: antes esto llamaba a onUpdateDeposit(...) SIN { skipPersist: true },
+  // lo que disparaba un PUT real al backend y persistia el numero de operacion
+  // en la BD apenas se hacia clic en "Seleccionar" -- salteando la revision de
+  // finanzas (confirmar/rechazar). Y encima el formulario abierto (editableData,
+  // gobernado por useDepositForm) nunca se refrescaba con ese cambio, porque ese
+  // hook solo hidrata estos campos la primera vez que carga el deposito -- el
+  // numero quedaba guardado "por atras" sin que se viera en pantalla.
+  // Ahora solo se actualiza el formulario local (setEditableData); el guardado
+  // real recien ocurre al Confirmar/Rechazar, que ya lee estos mismos campos
+  // de editableData (ver buildEditableFieldsForRequest en useDepositActions.js).
   const applySqlMovementSelectionToDeposit = useCallback(
-    async (row) => {
-      if (!row || !deposit) return;
+    (row) => {
+      if (!row) return;
       const { selectedRow, selectedNroOperacion, selectedFechaDeposito, selectedMonto } = extractSqlSelectionValues(row);
       setSqlSelectedMovement(selectedRow);
-      onUpdateDeposit({
-        ...deposit,
-        numero_operacion_banco: selectedNroOperacion || deposit?.numero_operacion_banco || deposit?.numero_operacion || "",
-        numero_operacion: selectedNroOperacion || deposit?.numero_operacion || deposit?.numero_operacion_banco || "",
-        fecha_deposito: selectedFechaDeposito || deposit?.fecha_deposito || null,
-        monto: Number.isFinite(selectedMonto) && selectedMonto > 0 ? selectedMonto : deposit?.monto || 0,
-      });
+      setEditableData((prev) => ({
+        ...prev,
+        numero_operacion_banco: selectedNroOperacion || prev.numero_operacion_banco,
+        fecha_deposito: selectedFechaDeposito || prev.fecha_deposito,
+        monto: Number.isFinite(selectedMonto) && selectedMonto > 0 ? selectedMonto : prev.monto,
+      }));
     },
-    [deposit, onUpdateDeposit],
+    [setEditableData],
   );
 
   // Al seleccionar un movimiento, ademas de cargar los campos al formulario del
@@ -359,10 +371,10 @@ export function useDepositSql({ empresaId, empresas, deposit, onUpdateDeposit, e
     loadSqlMovements,
     loadSqlCortado,
     exportSqlMovementsToExcel,
+    exportSqlCortadoToExcel,
     handleSelectSqlMovement,
     handleSelectSqlCortado,
     persistSelectedSqlTipoIfNeeded,
     executeSqlMovementSelection,
-    fetchSqlServerRows,
   };
 }
