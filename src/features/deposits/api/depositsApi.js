@@ -750,6 +750,43 @@ export async function financeRegularizeImage(id, imagenBase64) {
   });
 }
 
+// GET /v1/deposits/regularizaciones-historial — Solo finanzas/admin. Historial
+// de TODOS los eventos de regularizacion (marcado/resuelto/desmarcado) sobre
+// el flag pendienteRegularizar, para auditoria/reporteria (no es el timeline
+// de un solo deposito, es el listado agregado entre todos). Filtros opcionales
+// por rango de fecha, accion y empresa.
+export async function fetchRegularizacionesHistorial({ desde, hasta, accion, empresaId } = {}) {
+  const params = new URLSearchParams();
+  if (desde) params.set("desde", desde);
+  if (hasta) params.set("hasta", hasta);
+  if (accion) params.set("accion", accion);
+  if (empresaId) params.set("empresaId", empresaId);
+  const query = params.toString();
+  const data = await apiJson(`${DEPOSITS_BASE}/regularizaciones-historial${query ? `?${query}` : ""}`);
+  return Array.isArray(data) ? data : [];
+}
+
+// URLs firmadas (redirect a GCS) para el voucher ANTERIOR/NUEVO de un evento
+// "resuelto" en el historial de regularizaciones. Mismo patron que
+// buildVoucherImageUrl: el token va como query param porque <img src> no
+// puede mandar header Authorization.
+function buildRegularizacionImagenUrl(regularizacionId, tipo) {
+  if (!regularizacionId) return null;
+  const token = getStoredAccessToken();
+  if (!token) return null;
+  return buildApiUrl(
+    `${API_BASE}${DEPOSITS_BASE}/regularizaciones-historial/${regularizacionId}/imagen-${tipo}?access_token=${encodeURIComponent(token)}`
+  );
+}
+
+export function getRegularizacionImagenAnteriorUrl(regularizacionId) {
+  return buildRegularizacionImagenUrl(regularizacionId, "anterior");
+}
+
+export function getRegularizacionImagenNuevaUrl(regularizacionId) {
+  return buildRegularizacionImagenUrl(regularizacionId, "nueva");
+}
+
 export async function updateDeposit(id, payload) {
   if (payload?.estado === "confirmado") {
     return confirmDeposit(id, { observaciones: payload.observaciones, anexo: payload.anexo });

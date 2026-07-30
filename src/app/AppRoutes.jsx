@@ -7,6 +7,7 @@ import GestionBancosView from "../components/GestionBancosView";
 import GestionEmpresasView from "../components/GestionEmpresasView";
 import KanbanView from "../pages/deposits-kanban/ui/KanbanPage.jsx";
 import RegularizarDepositos from "../components/RegularizarDepositos";
+import RegularizacionesHistorialView from "../components/RegularizacionesHistorialView";
 import ReportesView from "../components/ReportesView";
 import SucursalesView from "../components/SucursalesView";
 import TableView from "../pages/deposits-table/ui/TablePage.jsx";
@@ -174,6 +175,16 @@ export function AppRoutes({
               dashboard.currentSelectedDate ? dashboard.refreshDeposits() : dashboard.fetchAllDeposits()
             }
           />
+        }
+      />
+      <Route
+        path="/regularizaciones-historial"
+        element={
+          currentUser?.user_rol === "finanzas" || currentUser?.user_rol === "admin" ? (
+            <RegularizacionesHistorialView empresas={dashboard.empresas} />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
         }
       />
       <Route path="/auth" element={<AuthPage />} />

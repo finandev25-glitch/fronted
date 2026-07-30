@@ -22,6 +22,7 @@ import {
   FolderCheck,
   UserMinus,
   UserCog,
+  History,
 } from "lucide-react";
 
 const SidebarContent = ({
@@ -40,6 +41,7 @@ const SidebarContent = ({
   const location = useLocation();
 
   const isAdmin = currentUser?.user_rol === "admin";
+  const isFinanceOrAdmin = currentUser?.user_rol === "finanzas" || currentUser?.user_rol === "admin";
 
   // "Sucursales" se deja fuera del grupo Administrador a proposito: la vista
   // ya tiene su propio gating interno (botones de editar/desactivar/eliminar
@@ -75,6 +77,9 @@ const SidebarContent = ({
         { view: "reportes", icon: PieChart, label: "Reportes" },
         { view: "confirmados", icon: Clock3, label: "Confirmados" },
         { view: "regularizar-depositos", icon: FolderCheck, label: "Regularizar Depósitos" },
+        ...(isFinanceOrAdmin
+          ? [{ view: "regularizaciones-historial", icon: History, label: "Historial Regularizaciones" }]
+          : []),
         { view: "cambiar-contrasena", icon: KeyRound, label: "Cambiar Contraseña" },
       ],
     },
