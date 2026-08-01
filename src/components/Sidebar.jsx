@@ -23,6 +23,7 @@ import {
   UserMinus,
   UserCog,
   History,
+  Bell,
 } from "lucide-react";
 
 const SidebarContent = ({
@@ -66,6 +67,7 @@ const SidebarContent = ({
       items: [
         { view: "usuarios", icon: Users, label: "Usuarios" },
         { view: "trabajadores", icon: UserCog, label: "Trabajadores" },
+        { view: "avisos", icon: Bell, label: "Avisos" },
         { view: "gestion-empresas", icon: Building, label: "Empresas" },
         { view: "gestion-bancos", icon: Landmark, label: "Bancos" },
         { view: "bancos", icon: CreditCard, label: "Cuentas Bancarias" },
