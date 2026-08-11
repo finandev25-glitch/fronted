@@ -6,6 +6,7 @@ import { useDepositForm } from "../hooks/useDepositForm.js";
 import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
+import ZoomableVoucherImage from "./ZoomableVoucherImage.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
 import { searchActiveTab } from "../lib/activeTabSearch.js";
 import {
@@ -13,6 +14,8 @@ import {
   markDepositForRegularize,
   unmarkDepositForRegularize,
   financeRegularizeImage,
+  markDepositAntiguo,
+  unmarkDepositAntiguo,
 } from "../../deposits/api/depositsApi.js";
 import RegularizeImageModal from "../../deposits/components/RegularizeImageModal.jsx";
 import React, {
@@ -268,6 +271,42 @@ const DepositDetailModal = ({
     await financeRegularizeImage(deposit.id, imagenBase64);
     onUpdateDeposit({ ...deposit, pendiente_regularizar: false }, { skipPersist: true });
     setShowRegularizeUpload(false);
+  };
+
+  // Marcar/desmarcar "antiguo" a mano (solo finanzas/admin). Normalmente
+  // Condicion la calcula el backend solo (FechaDeposito < hoy), esto la
+  // fuerza manualmente para el caso puntual en que esa regla no aplica.
+  const [isMarkingAntiguo, setIsMarkingAntiguo] = useState(false);
+  const depositIsAntiguo = isDepositAntiguo(deposit);
+
+  const handleMarkAntiguo = async () => {
+    if (!canRegularize || isMarkingAntiguo) return;
+    if (!window.confirm("¿Marcar este depósito como antiguo?")) return;
+
+    setIsMarkingAntiguo(true);
+    try {
+      await markDepositAntiguo(deposit.id);
+      onUpdateDeposit({ ...deposit, condicion: "antiguo" }, { skipPersist: true });
+    } catch (error) {
+      alert(`No se pudo marcar el depósito como antiguo: ${error.message}`);
+    } finally {
+      setIsMarkingAntiguo(false);
+    }
+  };
+
+  const handleUnmarkAntiguo = async () => {
+    if (!canRegularize || isMarkingAntiguo) return;
+    if (!window.confirm("¿Quitar la marca de antiguo de este depósito?")) return;
+
+    setIsMarkingAntiguo(true);
+    try {
+      await unmarkDepositAntiguo(deposit.id);
+      onUpdateDeposit({ ...deposit, condicion: "actual" }, { skipPersist: true });
+    } catch (error) {
+      alert(`No se pudo desmarcar el depósito: ${error.message}`);
+    } finally {
+      setIsMarkingAntiguo(false);
+    }
   };
 
   const openDuplicateModal = (mode) => {
@@ -654,7 +693,15 @@ const DepositDetailModal = ({
                             displayVoucherUrl.includes(".pdf") || displayVoucherUrl.includes("/preview") || voucherImgFailed ? (
                               <iframe src={displayVoucherUrl} title="Voucher PDF" className="h-full w-full rounded-xl border border-slate-200 bg-white dark:border-gray-700" />
                             ) : (
-                              <img src={displayVoucherUrl} alt={"Voucher " + (deposit.numero_voucher || deposit.numero_operacion)} className="h-full w-full rounded-xl border border-slate-200 object-contain dark:border-gray-700" onError={() => { if (displayVoucherUrl) setVoucherImgFailed(true); }} />
+                              <div className="h-full w-full rounded-xl border border-slate-200 dark:border-gray-700">
+                                <ZoomableVoucherImage
+                                  src={displayVoucherUrl}
+                                  alt={"Voucher " + (deposit.numero_voucher || deposit.numero_operacion)}
+                                  resetKey={displayVoucherUrl}
+                                  imgClassName="h-full w-full rounded-xl object-contain"
+                                  onError={() => { if (displayVoucherUrl) setVoucherImgFailed(true); }}
+                                />
+                              </div>
                             )
                           ) : (
                             <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm text-slate-500 dark:border-gray-700 dark:bg-gray-950 dark:text-slate-400">
@@ -2466,6 +2513,33 @@ const DepositDetailModal = ({
                       <span>Quitar marca</span>
                     </button>
                   </>
+                )}
+
+                {/* Marcar/desmarcar como antiguo a mano: solo finanzas/admin.
+                    Independiente del Estado y de Regularizar -- es otro campo
+                    (Condicion), normalmente calculado solo por el backend
+                    segun la fecha del voucher. */}
+                {canRegularize && !depositIsAntiguo && (
+                  <button
+                    onClick={handleMarkAntiguo}
+                    disabled={isMarkingAntiguo}
+                    className="px-3 py-1.5 bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Marcar este depósito como antiguo manualmente"
+                  >
+                    <Clock size={12} />
+                    <span>Marcar antiguo</span>
+                  </button>
+                )}
+                {canRegularize && depositIsAntiguo && (
+                  <button
+                    onClick={handleUnmarkAntiguo}
+                    disabled={isMarkingAntiguo}
+                    className="px-3 py-1.5 bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100 rounded-md hover:bg-slate-400 dark:hover:bg-slate-500 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Quitar la marca de antiguo"
+                  >
+                    <RotateCw size={12} />
+                    <span>Quitar antiguo</span>
+                  </button>
                 )}
 
                 {/* Grupo de confirmación */}

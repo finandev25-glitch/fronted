@@ -738,6 +738,19 @@ export async function unmarkDepositForRegularize(id) {
   return apiJson(`${DEPOSITS_BASE}/${id}/unmark-regularize`, { method: "POST" });
 }
 
+// POST /v1/deposits/{id}/mark-antiguo — Solo finanzas/admin (el backend valida
+// el rol). "Condicion" normalmente se calcula solo (FechaDeposito < hoy =>
+// "antiguo"), pero esto permite forzarlo a mano cuando la clasificacion
+// automatica no aplica para un caso puntual. Independiente del Estado.
+export async function markDepositAntiguo(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/mark-antiguo`, { method: "POST" });
+}
+
+// POST /v1/deposits/{id}/unmark-antiguo — vuelve Condicion a "actual".
+export async function unmarkDepositAntiguo(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/unmark-antiguo`, { method: "POST" });
+}
+
 // PUT /v1/deposits/{id}/finance-regularize-image — reemplaza UNICAMENTE el
 // archivo del voucher (imagenBase64 sin el prefijo "data:...;base64,").
 // El backend exige que el deposito ya este marcado (mark-regularize) y, a

@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Voucher Side Panel",
+  "version": "1.0.0",
+  "description": "Panel lateral persistente para ver el voucher y los datos clave del depósito.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "voucher-sidepanel@jch-comercial.com",
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": ["storage", "tabs", "scripting", "activeTab", "windows"],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*.gnfcio.easypanel.host/*",
+    "https://portal.tyresperu.com/*",
+    "https://www.bbvanetcash.pe/*",
+    "https://*.bbvanetcash.pe/*",
+    "https://www.tlcbcp.com/*",
+    "https://tlcbcp.com/*",
+    "https://*.tlcbcp.com/*",
+    "https://empresas.interbank.pe/*",
+    "https://*.interbank.pe/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Abrir panel de vouchers"
+  },
+  "sidebar_action": {
+    "default_panel": "sidepanel.html",
+    "default_title": "Abrir panel de vouchers"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*",
+        "https://*.gnfcio.easypanel.host/*",
+        "https://portal.tyresperu.com/*",
+        "https://www.bbvanetcash.pe/*",
+        "https://*.bbvanetcash.pe/*",
+        "https://www.tlcbcp.com/*",
+        "https://tlcbcp.com/*",
+        "https://*.tlcbcp.com/*",
+        "https://empresas.interbank.pe/*",
+        "https://*.interbank.pe/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

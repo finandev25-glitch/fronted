@@ -1,6 +1,7 @@
 import React from "react";
-import { Loader2, RotateCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { FALLBACK_VOUCHER_PREVIEW } from "../../deposits/components/depositDetailModalHelpers.jsx";
+import ZoomableVoucherImage from "./ZoomableVoucherImage.jsx";
 
 export const DepositVoucherPanel = ({
   displayVoucherUrl,
@@ -16,13 +17,6 @@ export const DepositVoucherPanel = ({
 
   React.useEffect(() => {
     setImgFailed(false);
-  }, [displayVoucherUrl]);
-
-  // Rotación del voucher (botón "Rotar imagen" del panel principal, en
-  // múltiplos de 90°) -- se resetea cada vez que cambia el voucher mostrado.
-  const [rotation, setRotation] = React.useState(0);
-  React.useEffect(() => {
-    setRotation(0);
   }, [displayVoucherUrl]);
 
   const urlLooksPdf =
@@ -85,25 +79,13 @@ export const DepositVoucherPanel = ({
                         />
                       </div>
                     ) : (
-                      <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-md bg-black/5 dark:bg-black/20">
-                        {displayVoucherUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setRotation((prev) => (prev + 90) % 360)}
-                            className="absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/90 dark:bg-gray-800/90 px-2.5 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 shadow hover:bg-white dark:hover:bg-gray-700 pointer-events-auto"
-                            title="Rotar imagen"
-                          >
-                            <RotateCw className="h-4 w-4" />
-                          </button>
-                        )}
-                        <img
-                          src={
-                            displayVoucherUrl ||
-                            FALLBACK_VOUCHER_PREVIEW
-                          }
+                      <div className="h-full w-full rounded-md bg-black/5 dark:bg-black/20 pointer-events-none lg:pointer-events-auto">
+                        <ZoomableVoucherImage
+                          src={displayVoucherUrl || FALLBACK_VOUCHER_PREVIEW}
                           alt={`Voucher ${deposit.numero_voucher}`}
-                          className="max-w-full object-contain pointer-events-none lg:pointer-events-auto transition-transform duration-150"
-                          style={{ maxHeight: "calc(93vh - 160px)", transform: `rotate(${rotation}deg)` }}
+                          resetKey={displayVoucherUrl}
+                          imgClassName="max-w-full object-contain"
+                          imgStyle={{ maxHeight: "calc(93vh - 160px)" }}
                           onError={() => {
                             // Si la URL tenía contenido pero no cargó como imagen,
                             // probablemente es un PDF (u otro doc): pasamos a iframe.

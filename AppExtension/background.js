@@ -1,5 +1,16 @@
 const QUEUE_STORAGE_KEY = "voucher_queue_state";
 
+// ── Compatibilidad Chrome / Firefox ──────────────────────────────────────
+// Firefox no implementa chrome.sidePanel (API exclusiva de Chrome) -- usa su
+// propio modelo de sidebar, con browser.sidebarAction (API distinta, sin
+// setOptions() por pestaña: el sidebar de Firefox es por ventana, no por
+// tab). El resto de la extensión (chrome.storage, chrome.tabs,
+// chrome.scripting, chrome.runtime) funciona igual en ambos navegadores via
+// el alias chrome.* que Firefox provee, asi que NO se toca nada de eso.
+// Todo lo de abajo que ya usaba chrome.sidePanel queda intacto (Chrome sigue
+// exactamente igual); solo se agregan ramas "else" para Firefox.
+const isFirefox = typeof browser !== "undefined" && !!browser.sidebarAction;
+
 // ── Cola de depósitos: ÚNICO mecanismo del side panel ───────────────────────
 //
 // Tanto agregar varios depósitos desde el Kanban como abrir uno solo con el
@@ -397,7 +408,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
-  if (tab?.id && chrome.sidePanel?.open) {
+  if (!tab?.id) return;
+
+  if (chrome.sidePanel?.open) {
+    // Chrome: comportamiento sin cambios.
     try {
       await chrome.sidePanel.setOptions({
         tabId: tab.id,
@@ -408,6 +422,18 @@ chrome.action.onClicked.addListener(async (tab) => {
     } catch (error) {
       console.warn("No se pudo abrir el panel lateral:", error);
     }
+    return;
+  }
+
+  if (isFirefox) {
+    // Firefox: sidebarAction.open() es el equivalente de sidePanel.open()
+    // (no admite setOptions por pestaña -- el sidebar ya apunta siempre a
+    // sidepanel.html via el manifest, "default_panel").
+    try {
+      await browser.sidebarAction.open();
+    } catch (error) {
+      console.warn("No se pudo abrir el sidebar (Firefox):", error);
+    }
   }
 });
 
@@ -415,21 +441,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return false;
 
   if (message.type === "ADD_TO_QUEUE") {
-    // IMPORTANTE: chrome.sidePanel.open() SOLO puede llamarse dentro del
-    // "user gesture" del clic. Cualquier `await` previo (guardar en storage,
+    // IMPORTANTE: chrome.sidePanel.open() (y su equivalente Firefox,
+    // browser.sidebarAction.open()) SOLO puede llamarse dentro del "user
+    // gesture" del clic. Cualquier `await` previo (guardar en storage,
     // setOptions) rompe ese gesto y open() falla con "may only be called in
     // response to a user gesture". Por eso, cuando se pide abrir el panel
     // (openPanel: true, usado por el botón "Panel Lateral"), se llama PRIMERO
     // y de forma síncrona, y recién después se guarda el estado en la cola.
     let openPromise = null;
-    if (message.openPanel && sender?.tab?.id && chrome.sidePanel?.open) {
-      try {
-        openPromise = chrome.sidePanel.open({
-          tabId: sender.tab.id,
-          windowId: sender.tab.windowId,
-        });
-      } catch (error) {
-        console.warn("No se pudo abrir el panel lateral (gesto):", error);
+    if (message.openPanel && sender?.tab?.id) {
+      if (chrome.sidePanel?.open) {
+        // Chrome: sin cambios.
+        try {
+          openPromise = chrome.sidePanel.open({
+            tabId: sender.tab.id,
+            windowId: sender.tab.windowId,
+          });
+        } catch (error) {
+          console.warn("No se pudo abrir el panel lateral (gesto):", error);
+        }
+      } else if (isFirefox) {
+        try {
+          openPromise = browser.sidebarAction.open();
+        } catch (error) {
+          console.warn("No se pudo abrir el sidebar (Firefox, gesto):", error);
+        }
       }
     }
 
