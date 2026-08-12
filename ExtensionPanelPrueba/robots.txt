@@ -1,0 +1,4 @@
+# Sistema interno con datos financieros sensibles.
+# No se permite indexación por ningún motor de búsqueda ni crawler.
+User-agent: *
+Disallow: /

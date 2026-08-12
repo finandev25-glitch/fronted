@@ -336,6 +336,34 @@ const DepositDetailModal = ({
     setDuplicateModalMode("none");
   };
 
+  // En el panel compacto (isCompactPresentation / "Ventana de validación",
+  // usado por el extension.html) no hay una tabla de resultados aparte como
+  // en el modal completo: la barra de estado (checkResult.message) es lo
+  // único que mostraba algo, pero el modal "Sin duplicados" (con el botón
+  // Confirmar) y el modal "Duplicados encontrados" nunca se abrían solos --
+  // shouldUseDuplicateModals se había declarado para esto (ver arriba) pero
+  // nunca se usaba. Acá se abre el que corresponda apenas termina
+  // "Comprobar Duplicados", usando un ref para no reabrirlo en cada
+  // re-render mientras checkResult no cambie de verdad.
+  const lastAutoOpenedCheckResultRef = useRef(null);
+
+  useEffect(() => {
+    if (!shouldUseDuplicateModals) return;
+    if (!checkResult.checked) return;
+    if (lastAutoOpenedCheckResultRef.current === checkResult) return;
+    lastAutoOpenedCheckResultRef.current = checkResult;
+
+    if (checkResult.isDuplicate) {
+      // isDuplicate también se usa para "faltan campos requeridos" (ver
+      // handleCheckDuplicates), caso en el que duplicateDeposits queda
+      // vacío -- ahí no hay nada que mostrar en un modal, la barra de
+      // estado ya explica qué falta.
+      if (duplicateDeposits.length > 0) openDuplicateModal("duplicate");
+    } else {
+      openDuplicateModal("no_duplicate");
+    }
+  }, [checkResult, duplicateDeposits, shouldUseDuplicateModals]);
+
   // Status computation
   const statusInfo = getStatusInfo(deposit.estado);
   const statusColor = statusInfo.color;
