@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X, UploadCloud, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { useEscapeClose } from "../../../hooks/useEscapeClose.js";
 
 // Modal minimo para que finanzas/admin suba la imagen/pdf nueva de un
 // deposito que ya fue marcado como "pendiente regularizar" (ver
@@ -14,6 +15,8 @@ export default function RegularizeImageModal({ deposit, onClose, onSubmit }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef(null);
+
+  useEscapeClose(onClose, !isSubmitting);
 
   const loadFile = (selected) => {
     setError("");

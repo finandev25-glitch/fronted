@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { driveFilesService } from "../services/driveFilesService";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 /**
  * Componente para mostrar archivos no vinculados en formato de cards
@@ -23,6 +24,8 @@ const UnlinkedFilesGallery = ({ onFileSelect, onClose }) => {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+
+  useEscapeClose(onClose);
 
   // Cargar archivos no vinculados
   const loadUnlinkedFiles = async () => {

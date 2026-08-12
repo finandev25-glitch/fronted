@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Landmark, Type } from 'lucide-react';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const BancoModal = ({ onClose, onSave, bancoToEdit, existingBancos }) => {
   const [formData, setFormData] = useState({
@@ -8,6 +9,8 @@ const BancoModal = ({ onClose, onSave, bancoToEdit, existingBancos }) => {
     abreviatura: ''
   });
   const [error, setError] = useState('');
+
+  useEscapeClose(onClose);
 
   useEffect(() => {
     if (bancoToEdit) {

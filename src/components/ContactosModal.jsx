@@ -9,12 +9,15 @@ import {
   Loader2,
 } from "lucide-react";
 import { apiGet } from "../services/backendApi.js";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 const ContactosModal = ({ onClose }) => {
   const [contactos, setContactos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEscapeClose(onClose);
 
   useEffect(() => {
     fetchAllContactos();

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X, Download, Loader2, AlertCircle } from "lucide-react";
+import { useEscapeClose } from "../../../hooks/useEscapeClose.js";
 
 // Modal para que finanzas/admin arme un respaldo masivo de vouchers (ZIP),
 // solo de depositos ya validados. El ZIP queda organizado por fecha de
@@ -13,6 +14,8 @@ export default function VoucherExportModal({ sucursales = [], onClose, onSubmit 
   const [fechaHasta, setFechaHasta] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEscapeClose(onClose, !isSubmitting);
 
   const handleSubmit = async () => {
     setError("");

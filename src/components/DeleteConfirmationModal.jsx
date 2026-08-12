@@ -1,8 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { X, AlertTriangle } from 'lucide-react';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const DeleteConfirmationModal = ({ onClose, onConfirm, title, message }) => {
+  useEscapeClose(onClose);
+
   return (
     <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
       <motion.div

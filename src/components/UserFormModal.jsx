@@ -4,6 +4,7 @@ import { X, User, Phone, Mail, Lock, Building2, Eye, EyeOff, Loader2, KeyRound }
 import PasswordStrengthMeter from './PasswordStrengthMeter.jsx';
 import ToggleSwitch from './ToggleSwitch.jsx';
 import { AuthContext } from '../contexts/AuthContext.jsx';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const ROLES = [
   { value: 'vendedor', label: 'Vendedor' },
@@ -39,6 +40,8 @@ const UserFormModal = ({ onClose, onSave, userToEdit, empresas = [], sucursales 
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEscapeClose(onClose, !submitting);
 
   // Reestablecer contraseña: solo en modo edición, va por un endpoint aparte
   // (PUT /v1/masters/profiles/{id}/password) que no forma parte del guardado

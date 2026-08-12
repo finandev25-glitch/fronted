@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Loader2, Trash2, ImageOff } from "lucide-react";
 import { fetchGaleriaImagenes, deleteGaleriaImagen, getGaleriaImagenUrl } from "../features/avisos/api/avisosApi.js";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 // Modal para elegir una imagen ya subida anteriormente (galeria) en vez de
 // subir una nueva cada vez. Cada imagen adjuntada a un aviso queda guardada
@@ -11,6 +12,8 @@ const AvisoGaleriaPicker = ({ onClose, onSelect }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+
+  useEscapeClose(onClose);
 
   const load = async () => {
     setLoading(true);

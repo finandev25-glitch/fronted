@@ -1,8 +1,11 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { X, Download } from "lucide-react";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 const VoucherModal = ({ imageUrl, onClose }) => {
+  useEscapeClose(onClose);
+
   if (!imageUrl) return null;
 
   const handleDownload = async () => {

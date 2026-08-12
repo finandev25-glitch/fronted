@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { apiGet } from '../services/backendApi.js';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const ExcelImportModal = ({ onClose, onImport }) => {
   const [pastedData, setPastedData] = useState('');
   const [parsedData, setParsedData] = useState([]);
   const [errors, setErrors] = useState([]);
   const [validating, setValidating] = useState(false);
+
+  useEscapeClose(onClose);
 
   const handlePaste = (e) => {
     const text = e.target.value;

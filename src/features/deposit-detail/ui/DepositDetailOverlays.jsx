@@ -7,6 +7,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { useEscapeClose } from "../../../hooks/useEscapeClose.js";
 
 export function ContactDetailsPortal({
   isOpen,
@@ -14,6 +15,8 @@ export function ContactDetailsPortal({
   contactRows,
   phoneNumber,
 }) {
+  useEscapeClose(onClose, isOpen);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -93,6 +96,8 @@ export function FloatingVoucherPortal({
   voucherUrl,
   operationNumber,
 }) {
+  useEscapeClose(onClose, isOpen);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -152,6 +157,8 @@ export function NoDuplicatePortal({
   isSending,
   isProcessing,
 }) {
+  useEscapeClose(onClose, isOpen);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -247,6 +254,8 @@ export function DuplicateDepositsPortal({
   formatCompactMoney,
   formatDateTime,
 }) {
+  useEscapeClose(onClose, isOpen);
+
   if (typeof document === "undefined") return null;
 
   // Resuelve el nombre de empresa / banco desde los catálogos cuando el

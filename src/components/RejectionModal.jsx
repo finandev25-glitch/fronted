@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { X, MessageSquareWarning, Loader2 } from "lucide-react";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 const RejectionModal = ({
   onClose,
@@ -11,6 +12,8 @@ const RejectionModal = ({
   const [reason, setReason] = useState(initialReason);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEscapeClose(onClose, !isSubmitting);
 
   const handleSubmit = async () => {
     if (isSubmitting) return; // Evitar múltiples clics

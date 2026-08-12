@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  X, UploadCloud, File, User, Building2, DollarSign, Calendar, Type, Hash, Loader2 
+  X, UploadCloud, File, User, Building2, DollarSign, Calendar, Type, Hash, Loader2
 } from 'lucide-react';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const UploadDocumentModal = ({ onClose, onSave }) => {
   const [file, setFile] = useState(null);
@@ -18,6 +19,8 @@ const UploadDocumentModal = ({ onClose, onSave }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
+
+  useEscapeClose(onClose);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];

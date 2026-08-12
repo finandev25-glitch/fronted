@@ -5,6 +5,7 @@ import { AuthContext } from '../contexts/AuthContext.jsx';
 import { apiGet } from '../services/backendApi.js';
 import ToggleSwitch from './ToggleSwitch';
 import AddPersonModal from './AddPersonModal.jsx';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 
 const SucursalDetailModal = ({ sucursal, empresas = [], onClose, onAddPersonal, onRemovePersonal, onUpdatePersonal }) => {
@@ -12,6 +13,8 @@ const SucursalDetailModal = ({ sucursal, empresas = [], onClose, onAddPersonal, 
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);
   const [personal, setPersonal] = useState([]);
   const [loadingPersonal, setLoadingPersonal] = useState(true);
+
+  useEscapeClose(onClose);
 
   const isBackendConnected = !!currentUser;
 

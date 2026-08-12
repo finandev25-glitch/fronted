@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { X, Building, Loader2 } from "lucide-react";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 const EmpresaModal = ({ onClose, onSave, empresaToEdit }) => {
   const [formData, setFormData] = useState({
@@ -8,6 +9,8 @@ const EmpresaModal = ({ onClose, onSave, empresaToEdit }) => {
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEscapeClose(onClose);
 
   useEffect(() => {
     if (empresaToEdit) {

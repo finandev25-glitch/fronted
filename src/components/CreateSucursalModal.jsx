@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Building2 } from 'lucide-react';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 // CreateSucursalRequest/UpdateSucursalRequest (backend) exigen EmpresaId:
 // toda sucursal pertenece a una empresa. Por eso este modal necesita la
@@ -12,6 +13,8 @@ const CreateSucursalModal = ({ onClose, onSave, sucursalToEdit, empresas = [] })
     empresa_id: '',
   });
   const [error, setError] = useState('');
+
+  useEscapeClose(onClose);
 
   const activeEmpresas = empresas.filter((e) => e.estado === 'activo');
 

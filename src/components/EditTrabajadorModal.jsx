@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, User, Phone, Loader2 } from 'lucide-react';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 // Edita un Trabajador existente. UpdateTrabajadorRequest (backend) solo
 // permite cambiar Nombre/TelefonoPersonal/SucursalId/Activo — la EmpresaId no
@@ -12,6 +13,8 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
   const [sucursalId, setSucursalId] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEscapeClose(onClose, !submitting);
 
   useEffect(() => {
     if (trabajador) {

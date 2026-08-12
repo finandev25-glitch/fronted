@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useDriveFiles } from "../hooks/useDriveFiles";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 /**
  * Modal para seleccionar archivos de Google Drive y vincularlos a depósitos
@@ -36,6 +37,8 @@ const DriveFilesModal = ({
   const [selectedFile, setSelectedFile] = useState(null);
   const [filterType, setFilterType] = useState("all");
   const [linking, setLinking] = useState(false);
+
+  useEscapeClose(onClose, isOpen);
 
   // Filtrar archivos basado en búsqueda y tipo
   useEffect(() => {

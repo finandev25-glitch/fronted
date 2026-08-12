@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Building, CreditCard, Hash, BookOpen } from 'lucide-react';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const CreateCuentaModal = ({ onClose, onSave, empresas, bancos, cuentaToEdit }) => {
   const [formData, setFormData] = useState({
@@ -11,6 +12,8 @@ const CreateCuentaModal = ({ onClose, onSave, empresas, bancos, cuentaToEdit }) 
     subdiario: ''
   });
   const [error, setError] = useState('');
+
+  useEscapeClose(onClose);
 
   const activeEmpresas = empresas.filter(e => e.estado === 'activo');
   const activeBancos = bancos.filter(b => b.estado === 'activo');

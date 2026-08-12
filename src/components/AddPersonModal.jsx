@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, User, Phone, Search, Eye, EyeOff, Loader2, UserCheck, UserPlus, Mail, Lock, Building2 } from 'lucide-react';
 import { fetchProfiles, createProfile } from '../features/deposits/api/depositsApi.js';
 import PasswordStrengthMeter from './PasswordStrengthMeter.jsx';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const ROLES = [
   { value: 'vendedor', label: 'Vendedor' },
@@ -53,6 +54,8 @@ const AddPersonModal = ({ onClose, onSave, sucursal, empresas = [], sucursales =
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEscapeClose(onClose, !submitting);
 
   // Empresa efectiva para filtrar el listado de profiles y para el
   // Trabajador en si: si hay sucursal fija manda esa; si no, la que se haya

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { X, Loader2, Image as ImageIcon, Trash2, Images } from "lucide-react";
 import { createAviso, updateAviso, uploadAvisoMedia, getAvisoMediaUrl, getGaleriaImagenUrl } from "../features/avisos/api/avisosApi.js";
 import AvisoGaleriaPicker from "./AvisoGaleriaPicker.jsx";
+import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
 const ROLES = [
   { value: "vendedor", label: "Vendedor" },
@@ -59,6 +60,8 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEscapeClose(onClose);
 
   const handleMediaSelect = async (e) => {
     const file = e.target.files?.[0];

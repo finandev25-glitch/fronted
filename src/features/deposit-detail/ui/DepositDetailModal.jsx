@@ -18,6 +18,7 @@ import {
   unmarkDepositAntiguo,
 } from "../../deposits/api/depositsApi.js";
 import RegularizeImageModal from "../../deposits/components/RegularizeImageModal.jsx";
+import { useEscapeClose } from "../../../hooks/useEscapeClose.js";
 import React, {
   useState,
   useEffect,
@@ -216,7 +217,7 @@ const DepositDetailModal = ({
   const openSqlMovementsModal = () => {
     setIsSqlMovementsModalOpen(true);
   };
-  
+
   const [isNoDuplicateModalOpen, setIsNoDuplicateModalOpen] = useState(false);
   const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
   const [duplicateModalMode, setDuplicateModalMode] = useState("none");
@@ -225,6 +226,21 @@ const DepositDetailModal = ({
   // Estado del selector de Google Drive (se referenciaba en la vista compacta
   // sin estar definido, lo que rompía el modal en móvil).
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+
+  // Cierre con tecla Escape del modal raíz (ver hooks/useEscapeClose.js).
+  useEscapeClose(onClose);
+
+  // Sub-modales inline en modo compacto: se montan después que el modal raíz,
+  // así que la pila de useEscapeClose ya prioriza el de "más arriba" solo.
+  useEscapeClose(() => setIsContactModalOpen(false), isContactModalOpen);
+  useEscapeClose(() => {
+    setDuplicateModalMode("none");
+    setIsNoDuplicateModalOpen(false);
+  }, duplicateModalMode === "no_duplicate");
+  useEscapeClose(() => {
+    setDuplicateModalMode("none");
+    setIsDuplicatesModalOpen(false);
+  }, duplicateModalMode === "duplicate");
 
   // Regularizar voucher (solo finanzas/admin, independiente del Estado): el
   // mismo flujo que ya existe en el listado de tabla (TablePage), pero
@@ -2347,7 +2363,7 @@ const DepositDetailModal = ({
             }`}
           >
             <div className="mr-auto hidden md:block text-xs text-gray-500 dark:text-gray-400">
-              Enter: confirmar · Esc: cerrar
+              Esc: cerrar
             </div>
             {isFieldsOnlyEdit ? (
               <>

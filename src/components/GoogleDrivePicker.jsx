@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { X, Search, Loader2 } from 'lucide-react';
 import { gapi } from 'gapi-script';
+import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 const GoogleDrivePicker = ({ onClose, onFileSelect }) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -10,6 +11,8 @@ const GoogleDrivePicker = ({ onClose, onFileSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+
+  useEscapeClose(onClose);
 
   const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
   const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
