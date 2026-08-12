@@ -72,13 +72,16 @@ body {
   background: linear-gradient(135deg, #0f172a, #334155);
 }
 
+
 .search-status {
-  padding: 4px 2px 0;
-  font-size: 11px;
+  padding: 0 2px;
+  font-size: 10px;
   color: #64748b;
+  line-height: 1.3;
 }
 
 .preview {
+  position: relative;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -87,6 +90,49 @@ body {
   align-items: center;
   justify-content: center;
   height: 280px;
+}
+
+.queue-item-preview-media {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Rotar/Abrir viven encima de la imagen (esquina superior derecha) en vez de
+   ser botones aparte debajo -- así el voucher ocupa el ancho completo y
+   Atender/Quitar (las acciones que de verdad hacen falta a mano) quedan más
+   arriba, cerca de los campos. */
+.preview-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+
+.preview-icon-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  backdrop-filter: blur(2px);
+}
+
+.preview-icon-btn:hover {
+  background: rgba(15, 23, 42, 0.75);
 }
 
 .preview.empty {
@@ -283,33 +329,16 @@ body {
   width: 14px;
   height: 14px;
   color: #94a3b8;
-  transition: transform 0.18s ease;
 }
 
-.queue-item.is-open .queue-item-chevron {
-  transform: rotate(180deg);
-}
-
-/* Acordeón: se usa un tope generoso (no el scrollHeight exacto) porque el
-   contenido incluye una <img> que carga async y cambia de alto después de la
-   primera medición -- con un tope fijo el CSS transition sigue siendo suave
-   sin tener que recalcular la altura cuando la imagen termina de cargar. */
-.queue-item-detail {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease;
-}
-
-.queue-item.is-open .queue-item-detail {
-  max-height: 1050px;
-  overflow-y: auto;
-}
-
+/* Contenido de detalle de un item: se arma una sola vez (buildQueueItemDetailContent)
+   y se monta en el modal de vista completa (ver sección "Modal" más abajo) --
+   ya no se expande inline dentro de la fila de la cola. */
 .queue-item-detail-inner {
-  padding: 10px 10px 12px;
+  padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   border-top: 1px solid rgba(148, 163, 184, 0.14);
 }
 
@@ -320,7 +349,7 @@ body {
 .queue-item-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 10px;
+  gap: 6px 8px;
 }
 
 .queue-item-fields .field--full {
@@ -334,8 +363,7 @@ body {
    en el archivo a propósito, para ganarle el grid-template-columns. */
 .queue-item-fields--trio {
   grid-template-columns: repeat(3, 1fr);
-  padding-bottom: 10px;
-  margin-bottom: 2px;
+  padding-bottom: 6px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.16);
 }
 
@@ -359,28 +387,145 @@ body {
 }
 
 .queue-item-field .label {
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.06em;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+}
+
+/* Label de Importe / Número de operación: lleva el botón de búsqueda al
+   lado, en vez de un botón "Buscar..." aparte más abajo -- la lupa queda
+   pegada al campo que llena, no perdida en una fila de acciones genérica. */
+.label--with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.field-search-btn {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+  color: #ffffff;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.55), 0 0 0 3px rgba(245, 158, 11, 0.18);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.field-search-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.field-search-btn:hover {
+  background: linear-gradient(135deg, #fcd34d, #f59e0b, #d97706);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.7), 0 0 0 4px rgba(245, 158, 11, 0.25);
+  transform: scale(1.08);
+}
+
+.field-search-btn:active {
+  transform: scale(0.96);
+}
+
+/* Campo obligatorio sin completar (ver getInvalidRequiredFields en
+   sidepanel.js) -- se agrega/saca dinámicamente al tocar "Atender" y al
+   escribir/elegir un valor, respectivamente. */
+.queue-edit-input.is-invalid {
+  border-color: #dc2626;
+  background: rgba(254, 226, 226, 0.5);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
+/* Toast "Datos grabados" tras marcar Atender -- el modal ya se cerró en ese
+   momento, así que no hay dónde mostrar un status inline dentro de él.
+   Centrado en el panel (no pegado abajo) y con una entrada tipo "pop" (ver
+   @keyframes toast-pop) para que se note más que un simple fade. */
+.toast {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 26px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: 0 16px 40px rgba(5, 150, 105, 0.4);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.85);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  animation: toast-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.toast-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+@keyframes toast-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .queue-item-field .value {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .queue-edit-input {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.5);
-  border-radius: 8px;
+  border-radius: 7px;
   background: #ffffff;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   font-family: inherit;
   color: #0f172a;
-  padding: 7px 9px;
-  line-height: 1.3;
+  padding: 5px 7px;
+  line-height: 1.2;
 }
 
 .queue-edit-input::placeholder {
@@ -399,7 +544,7 @@ select.queue-edit-input {
 }
 
 .queue-item-preview {
-  height: 540px;
+  height: 220px;
 }
 
 .queue-item-actions {
@@ -410,7 +555,7 @@ select.queue-edit-input {
 
 .queue-item-actions .link-button {
   flex: 1 1 auto;
-  padding: 6px 8px;
+  padding: 5px 8px;
   font-size: 10px;
 }
 
@@ -426,6 +571,98 @@ select.queue-edit-input {
   background: linear-gradient(135deg, #ef4444, #dc2626);
 }
 
+/* ── Modal de vista completa de un depósito de la cola ──────────────────── */
+/* Al hacer click en un item de la cola se abre este modal en vez de expandir
+   el item inline -- el side panel es angosto, así que meter campos + preview
+   del voucher ahí adentro obligaba a comprimir todo demasiado. El modal usa
+   casi todo el panel (ancho y alto) y puede scrollear su propio contenido
+   sin pelear por espacio con la lista de la cola. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 10px;
+  z-index: 50;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 8px 10px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.modal-title {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-close-btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #334155;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close-btn:hover {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body .queue-item-detail-inner {
+  flex: 1;
+  min-height: 0;
+  border-top: none;
+}
+
+/* El preview crece para ocupar todo el espacio que quede libre debajo de los
+   campos/acciones (en vez de una altura fija) -- como el modal ya usa casi
+   todo el alto del panel, esto es lo que hace que el voucher se vea grande
+   de verdad en vez de dejar aire vacío abajo. min-height es el piso para
+   cuando hay poco espacio (pantallas chicas / muchos campos). */
+.modal-body .queue-item-preview {
+  flex: 1;
+  min-height: 180px;
+}
+
 @media (max-width: 420px) {
   .panel {
     padding: 8px;
@@ -433,6 +670,6 @@ select.queue-edit-input {
   }
 
   .queue-item-preview {
-    height: 400px;
+    height: 180px;
   }
 }

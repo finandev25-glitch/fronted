@@ -154,6 +154,33 @@ export const getSqlServerCompanyConfigFromEmpresaId = (empresaId, empresas = [])
   return { empresa: "", empresaNombre: "" };
 };
 
+// Orden fijo de Anexo pedido para BCP, distinto por empresa (mismos códigos
+// "1"/"2" que getSqlServerCompanyConfigFromEmpresaId de arriba). Para
+// cualquier otro banco, o un anexo que no esté en esta lista (cuenta nueva
+// que todavía no se agregó acá), se deja el orden que ya traía/alfabético --
+// nunca se oculta un anexo real por no estar contemplado.
+const BCP_ANEXO_ORDER = {
+  "1": ["RECAU MN", "RECAU ME", "CREDI MN", "CREDI ME", "LCRED MN", "LCRED ME", "YCREDMN"], // JCH
+  "2": ["CREDI MN", "CREDI ME", "LCRED MN", "LCRED ME", "YCREDMN"], // Evolution
+};
+
+const normalizeAnexoKey = (value) =>
+  String(value || "").trim().toUpperCase().replace(/\s+/g, " ");
+
+export const sortAnexosForBancoEmpresa = (anexos, { bancoAbreviatura, empresaCode } = {}) => {
+  const order =
+    String(bancoAbreviatura || "").toUpperCase() === "BCP" ? BCP_ANEXO_ORDER[empresaCode] : null;
+  if (!order) return anexos;
+
+  const orderIndex = new Map(order.map((value, index) => [normalizeAnexoKey(value), index]));
+  return [...anexos].sort((a, b) => {
+    const indexA = orderIndex.has(normalizeAnexoKey(a)) ? orderIndex.get(normalizeAnexoKey(a)) : order.length;
+    const indexB = orderIndex.has(normalizeAnexoKey(b)) ? orderIndex.get(normalizeAnexoKey(b)) : order.length;
+    if (indexA !== indexB) return indexA - indexB;
+    return String(a).localeCompare(String(b));
+  });
+};
+
 export const getSqlServerDefaultRange = () => {
   const now = new Date();
   const year = now.getFullYear();

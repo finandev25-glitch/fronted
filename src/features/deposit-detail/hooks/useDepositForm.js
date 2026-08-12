@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useContext } from "react";
 import { AuthContext } from "../../auth/context/AuthContext.jsx";
 import { fetchCuentas } from "../../deposits/api/depositsApi.js";
-import { normalizeDepositCurrency, normalizeDateForInput } from "../../deposits/components/depositDetailModalHelpers.jsx";
+import {
+  normalizeDepositCurrency,
+  normalizeDateForInput,
+  getSqlServerCompanyConfigFromEmpresaId,
+  sortAnexosForBancoEmpresa,
+} from "../../deposits/components/depositDetailModalHelpers.jsx";
 
 /**
  * Hook central que gestiona el estado editable de un depósito.
@@ -21,7 +26,7 @@ import { normalizeDepositCurrency, normalizeDateForInput } from "../../deposits/
  *
  * También carga Anexos desde el backend (no del prop local `cuentas`).
  */
-export function useDepositForm({ deposit, empresas, bancos }) {
+export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
   const { currentUser } = useContext(AuthContext);
   const isBackendConnected = !!currentUser;
 
@@ -105,6 +110,49 @@ export function useDepositForm({ deposit, empresas, bancos }) {
     }
   }, [deposit, hasFullDetail]);
 
+  // ─── Reaplicar ediciones del side panel mientras el modal ya está abierto ──
+  // KanbanPage.handleCardClick ya fusiona las ediciones de la cola (extensión)
+  // en `deposit` ANTES de abrir el modal, así que el useEffect de arriba las
+  // toma de ahí para la carga inicial. Pero para el MISMO deposit.id, ese
+  // useEffect ya no vuelve a tocar fecha/monto/moneda/cliente/anexo/banco
+  // (a propósito, FIX 1: no pisar lo que el usuario ya tipeó a mano). Sin este
+  // efecto aparte, si el usuario edita ese mismo depósito desde el side panel
+  // de la extensión con el modal todavía abierto, el formulario queda
+  // "congelado" en lo que tenía al abrir. queueItem llega como prop (ver
+  // DepositDetailModal → KanbanPage, que lo saca de depositQueue.queueItems).
+  //
+  // Depende del ITEM completo de la cola, no solo de depositData: al tocar
+  // "Atender" en el side panel, background.js arma un item nuevo pero
+  // reutiliza la misma referencia de depositData (no cambió ningún campo) --
+  // si el efecto dependiera solo de depositData, ese click no dispararía
+  // ningún resync. Comparando el item entero, cualquier cambio en la cola
+  // (edición de campo O click en Atender) re-sincroniza el formulario.
+  const lastAppliedQueueItemRef = useRef(null);
+
+  useEffect(() => {
+    const queueEdits = queueItem?.depositData;
+    if (!queueEdits) {
+      lastAppliedQueueItemRef.current = null;
+      return;
+    }
+    if (lastAppliedQueueItemRef.current === queueItem) return;
+    lastAppliedQueueItemRef.current = queueItem;
+
+    setEditableData((prev) => ({
+      ...prev,
+      fecha_deposito: queueEdits.fecha_deposito
+        ? normalizeDateForInput(queueEdits.fecha_deposito)
+        : prev.fecha_deposito,
+      numero_operacion_banco: queueEdits.numero_operacion_solicitante || prev.numero_operacion_banco,
+      monto:
+        queueEdits.monto !== undefined && queueEdits.monto !== "" ? queueEdits.monto : prev.monto,
+      moneda: queueEdits.moneda ? normalizeDepositCurrency(queueEdits.moneda) : prev.moneda,
+      cliente: queueEdits.cliente || prev.cliente,
+      anexo: queueEdits.anexo || prev.anexo,
+      banco_id: queueEdits.bancoId || prev.banco_id,
+    }));
+  }, [queueItem]);
+
   // ─── Cargar Anexos desde el backend ────────────────────────────────────────
   // Usamos el endpoint real en lugar del prop `cuentas` local que puede estar vacío
   useEffect(() => {
@@ -119,7 +167,17 @@ export function useDepositForm({ deposit, empresas, bancos }) {
         const cuentas = await fetchCuentas(editableData.empresa_id, editableData.banco_id);
         if (!isMounted) return;
         const anexos = [...new Set(cuentas.map((c) => c.anexo || c.Anexo))].filter(Boolean);
-        setFilteredAnexos(anexos);
+        // BCP pide un orden fijo de Anexo, distinto por empresa (JCH vs
+        // Evolution) -- ver sortAnexosForBancoEmpresa. Para cualquier otro
+        // banco esto es un no-op (devuelve `anexos` tal cual).
+        const bancoAbreviatura = bancos.find(
+          (b) => String(b.id) === String(editableData.banco_id),
+        )?.abreviatura;
+        const { empresa: empresaCode } = getSqlServerCompanyConfigFromEmpresaId(
+          editableData.empresa_id,
+          empresas,
+        );
+        setFilteredAnexos(sortAnexosForBancoEmpresa(anexos, { bancoAbreviatura, empresaCode }));
       } catch (err) {
         console.error("Error cargando anexos:", err);
         if (isMounted) setFilteredAnexos([]);

@@ -73,10 +73,17 @@ export default function DepositsTableToolbar({
             onChange={(event) => setFilterStatus(event.target.value)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-blue-400"
           >
+            {/* Valores == deposit.estado tal cual lo manda el backend
+                (Deposito.cs): "recibido" | "procesado" | "confirmado" |
+                "rechazado". "en_validacion"/"validado" NO existen como
+                estado real (esos eran los valores viejos acá, por eso
+                filtrar por ellos siempre daba la tabla vacía) --
+                "en_validacion" es una columna DERIVADA del Kanban
+                (getKanbanBucket: procesado + tomado), no un estado propio. */}
             <option value="all">Todos los estados</option>
-            <option value="recibido">Pendiente</option>
-            <option value="en_validacion">En Validación</option>
-            <option value="validado">Validado</option>
+            <option value="recibido">Recibido</option>
+            <option value="procesado">Pendiente / En validación</option>
+            <option value="confirmado">Confirmado</option>
             <option value="rechazado">Rechazado</option>
           </select>
         </div>

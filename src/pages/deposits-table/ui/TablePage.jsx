@@ -203,10 +203,15 @@ const TablePage = ({
 
   const handleExportExcel = () => {
     const dataToExport = filteredDeposits.map((deposit) => {
+      // Valores == deposit.estado real (Deposito.cs): "recibido" | "procesado"
+      // | "confirmado" | "rechazado" -- las claves viejas de acá
+      // (pendiente/en_validacion/validado) no existían en los datos reales,
+      // así que esta columna siempre caía al `|| deposit.estado` crudo de
+      // abajo en vez de mostrar una etiqueta legible.
       const estadoLabels = {
-        pendiente: "Pendiente",
-        en_validacion: "En Validación",
-        validado: "Validado",
+        recibido: "Recibido",
+        procesado: "Pendiente / En validación",
+        confirmado: "Confirmado",
         rechazado: "Rechazado",
       };
 
@@ -221,7 +226,6 @@ const TablePage = ({
           : "",
         "Anexo Banco": deposit.anexo || "",
         "Nro Operación": deposit.numero_operacion || "",
-        "Nro Operación Banco": deposit.numero_operacion_banco || "",
         "Fecha Depósito": formatDate(deposit.fecha_deposito),
         Importe: deposit.monto || 0,
         Moneda: deposit.moneda || "",

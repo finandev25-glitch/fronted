@@ -99,6 +99,7 @@ const DepositDetailModal = ({
   onOpenVoucherWindow,
   editMode = "full",
   presentationMode = "default",
+  queueItem,
 }) => {
   if (!deposit) return null;
   const isCompactPresentation = presentationMode === "compact";
@@ -120,7 +121,7 @@ const DepositDetailModal = ({
     handleFileSelect,
     handleFileSelectFromPicker,
     isDetailLoaded
-  } = useDepositForm({ deposit, empresas, bancos });
+  } = useDepositForm({ deposit, empresas, bancos, queueItem });
 
   // 2. Hook de Acciones
   const {
@@ -594,6 +595,22 @@ const DepositDetailModal = ({
           : deposit.estado === "recibido"
             ? "text-orange-900 dark:text-orange-100"
             : "text-slate-900 dark:text-slate-100";
+
+  // Motivo de rechazo sugerido cuando "Comprobar Duplicados" encontró
+  // coincidencias: sin esto, quien rechaza tiene que volver a mirar la lista
+  // de duplicados (arriba) y tipear a mano a nombre de quién ya estaba
+  // confirmado. RejectionModal ya soporta precargar el textarea via
+  // initialReason (el usuario lo puede editar/borrar antes de mandar).
+  const duplicateRejectionReason = useMemo(() => {
+    if (!duplicateDeposits || duplicateDeposits.length === 0) return "";
+    const parts = duplicateDeposits.map((dup) => {
+      const tienda = dup.sucursal?.nombre || "tienda no identificada";
+      const vendedor = dup.trabajador?.nombre || "vendedor no identificado";
+      const estadoTexto = dup.estado === "confirmado" ? "confirmado" : `en estado "${dup.estado}"`;
+      return `${estadoTexto} en la tienda ${tienda} por el vendedor ${vendedor}`;
+    });
+    return `Depósito duplicado: ya está ${parts.join("; y también ")}.`;
+  }, [duplicateDeposits]);
 
   const compactStoreDataRows = useMemo(
     () => [
@@ -1830,6 +1847,7 @@ const DepositDetailModal = ({
             <RejectionModal
               onClose={() => setIsRejectionModalOpen(false)}
               onConfirm={handleConfirmRejection}
+              initialReason={duplicateRejectionReason}
             />
           )}
           {isPickerOpen && (
@@ -2593,6 +2611,7 @@ const DepositDetailModal = ({
         <RejectionModal
           onClose={() => setIsRejectionModalOpen(false)}
           onConfirm={handleConfirmRejection}
+          initialReason={duplicateRejectionReason}
         />
       )}
       {showRegularizeUpload && (

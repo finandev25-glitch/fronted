@@ -355,7 +355,30 @@ const KanbanPage = ({
               estado: updatedDeposit.estado,
             },
           );
-          setSelectedDeposit(updatedDeposit);
+          // NO reemplazar selectedDeposit entero por updatedDeposit: updatedDeposit
+          // sale de `deposits` (GET /v1/deposits, la versión resumida del listado)
+          // y mapDeposit() siempre incluye TODAS sus claves aunque sea con null
+          // (observaciones, motivo_rechazo, sucursal, trabajador, etc. -- eso solo
+          // llega en el detalle completo, GET /v1/deposits/{id}, que ya se pidió
+          // por separado más arriba). Un reemplazo completo pisaba ese detalle con
+          // los null del listado en cuanto llegaba CUALQUIER actualización realtime
+          // mientras el modal seguía abierto -- por eso el motivo de un rechazo
+          // desaparecía del modal segundos después de abrirlo. Actualizamos a mano
+          // solo los campos que este efecto realmente vigila (los mismos de
+          // hasChanges arriba), dejando el resto del detalle ya cargado intacto.
+          setSelectedDeposit((prev) =>
+            prev && prev.id === updatedDeposit.id
+              ? {
+                  ...prev,
+                  es_antiguo: updatedDeposit.es_antiguo,
+                  condicion: updatedDeposit.condicion,
+                  estado: updatedDeposit.estado,
+                  monto: updatedDeposit.monto,
+                  pendiente_regularizar: updatedDeposit.pendiente_regularizar,
+                  riesgo: updatedDeposit.riesgo,
+                }
+              : prev,
+          );
         }
       }
     }
@@ -960,6 +983,7 @@ const KanbanPage = ({
             allDeposits={deposits}
             onOpenVoucherWindow={onOpenVoucherWindow}
             presentationMode={detailPresentationMode}
+            queueItem={depositQueue.queueItems.find((item) => item.id === selectedDeposit.id)}
           />
         )}
         {showContactosModal && (

@@ -21,7 +21,9 @@
     "https://tlcbcp.com/*",
     "https://*.tlcbcp.com/*",
     "https://empresas.interbank.pe/*",
-    "https://*.interbank.pe/*"
+    "https://*.interbank.pe/*",
+    "https://bancainternetempresas.scotiabank.com.pe/*",
+    "https://*.scotiabank.com.pe/*"
   ],
   "background": {
     "scripts": ["background.js"],
@@ -47,7 +49,9 @@
         "https://tlcbcp.com/*",
         "https://*.tlcbcp.com/*",
         "https://empresas.interbank.pe/*",
-        "https://*.interbank.pe/*"
+        "https://*.interbank.pe/*",
+        "https://bancainternetempresas.scotiabank.com.pe/*",
+        "https://*.scotiabank.com.pe/*"
       ],
       "js": ["content-script.js"],
       "run_at": "document_idle"

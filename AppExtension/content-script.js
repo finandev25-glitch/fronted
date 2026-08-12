@@ -6,19 +6,43 @@
 // del clic, necesario para que background.js pueda llamar
 // chrome.sidePanel.open() sin que Chrome lo bloquee); el postMessage es solo
 // respaldo para flujos que pudieran perder el gesto.
+
+// Si la extensión se recarga/actualiza (típico durante desarrollo, al tocar
+// "Recargar" en chrome://extensions) mientras esta pestaña ya tenía el
+// content-script inyectado, chrome.runtime queda con un contexto invalidado:
+// cualquier llamada a chrome.runtime.sendMessage tira "Extension context
+// invalidated" de forma síncrona. No hay forma de recuperarlo desde acá (la
+// única solución real es recargar la pestaña) -- esto solo evita que ese
+// error, esperable, ensucie la consola/página de errores de la extensión.
+function isExtensionContextValid() {
+  try {
+    return !!(chrome?.runtime && chrome.runtime.id);
+  } catch (_error) {
+    return false;
+  }
+}
+
 function relayQueueAdd(id, depositData, openPanel) {
-  if (!id) return;
-  chrome.runtime.sendMessage({
-    type: "ADD_TO_QUEUE",
-    id,
-    depositData: depositData || null,
-    openPanel: !!openPanel,
-  });
+  if (!id || !isExtensionContextValid()) return;
+  try {
+    chrome.runtime.sendMessage({
+      type: "ADD_TO_QUEUE",
+      id,
+      depositData: depositData || null,
+      openPanel: !!openPanel,
+    });
+  } catch (_error) {
+    // Contexto invalidado -- ver comentario más arriba.
+  }
 }
 
 function relayQueueRemove(id) {
-  if (!id) return;
-  chrome.runtime.sendMessage({ type: "REMOVE_FROM_QUEUE", id });
+  if (!id || !isExtensionContextValid()) return;
+  try {
+    chrome.runtime.sendMessage({ type: "REMOVE_FROM_QUEUE", id });
+  } catch (_error) {
+    // Contexto invalidado -- ver comentario más arriba.
+  }
 }
 
 window.addEventListener("confirmo:queue-add", (event) => {
@@ -67,16 +91,26 @@ function dispatchQueueUpdated(items) {
   }
 }
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[QUEUE_STORAGE_KEY]) return;
-  dispatchQueueUpdated(changes[QUEUE_STORAGE_KEY].newValue?.items || []);
-});
+if (isExtensionContextValid()) {
+  try {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local" || !changes[QUEUE_STORAGE_KEY]) return;
+      dispatchQueueUpdated(changes[QUEUE_STORAGE_KEY].newValue?.items || []);
+    });
 
-// Al cargar/recargar la página, sincroniza el estado actual de la cola (si
-// no se hiciera esto, la app no se entera de nada hasta el PRÓXIMO cambio).
-chrome.storage.local.get(QUEUE_STORAGE_KEY).then((result) => {
-  dispatchQueueUpdated(result[QUEUE_STORAGE_KEY]?.items || []);
-}).catch(() => {
-  // ignorar -- la app simplemente arranca con la cola vacía hasta el
-  // próximo evento reactivo.
-});
+    // Al cargar/recargar la página, sincroniza el estado actual de la cola
+    // (si no se hiciera esto, la app no se entera de nada hasta el PRÓXIMO
+    // cambio).
+    chrome.storage.local
+      .get(QUEUE_STORAGE_KEY)
+      .then((result) => {
+        dispatchQueueUpdated(result[QUEUE_STORAGE_KEY]?.items || []);
+      })
+      .catch(() => {
+        // ignorar -- la app simplemente arranca con la cola vacía hasta el
+        // próximo evento reactivo.
+      });
+  } catch (_error) {
+    // Contexto invalidado -- ver comentario junto a isExtensionContextValid.
+  }
+}

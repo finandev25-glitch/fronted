@@ -1,9 +1,45 @@
 const QUEUE_STORAGE_KEY = "voucher_queue_state";
 
+// Ícono de lupa para los botones de búsqueda (Importe / Número de operación)
+// -- SVG en vez del emoji 🔍 porque este último se ve borroso/inconsistente
+// entre plataformas a tamaños chicos; el trazo del SVG se ve nítido.
+const SEARCH_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2.4"/><path d="M17 17L13.4 13.4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+
 const elements = {
   queueList: document.getElementById("queueList"),
   queueCount: document.getElementById("queueCount"),
+  modalOverlay: document.getElementById("itemModalOverlay"),
+  modalTitle: document.getElementById("modalTitle"),
+  modalBody: document.getElementById("modalBody"),
+  modalCloseBtn: document.getElementById("modalCloseBtn"),
+  toast: document.getElementById("toast"),
 };
+
+// Mensaje flotante y breve tras marcar "Atender" (ver .queue-item-attend-btn
+// más abajo) -- el modal ya se cerró en ese momento, así que no hay dónde
+// mostrar un status inline; esto confirma que la acción se guardó.
+let toastHideTimer = null;
+
+const TOAST_CHECK_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10.5L8 14.5L16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function showToast(message) {
+  if (toastHideTimer) clearTimeout(toastHideTimer);
+  // Restart de la animación de "pop" (@keyframes toast-pop): sacar y volver a
+  // poner is-visible en el mismo tick no alcanza para reiniciar una CSS
+  // animation ya corriendo, hace falta el reflow forzado (offsetWidth) del
+  // medio para que el navegador "olvide" el estado anterior.
+  elements.toast.classList.remove("is-visible");
+  elements.toast.innerHTML = `<span class="toast-icon">${TOAST_CHECK_ICON_SVG}</span><span>${escapeHtml(message)}</span>`;
+  elements.toast.hidden = false;
+  void elements.toast.offsetWidth;
+  elements.toast.classList.add("is-visible");
+  toastHideTimer = setTimeout(() => {
+    elements.toast.classList.remove("is-visible");
+    toastHideTimer = setTimeout(() => {
+      elements.toast.hidden = true;
+    }, 200);
+  }, 2000);
+}
 
 let queueItems = [];
 let openQueueItemId = null;
@@ -117,7 +153,38 @@ function getSearchPayloadFromDepositData(data) {
 // cola, así que acá solo hace falta pintar la lista y, al expandir un item,
 // sus datos + comprobante.
 
+// El side panel se registra por pestaña (chrome.sidePanel.setOptions con
+// tabId, ver background.js) -- al cambiar a una pestaña sin su propio
+// registro, Chrome puede mostrar una instancia nueva del documento
+// sidepanel.html en vez de reutilizar la que ya estaba abierta, perdiendo
+// cualquier estado en memoria (incluido qué item tenía el modal abierto).
+// Para que el modal "sobreviva" a ese cambio de pestaña, qué item está
+// abierto se guarda en chrome.storage.session (no sobrevive a reiniciar el
+// navegador, pero sí a esto) y se relee al cargar. chrome.storage.session no
+// existe en Firefox, así que cae a .local (si tampoco existiera, quedaría
+// undefined y el guardado se ignora en persistOpenItemId).
+const OPEN_ITEM_STORAGE_KEY = "voucher_queue_open_item_id";
+const openItemStorageArea = chrome.storage.session || chrome.storage.local;
+
+async function persistOpenItemId(id) {
+  try {
+    if (id) {
+      await openItemStorageArea.set({ [OPEN_ITEM_STORAGE_KEY]: id });
+    } else {
+      await openItemStorageArea.remove(OPEN_ITEM_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.warn("No se pudo guardar qué depósito tenía el modal abierto:", error);
+  }
+}
+
 async function loadQueueFromStorage() {
+  try {
+    const openResult = await openItemStorageArea.get(OPEN_ITEM_STORAGE_KEY);
+    openQueueItemId = openResult[OPEN_ITEM_STORAGE_KEY] || null;
+  } catch (error) {
+    console.warn("No se pudo leer qué depósito tenía el modal abierto:", error);
+  }
   const result = await chrome.storage.local.get(QUEUE_STORAGE_KEY);
   renderQueue(result[QUEUE_STORAGE_KEY]?.items || []);
 }
@@ -131,28 +198,42 @@ function renderQueue(items) {
   queueItems = Array.isArray(items) ? items : [];
   elements.queueCount.textContent = String(queueItems.length);
 
-  if (queueItems.length === 0) {
-    openQueueItemId = null;
-    setZoomTarget(null);
-    elements.queueList.innerHTML =
-      '<div class="queue-empty">Agrega depósitos a la cola desde el botón de la tarjeta en el Kanban, o con "Panel Lateral" dentro del detalle de un depósito.</div>';
-    return;
-  }
-
-  // Si el item expandido ya no existe (se quitó de la cola), se cierra.
+  // Si el item que estaba abierto en el modal ya no existe (se quitó de la
+  // cola), se cierra.
   if (openQueueItemId && !queueItems.some((item) => item.id === openQueueItemId)) {
     openQueueItemId = null;
+    void persistOpenItemId(null);
   }
 
-  // Más nuevos primero.
-  const sorted = queueItems
-    .slice()
-    .sort((a, b) => new Date(b.addedAt || 0) - new Date(a.addedAt || 0));
+  if (queueItems.length === 0) {
+    elements.queueList.innerHTML =
+      '<div class="queue-empty">Agrega depósitos a la cola desde el botón de la tarjeta en el Kanban, o con "Panel Lateral" dentro del detalle de un depósito.</div>';
+  } else {
+    // Más nuevos primero.
+    const sorted = queueItems
+      .slice()
+      .sort((a, b) => new Date(b.addedAt || 0) - new Date(a.addedAt || 0));
 
-  elements.queueList.innerHTML = "";
-  sorted.forEach((item) => {
-    elements.queueList.appendChild(buildQueueItemNode(item));
-  });
+    elements.queueList.innerHTML = "";
+    sorted.forEach((item) => {
+      elements.queueList.appendChild(buildQueueItemNode(item));
+    });
+  }
+
+  // El modal (mostrar/ocultar + contenido) se deriva SIEMPRE de
+  // openQueueItemId acá, en vez de manejarse aparte en openItemModal/
+  // closeItemModal -- así cubre tanto la apertura/cierre manual como la
+  // restauración al recargar el documento (loadQueueFromStorage) y las
+  // ediciones que llegan por chrome.storage.onChanged mientras está abierto.
+  const openItem = openQueueItemId ? queueItems.find((item) => item.id === openQueueItemId) : null;
+  if (openItem) {
+    elements.modalOverlay.hidden = false;
+    renderModalBody(openItem);
+  } else {
+    elements.modalOverlay.hidden = true;
+    elements.modalBody.innerHTML = "";
+    setZoomTarget(null);
+  }
 }
 
 function buildQueueItemNode(item) {
@@ -175,26 +256,107 @@ function buildQueueItemNode(item) {
     <svg class="queue-item-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
   `;
 
-  row.addEventListener("click", () => {
-    openQueueItemId = openQueueItemId === item.id ? null : item.id;
-    renderQueue(queueItems);
-  });
+  row.addEventListener("click", () => openItemModal(item));
 
   wrapper.appendChild(row);
-
-  const detail = document.createElement("div");
-  detail.className = "queue-item-detail";
-
-  // Solo se arma el contenido pesado (campos + imagen) del item ABIERTO --
-  // los demás quedan colapsados sin nada dentro, así no se cargan N
-  // imágenes de voucher a la vez.
-  if (isOpen) {
-    detail.appendChild(buildQueueItemDetailContent(item, data));
-  }
-
-  wrapper.appendChild(detail);
   return wrapper;
 }
+
+// ── Modal de vista completa ──────────────────────────────────────────────
+function openItemModal(item) {
+  openQueueItemId = item.id;
+  void persistOpenItemId(item.id);
+  renderQueue(queueItems);
+}
+
+function closeItemModal() {
+  if (!openQueueItemId) return;
+  openQueueItemId = null;
+  void persistOpenItemId(null);
+  renderQueue(queueItems);
+}
+
+function renderModalBody(item) {
+  const data = item.depositData || {};
+  elements.modalTitle.textContent = `${data.banco || "-"} · ${data.cliente || "Sin cliente"}`;
+
+  // Cada guardado de un campo (blur/change de CUALQUIER input, incluso desde
+  // este mismo side panel) dispara chrome.storage.onChanged -> renderQueue()
+  // -> acá. Reconstruir todo el HTML en cada uno de esos casos tira abajo y
+  // vuelve a crear la <img> del voucher, lo que se ve como que la imagen
+  // "recarga" con cada tecla/campo guardado (además de resetear zoom/rotación
+  // y perder texto en tránsito de otros inputs). Si sigue abierto el MISMO
+  // depósito, alcanza con actualizar los valores de los campos a mano; el
+  // voucher y el resto del DOM quedan intactos.
+  const existingInner = elements.modalBody.querySelector(".queue-item-detail-inner");
+  if (existingInner && updateQueueItemDetailInPlace(existingInner, item, data)) {
+    return;
+  }
+
+  elements.modalBody.innerHTML = "";
+  elements.modalBody.appendChild(buildQueueItemDetailContent(item, data));
+}
+
+// Devuelve true si pudo actualizar in-place (mismo depósito, mismo banco --
+// las opciones de Anexo no cambian). Devuelve false si hace falta un rebuild
+// completo (depósito distinto, o cambió bancoId y el <select> de Anexo puede
+// tener que mostrar otras opciones -- reconciliar eso a mano no vale la pena
+// frente a simplemente reconstruir).
+function updateQueueItemDetailInPlace(inner, item, data) {
+  if (inner.dataset.itemId !== item.id) return false;
+  if (inner.dataset.bancoId !== String(data.bancoId || "")) return false;
+
+  const fieldValues = {
+    cliente: data.cliente || "",
+    moneda: data.moneda || "",
+    anexo: data.anexo || "",
+    monto: String(data.monto ?? data.importe ?? ""),
+    numero_operacion_solicitante: data.numero_operacion_solicitante || data.numero_operacion || "",
+    fecha_deposito: resolveDepositDate(data),
+  };
+
+  inner.querySelectorAll("[data-field]").forEach((el) => {
+    // No pisar un campo que el usuario tiene enfocado ahora mismo (podría
+    // estar escribiendo en otro campo del mismo item, o este resync llegó
+    // por un cambio de otro campo que se guardó un instante antes).
+    if (document.activeElement === el) return;
+    const nextValue = fieldValues[el.dataset.field];
+    if (nextValue === undefined) return;
+    if (el.value !== nextValue) el.value = nextValue;
+    if (el.dataset.required && nextValue.trim()) el.classList.remove("is-invalid");
+  });
+
+  const voucherUrl = normalizeVoucherUrl(data.voucherUrl || "");
+  if (inner.dataset.voucherUrl !== voucherUrl) {
+    inner.dataset.voucherUrl = voucherUrl;
+    const previewWrap = inner.querySelector(".queue-item-preview");
+    const mediaEl = inner.querySelector(".queue-item-preview-media");
+    if (previewWrap && mediaEl) {
+      previewWrap.classList.toggle("empty", !voucherUrl);
+      mediaEl.innerHTML = "";
+      if (voucherUrl) {
+        renderVoucherPreview(mediaEl, voucherUrl);
+      } else {
+        setZoomTarget(null);
+      }
+    }
+  }
+
+  const attendBtn = inner.querySelector(".queue-item-attend-btn");
+  if (attendBtn && document.activeElement !== attendBtn) {
+    attendBtn.textContent = item.atendido ? "Desmarcar" : "Guardar cambios";
+  }
+
+  return true;
+}
+
+elements.modalCloseBtn.addEventListener("click", closeItemModal);
+elements.modalOverlay.addEventListener("click", (event) => {
+  if (event.target === elements.modalOverlay) closeItemModal();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.modalOverlay.hidden) closeItemModal();
+});
 
 // Campos editables acá == los mismos que el usuario puede tocar en el
 // formulario del detalle del depósito (DepositFormPanel: monto,
@@ -234,7 +396,7 @@ function buildAnexoOptionsFromCuentas(cuentasBancarias, bancoId) {
 
 function buildAnexoFieldMarkup(options, currentValue) {
   if (options.length > 0) {
-    return `<select class="queue-edit-input" data-field="anexo">
+    return `<select class="queue-edit-input" data-field="anexo" data-required="1">
         <option value=""${currentValue ? "" : " selected"}>Seleccionar</option>
         ${options
           .map(
@@ -244,7 +406,26 @@ function buildAnexoFieldMarkup(options, currentValue) {
           .join("")}
       </select>`;
   }
-  return `<input type="text" class="queue-edit-input" data-field="anexo" value="${escapeHtml(currentValue)}" placeholder="Anexo" />`;
+  return `<input type="text" class="queue-edit-input" data-field="anexo" data-required="1" value="${escapeHtml(currentValue)}" placeholder="Anexo" />`;
+}
+
+// ── Validación antes de marcar "Atender" ─────────────────────────────────
+// Mismos campos que la app web pide como obligatorios en el detalle del
+// depósito (ver DepositDetailModal.jsx, "Campos requeridos faltantes") --
+// se marcan con data-required="1" en el markup de abajo. Banco queda afuera
+// cuando es de solo lectura (<span>, sin bancoOptions): no hay nada que
+// validar ahí, siempre viene con valor desde el depósito original.
+function getInvalidRequiredFields(inner) {
+  return Array.from(inner.querySelectorAll("[data-required]")).filter(
+    (el) => !String(el.value || "").trim(),
+  );
+}
+
+function markRequiredFieldsValidity(inner, invalidEls) {
+  const invalidSet = new Set(invalidEls);
+  inner.querySelectorAll("[data-required]").forEach((el) => {
+    el.classList.toggle("is-invalid", invalidSet.has(el));
+  });
 }
 
 // Wiring genérico de guardado (guardar-en-blur para texto, guardar-en-change
@@ -255,6 +436,18 @@ function buildAnexoFieldMarkup(options, currentValue) {
 function wireEditInput(editEl, itemId) {
   editEl.addEventListener("click", (event) => event.stopPropagation());
   editEl.addEventListener("mousedown", (event) => event.stopPropagation());
+
+  // Si el campo se marcó en rojo por la validación de "Atender" (ver más
+  // abajo, getInvalidRequiredFields/markRequiredFieldsValidity), sacarle el
+  // rojo apenas el usuario le pone un valor -- no hace falta esperar a que
+  // vuelva a tocar "Atender" para que desaparezca.
+  if (editEl.dataset.required) {
+    const clearInvalidIfFilled = () => {
+      if (String(editEl.value || "").trim()) editEl.classList.remove("is-invalid");
+    };
+    editEl.addEventListener("input", clearInvalidIfFilled);
+    editEl.addEventListener("change", clearInvalidIfFilled);
+  }
 
   const commit = () => {
     const field = editEl.dataset.field;
@@ -288,6 +481,13 @@ function buildQueueItemDetailContent(item, data) {
   inner.className = "queue-item-detail-inner";
 
   const voucherUrl = normalizeVoucherUrl(data.voucherUrl || "");
+  // Huella para que updateQueueItemDetailInPlace (más arriba) sepa, la
+  // próxima vez que llegue un cambio de storage, si alcanza con actualizar
+  // valores a mano o hace falta reconstruir todo (depósito distinto, o
+  // cambió el banco y el <select> de Anexo puede tener otras opciones).
+  inner.dataset.itemId = item.id;
+  inner.dataset.bancoId = String(data.bancoId || "");
+  inner.dataset.voucherUrl = voucherUrl;
   // Un solo campo de operación: numero_operacion_banco era un vestigio de un
   // sistema anterior, ya no se usa para nada -- backend/BD trabajan solo con
   // "numero_operacion" (acá guardado en data.numero_operacion_solicitante,
@@ -321,7 +521,7 @@ function buildQueueItemDetailContent(item, data) {
   const bancoOptions = Array.isArray(data.bancoOptions) ? data.bancoOptions : [];
   const bancoFieldHtml =
     bancoOptions.length > 0
-      ? `<select class="queue-edit-input queue-banco-select" data-field="bancoId">
+      ? `<select class="queue-edit-input queue-banco-select" data-field="bancoId" data-required="1">
           <option value=""${data.bancoId ? "" : " selected"}>Seleccionar</option>
           ${bancoOptions
             .map(
@@ -334,9 +534,13 @@ function buildQueueItemDetailContent(item, data) {
 
   inner.innerHTML = `
     <div class="queue-item-fields queue-item-fields--empresa">
-      <div class="queue-item-field field--full">
+      <div class="queue-item-field">
         <span class="label">Empresa</span>
         <span class="value">${escapeHtml(data.empresa || "-")}</span>
+      </div>
+      <div class="queue-item-field">
+        <span class="label">Cliente</span>
+        <input type="text" class="queue-edit-input" data-field="cliente" data-required="1" value="${escapeHtml(data.cliente || "")}" placeholder="Nombre del cliente" />
       </div>
     </div>
 
@@ -347,7 +551,7 @@ function buildQueueItemDetailContent(item, data) {
       </div>
       <div class="queue-item-field">
         <span class="label">Moneda</span>
-        <select class="queue-edit-input" data-field="moneda">
+        <select class="queue-edit-input" data-field="moneda" data-required="1">
           <option value=""${moneda ? "" : " selected"}>Seleccionar</option>
           <option value="PEN"${moneda === "PEN" ? " selected" : ""}>Soles (PEN)</option>
           <option value="USD"${moneda === "USD" ? " selected" : ""}>Dólares (USD)</option>
@@ -359,46 +563,47 @@ function buildQueueItemDetailContent(item, data) {
       </div>
     </div>
 
-    <div class="queue-item-fields">
+    <div class="queue-item-fields queue-item-fields--trio">
+      <div class="queue-item-field">
+        <span class="label label--with-action">
+          <span>Importe</span>
+          <button type="button" class="field-search-btn queue-search-amount-btn" title="Buscar importe" aria-label="Buscar importe">${SEARCH_ICON_SVG}</button>
+        </span>
+        <input type="number" step="0.01" class="queue-edit-input" data-field="monto" data-required="1" value="${escapeHtml(rawAmount)}" placeholder="0.00" />
+      </div>
+      <div class="queue-item-field">
+        <span class="label label--with-action">
+          <span>Número de operación</span>
+          <button type="button" class="field-search-btn queue-search-op-btn" title="Buscar nro. operación" aria-label="Buscar nro. operación">${SEARCH_ICON_SVG}</button>
+        </span>
+        <input type="text" class="queue-edit-input" data-field="numero_operacion_solicitante" data-required="1" value="${escapeHtml(operationValue)}" placeholder="Número de operación" />
+      </div>
       <div class="queue-item-field">
         <span class="label">Fecha depósito</span>
-        <input type="date" class="queue-edit-input" data-field="fecha_deposito" value="${escapeHtml(resolveDepositDate(data))}" />
+        <input type="date" class="queue-edit-input" data-field="fecha_deposito" data-required="1" value="${escapeHtml(resolveDepositDate(data))}" />
       </div>
-      <div class="queue-item-field">
-        <span class="label">Número de operación</span>
-        <input type="text" class="queue-edit-input" data-field="numero_operacion_solicitante" value="${escapeHtml(operationValue)}" placeholder="Número de operación" />
-      </div>
-      <div class="queue-item-field field--full">
-        <span class="label">Importe</span>
-        <input type="number" step="0.01" class="queue-edit-input" data-field="monto" value="${escapeHtml(rawAmount)}" placeholder="0.00" />
-      </div>
-      <div class="queue-item-field field--full">
-        <span class="label">Cliente</span>
-        <input type="text" class="queue-edit-input" data-field="cliente" value="${escapeHtml(data.cliente || "")}" placeholder="Nombre del cliente" />
-      </div>
-    </div>
-
-    <div class="queue-item-actions">
-      <button type="button" class="link-button link-button--secondary queue-search-op-btn">Buscar nro. operación</button>
-      <button type="button" class="link-button link-button--secondary queue-search-amount-btn">Buscar importe</button>
     </div>
     <div class="queue-item-search-status search-status">Busca por nro. operación o importe en la pestaña activa.</div>
 
-    <div class="preview queue-item-preview${voucherUrl ? "" : " empty"}">
-      ${voucherUrl ? "" : '<div class="empty-state">Sin comprobante para este depósito.</div>'}
+    <div class="queue-item-actions">
+      <button type="button" class="link-button queue-item-attend-btn">${item.atendido ? "Desmarcar" : "Guardar cambios"}</button>
+      <button type="button" class="link-button queue-item-remove-btn">Quitar</button>
     </div>
 
-    <div class="queue-item-actions">
-      ${voucherUrl ? `<a class="link-button queue-open-link" href="${voucherUrl}" target="_blank" rel="noreferrer">Abrir en pestaña nueva</a>` : ""}
-      ${voucherUrl && !isPdfUrl(voucherUrl) ? `<button type="button" class="link-button link-button--secondary queue-rotate-btn">⟳ Rotar imagen</button>` : ""}
-    </div>
-    <div class="queue-item-actions">
-      <button type="button" class="link-button queue-item-attend-btn">${item.atendido ? "Desmarcar atendido" : "Marcar como atendido"}</button>
-      <button type="button" class="link-button queue-item-remove-btn">Quitar de la cola</button>
+    <div class="preview queue-item-preview${voucherUrl ? "" : " empty"}">
+      <div class="queue-item-preview-media"></div>
+      ${
+        voucherUrl
+          ? `<div class="preview-toolbar">
+              <a class="preview-icon-btn queue-open-link" href="${voucherUrl}" target="_blank" rel="noreferrer" title="Abrir en pestaña nueva">↗</a>
+              ${!isPdfUrl(voucherUrl) ? `<button type="button" class="preview-icon-btn queue-rotate-btn" title="Rotar imagen">⟳</button>` : ""}
+            </div>`
+          : '<div class="empty-state">Sin comprobante para este depósito.</div>'
+      }
     </div>
   `;
 
-  const previewEl = inner.querySelector(".queue-item-preview");
+  const previewEl = inner.querySelector(".queue-item-preview-media");
   if (voucherUrl) {
     renderVoucherPreview(previewEl, voucherUrl);
   }
@@ -425,6 +630,7 @@ function buildQueueItemDetailContent(item, data) {
   if (bancoSelectEl) {
     bancoSelectEl.addEventListener("change", (event) => {
       event.stopPropagation();
+      if (bancoSelectEl.value) bancoSelectEl.classList.remove("is-invalid");
 
       const newBancoId = bancoSelectEl.value;
       const selectedBanco = (Array.isArray(data.bancoOptions) ? data.bancoOptions : []).find(
@@ -476,11 +682,32 @@ function buildQueueItemDetailContent(item, data) {
   });
   inner.querySelector(".queue-item-attend-btn").addEventListener("click", async (event) => {
     event.stopPropagation();
+
+    const willAttend = !item.atendido;
+
+    // La validación solo aplica al marcar como atendido -- desmarcar (volver
+    // a "Atender") no tiene por qué exigir campos completos, es solo deshacer
+    // el estado anterior.
+    if (willAttend) {
+      const invalidEls = getInvalidRequiredFields(inner);
+      markRequiredFieldsValidity(inner, invalidEls);
+      if (invalidEls.length > 0) {
+        invalidEls[0].focus();
+        invalidEls[0].scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
+
     await chrome.runtime.sendMessage({
       type: "MARK_QUEUE_ITEM_ATTENDED",
       id: item.id,
-      atendido: !item.atendido,
+      atendido: willAttend,
     });
+
+    if (willAttend) {
+      closeItemModal();
+      showToast("Datos grabados");
+    }
   });
   inner.querySelector(".queue-item-remove-btn").addEventListener("click", async (event) => {
     event.stopPropagation();

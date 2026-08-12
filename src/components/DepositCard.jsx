@@ -307,24 +307,9 @@ const DepositCard = ({
         </div>
 
         <div className="grid grid-cols-1 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          {/* Usuario que cambió estado (solo rechazado y en validación) */}
-          {(deposit.rechazado_por || deposit.en_validacion_por) && (
-            <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 pt-1.5">
-              <User size={8} className="flex-shrink-0" />
-              {deposit.estado === "rechazado" && deposit.rechazado_por && (
-                <span className="text-red-600 truncate">
-                  ✗ Rechazado por: {deposit.rechazado_por}
-                </span>
-              )}
-              {deposit.estado === "en_validacion" &&
-                deposit.en_validacion_por && (
-                  <span className="text-blue-600 truncate">
-                    ⏳ En validación por: {deposit.en_validacion_por}
-                </span>
-              )}
-            </div>
-          )}
-
+          {/* Quién rechazó ya lo muestra el avatar de iniciales de arriba
+              (validado_por_usuario) -- alcanza con eso, sin repetirlo acá
+              como texto. Esta sección queda solo para el motivo. */}
           {rejectedObservation && deposit.estado === "rechazado" && (
             <div
               className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200 mt-1.5"
@@ -365,11 +350,20 @@ const MemoizedDepositCard = memo(DepositCard, (prevProps, nextProps) => {
     prevProps.deposit.monto === nextProps.deposit.monto &&
     prevProps.deposit.fecha_registro === nextProps.deposit.fecha_registro &&
     prevProps.deposit.validado_por === nextProps.deposit.validado_por &&
+    // El id (validado_por) puede llegar sin cambios en el patch optimista
+    // de rechazo/confirmación mientras el nombre enriquecido
+    // (validado_por_usuario) todavía viaja del backend -- sin comparar esto
+    // acá, la card nunca re-renderiza cuando el nombre por fin llega (el
+    // avatar de iniciales y el "Rechazado por" de abajo quedan sin usuario).
+    prevProps.deposit.validado_por_usuario?.nombre ===
+      nextProps.deposit.validado_por_usuario?.nombre &&
     prevProps.deposit.fecha_bloqueo === nextProps.deposit.fecha_bloqueo &&
-    prevProps.deposit.rechazado_por === nextProps.deposit.rechazado_por &&
     prevProps.deposit.observaciones === nextProps.deposit.observaciones &&
-    prevProps.deposit.en_validacion_por ===
-      nextProps.deposit.en_validacion_por &&
+    // Mismo caso que validado_por_usuario de arriba: motivo_rechazo es el
+    // fallback que usa rejectedObservation cuando no hay observaciones, pero
+    // no estaba acá -- si el backend lo llena en un refetch posterior al
+    // rechazo optimista, la card se quedaba sin mostrar el motivo.
+    prevProps.deposit.motivo_rechazo === nextProps.deposit.motivo_rechazo &&
     prevProps.deposit.es_antiguo === nextProps.deposit.es_antiguo &&
     prevProps.deposit.condicion === nextProps.deposit.condicion &&
     prevProps.deposit.riesgo === nextProps.deposit.riesgo &&
