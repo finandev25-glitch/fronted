@@ -85,3 +85,18 @@ export function getGaleriaImagenUrl(id) {
   if (!token) return null;
   return buildApiUrl(`${API_BASE}${AVISOS_BASE}/galeria/${id}/imagen?access_token=${encodeURIComponent(token)}`);
 }
+
+// ---------------------------------------------------------------------------
+// Plantillas de WhatsApp (Zavu) — ver Endpoints/ZavuPlantillaEndpoints.cs.
+// Toda plantilla de Zavu se arma siempre con 2 variables fijas: "1" (nombre
+// del destinatario) y "2" (contenido del comunicado) — por eso acá solo se
+// elige CUÁL plantilla usar (por código), nunca se arman variables sueltas
+// a mano desde este panel.
+// ---------------------------------------------------------------------------
+
+const ZAVU_PLANTILLAS_BASE = "/v1/zavu-plantillas";
+
+export async function fetchZavuPlantillas() {
+  const rows = await apiGet(ZAVU_PLANTILLAS_BASE);
+  return Array.isArray(rows) ? rows : [];
+}

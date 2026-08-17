@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { X, Loader2, Image as ImageIcon, Trash2, Images } from "lucide-react";
-import { createAviso, updateAviso, uploadAvisoMedia, getAvisoMediaUrl, getGaleriaImagenUrl } from "../features/avisos/api/avisosApi.js";
+import { createAviso, updateAviso, uploadAvisoMedia, getAvisoMediaUrl, getGaleriaImagenUrl, fetchZavuPlantillas } from "../features/avisos/api/avisosApi.js";
 import AvisoGaleriaPicker from "./AvisoGaleriaPicker.jsx";
 import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
@@ -38,6 +38,31 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
   const [enviarWhatsapp, setEnviarWhatsapp] = useState(avisoExistente?.enviarWhatsapp || false);
   const [enviarEmail, setEnviarEmail] = useState(avisoExistente?.enviarEmail || false);
   const [asuntoEmail, setAsuntoEmail] = useState(avisoExistente?.asuntoEmail || "");
+
+  // Plantillas de WhatsApp (Zavu) — todas se arman con 2 variables fijas
+  // (nombre del destinatario + contenido del comunicado), así que acá solo
+  // se elige cuál plantilla usar, no se arman variables a mano.
+  const [zavuPlantillaCodigo, setZavuPlantillaCodigo] = useState(avisoExistente?.zavuPlantillaCodigo || "");
+  const [plantillas, setPlantillas] = useState([]);
+  const [loadingPlantillas, setLoadingPlantillas] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    setLoadingPlantillas(true);
+    fetchZavuPlantillas()
+      .then((rows) => {
+        if (!cancelado) setPlantillas(rows);
+      })
+      .catch(() => {
+        if (!cancelado) setPlantillas([]);
+      })
+      .finally(() => {
+        if (!cancelado) setLoadingPlantillas(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const [esRecurrente, setEsRecurrente] = useState(avisoExistente?.esRecurrente || false);
   const [frecuencia, setFrecuencia] = useState(avisoExistente?.frecuencia || "diaria");
@@ -128,6 +153,10 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
       setError("Un aviso recurrente necesita una frecuencia.");
       return;
     }
+    if (enviarWhatsapp && !zavuPlantillaCodigo) {
+      setError("Elegí una plantilla de WhatsApp para este aviso.");
+      return;
+    }
 
     if (uploadingMedia) {
       setError("Esperá a que termine de subirse la imagen.");
@@ -143,6 +172,7 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
       enviarApp,
       enviarWhatsapp,
       enviarEmail,
+      zavuPlantillaCodigo: enviarWhatsapp ? zavuPlantillaCodigo : null,
       asuntoEmail: enviarEmail ? asuntoEmail.trim() || null : null,
       esRecurrente,
       frecuencia: esRecurrente ? frecuencia : null,
@@ -256,6 +286,9 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
                 </button>
               </div>
             )}
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              Esta imagen se muestra en App y Email. Por WhatsApp no se envía imagen (solo texto), por una restricción de las plantillas de Meta.
+            </p>
           </div>
 
           <div>
@@ -289,9 +322,9 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
                 <input type="checkbox" checked={enviarApp} onChange={(e) => setEnviarApp(e.target.checked)} />
                 App (tab Avisos en CONFIRMO + push)
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-600 cursor-not-allowed">
-                <input type="checkbox" checked={false} disabled />
-                WhatsApp (vía Zavu) — <span className="italic">Próximamente</span>
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={enviarWhatsapp} onChange={(e) => setEnviarWhatsapp(e.target.checked)} />
+                WhatsApp (vía Zavu)
               </label>
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="checkbox" checked={enviarEmail} onChange={(e) => setEnviarEmail(e.target.checked)} />
@@ -299,6 +332,35 @@ const AvisoFormModal = ({ onClose, onSaved, avisoExistente = null }) => {
               </label>
             </div>
           </div>
+
+          {enviarWhatsapp && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plantilla de WhatsApp</label>
+              {loadingPlantillas ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> Cargando plantillas...
+                </p>
+              ) : plantillas.length === 0 ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  No hay plantillas de WhatsApp registradas todavía. Pedile a un admin que cree una antes de poder enviar por este canal.
+                </p>
+              ) : (
+                <select
+                  value={zavuPlantillaCodigo}
+                  onChange={(e) => setZavuPlantillaCodigo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccioná una plantilla...</option>
+                  {plantillas.map((p) => (
+                    <option key={p.codigo} value={p.codigo}>{p.nombre}</option>
+                  ))}
+                </select>
+              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                El título y el mensaje de este aviso se envían como las variables de la plantilla — no hace falta escribirlos aparte.
+              </p>
+            </div>
+          )}
 
           {enviarEmail && (
             <div>
