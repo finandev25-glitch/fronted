@@ -126,12 +126,24 @@ const KanbanPage = ({
   });
   // Candado con vencimiento de 4 min: libera proactivamente mis propios
   // depósitos tomados si se pasaron de tiempo sin confirmar (ver
-  // useDepositLockTimer.js -- el respaldo real vive en el backend).
+  // useDepositLockTimer.js -- el respaldo real vive en el backend). Si el
+  // depósito que justo se liberó es el que está abierto en el modal, hay que
+  // cerrarlo también -- si no, se queda mostrando un depósito que ya volvió
+  // a "Pendiente" y que cualquier otro usuario puede tomar (más notorio en
+  // el panel compacto/extensión, que se queda "colgado" ahí). Se usa un ref
+  // para no depender de handleCloseModal (declarado más abajo en este mismo
+  // componente) en el array de dependencias del hook.
+  const closeModalForAutoUnlockRef = useRef(() => {});
+  const handleDepositAutoUnlocked = useCallback((unlockedDeposit) => {
+    closeModalForAutoUnlockRef.current(unlockedDeposit);
+  }, []);
+
   useDepositLockTimer({
     deposits,
     currentUser,
     onUnlockDeposit,
     removeFromQueue: depositQueue.removeFromQueue,
+    onDepositUnlocked: handleDepositAutoUnlocked,
   });
   // Marca si el depósito actualmente abierto se abrió desde el flujo de "cola
   // de atendidos" (botón "Confirmar siguiente marcado"), para saber si
@@ -902,6 +914,23 @@ const KanbanPage = ({
     setSelectedDeposit(null);
   }, [onUnlockDeposit, depositQueue]);
 
+  // Implementación real de closeModalForAutoUnlockRef (ver useDepositLockTimer
+  // más arriba): a diferencia de handleCloseModal, acá NO se vuelve a llamar
+  // onUnlockDeposit ni removeFromQueue -- el timer que disparó esto ya los
+  // hizo (ver useDepositLockTimer.js). Se reasigna en cada render para que
+  // siempre vea el selectedDeposit actual sin tener que declarar esta función
+  // más arriba en el archivo (antes de que exista clearOpenDepositId/etc en
+  // orden de lectura no importa, pero sí importaría en un array de deps).
+  closeModalForAutoUnlockRef.current = (unlockedDeposit) => {
+    console.debug("[lock-timer] callback de auto-cierre, comparando:", {
+      unlockedId: unlockedDeposit.id,
+      selectedId: selectedDepositRef.current?.id,
+      match: selectedDepositRef.current?.id === unlockedDeposit.id,
+    });
+    if (selectedDepositRef.current?.id !== unlockedDeposit.id) return;
+    clearOpenDepositId();
+    setSelectedDeposit(null);
+  };
 
   return (
     <>

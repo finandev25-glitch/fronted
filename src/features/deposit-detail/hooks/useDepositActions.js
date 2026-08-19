@@ -7,6 +7,12 @@ import {
   fetchDepositById,
 } from "../../deposits/api/depositsApi.js";
 
+// "MN" = moneda nacional (Soles), "ME" = moneda extranjera (Dólares) --
+// mismo criterio que useDepositForm.js (anexoMonedaWarning) y el side panel
+// de AppExtension (checkAnexoMonedaMismatch en sidepanel.js).
+const ANEXO_SUFFIX_TO_MONEDA = { MN: "PEN", ME: "USD" };
+const MONEDA_LABEL = { PEN: "Soles (PEN)", USD: "Dólares (USD)" };
+
 /**
  * Hook que encapsula la lógica de confirmación, rechazo y acciones sobre el depósito.
  */
@@ -113,6 +119,22 @@ export function useDepositActions({
       return;
     }
 
+    // Anexo termina en "MN" (Soles) o "ME" (Dólares) -- si no coincide con
+    // la Moneda elegida, no tiene sentido ni buscar duplicados ni dejar
+    // confirmar: casi seguro alguien se equivocó de anexo o de moneda. Se
+    // reutiliza isDuplicate=true para bloquear "Confirmar" (canConfirm ya
+    // exige !isDuplicate) sin tener que agregar un estado aparte.
+    const anexoSuffix = String(editableData.anexo || "").trim().toUpperCase().slice(-2);
+    const expectedMoneda = ANEXO_SUFFIX_TO_MONEDA[anexoSuffix];
+    if (expectedMoneda && selectedMoneda && expectedMoneda !== selectedMoneda) {
+      setCheckResult({
+        checked: true,
+        isDuplicate: true,
+        message: `⚠️ El anexo "${editableData.anexo}" es de ${MONEDA_LABEL[expectedMoneda]}, pero la moneda elegida es ${MONEDA_LABEL[selectedMoneda] || selectedMoneda}. Corregilo antes de confirmar.`,
+      });
+      return;
+    }
+
     setIsChecking(true);
     setCheckResult({ checked: false, isDuplicate: false, message: "" });
 
@@ -203,14 +225,18 @@ export function useDepositActions({
   }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits]);
 
   // ─── Confirmar depósito ───────────────────────────────────────────────────────
+  // Devuelve { success, error? } en vez de usar window.alert(): además de que
+  // alert()/confirm() no se ve de forma confiable dentro de un side panel de
+  // extensión, es un diálogo nativo feo con el nombre de la extensión en el
+  // título -- DepositDetailModal usa este valor de retorno para mostrar su
+  // propio modal/toast, tanto en la Ventana de validación (panel compacto)
+  // como en el modal completo.
   const handleConfirmDeposit = useCallback(async () => {
     if (!checkResult.checked) {
-      alert("Primero debes comprobar duplicados.");
-      return;
+      return { success: false, error: "Primero debes comprobar duplicados." };
     }
     if (checkResult.isDuplicate) {
-      alert("No puedes confirmar mientras el depósito esté marcado como duplicado.");
-      return;
+      return { success: false, error: "No puedes confirmar mientras el depósito esté marcado como duplicado." };
     }
 
     const missing = [];
@@ -219,8 +245,7 @@ export function useDepositActions({
     if (!editableData.anexo) missing.push("Anexo");
     if (!selectedMoneda) missing.push("Moneda");
     if (missing.length > 0) {
-      alert(`Por favor, complete los campos requeridos: ${missing.join(", ")}`);
-      return;
+      return { success: false, error: `Por favor, complete los campos requeridos: ${missing.join(", ")}` };
     }
 
     setIsSending(true);
@@ -248,9 +273,9 @@ export function useDepositActions({
       // NO cerramos el modal al confirmar: se queda abierto para que, ya
       // confirmado, aparezca el botón "Regularizar" y se pueda marcar si el
       // voucher hay que reemplazarlo.
-      alert("✅ Depósito confirmado exitosamente.");
+      return { success: true };
     } catch (err) {
-      alert(`❌ No se pudo confirmar el depósito: ${err.message}`);
+      return { success: false, error: err.message };
     } finally {
       setIsSending(false);
       setIsProcessing(false);

@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Confirmo - Portal (en vivo)",
+  "version": "1.0.0",
+  "description": "Side panel que muestra portal.tyresperu.com en vivo (sin build local) y le da permiso para buscar importe/nro. de operación en la pestaña activa.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtobhNh/rHllYp3Siq9qyvcFoTj5qCzOzb0XsmW61gePTR7tGneP+SNmYbLyKtaznPmwFbL0BtJd+nohrtVFVE8uMTHOqlU2KT0ZWXtYlYdL5LAejhyCB72HdxBoj+F42bTR4TriE9tPUpzprzlstLwEU7y9mP6ogvA8hou2AHe7sx3Mc2zTxiKNxEt2oUHmkEPxHiELWOnYKUzgGGoe70mFi5TfsQdOTr7ZK6Uu2QFTcZmg/2iqO9Oo5u9j/4LQXnAZ0Vq4rU7hVe1IC8xCEK3CSNlLBz2mhY4VcDRlRzZWDlJuhjwoeCj1e5uIhuPJ67U7qpdpvTOj3Yo1iUoxawQIDAQAB",
+  "permissions": ["sidePanel", "scripting", "activeTab", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "externally_connectable": {
+    "matches": ["https://portal.tyresperu.com/*", "http://localhost:*/*", "http://127.0.0.1:*/*"]
+  },
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Confirmo - Portal (en vivo)" },
+  "side_panel": { "default_path": "panel.html" }
+}

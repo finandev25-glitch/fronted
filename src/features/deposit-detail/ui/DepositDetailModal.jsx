@@ -37,7 +37,9 @@ import {
   CheckCircle, XCircle, AlertCircle, FileText, Hash, Building, Info,
   Search, Loader2, Ban, MessageSquare, PanelRightOpen, Save, Fingerprint,
   Eye, AlertTriangle, Phone, FileDown, ExternalLink, UploadCloud, RotateCw,
+  Hourglass,
 } from "lucide-react";
+import { getDepositLockRemainingMs, formatLockRemaining } from "../../../utils/depositLockHelpers.js";
 import RejectionModal from "../../../components/RejectionModal";
 import GoogleDrivePicker from "../../../components/GoogleDrivePicker.jsx";
 import {
@@ -72,6 +74,20 @@ import {
   normalizeSqlServerRow,
   renderSqlCell,
 } from "../../deposits/components/depositDetailModalHelpers.jsx";
+
+// Etiquetas legibles para el aviso de anexoMonedaWarning (ver useDepositForm.js).
+const MONEDA_LABEL = { PEN: "Soles (PEN)", USD: "Dólares (USD)" };
+
+// YYYY-MM-DD en horario local (no UTC) -- coincide con lo que espera un
+// <input type="date">. Mismo criterio que getTodayDateInputValue en
+// AppExtension/sidepanel.js.
+function getTodayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * DepositDetailModal — Refactorizado
@@ -121,7 +137,8 @@ const DepositDetailModal = ({
     handleChange,
     handleFileSelect,
     handleFileSelectFromPicker,
-    isDetailLoaded
+    isDetailLoaded,
+    anexoMonedaWarning,
   } = useDepositForm({ deposit, empresas, bancos, queueItem });
 
   // 2. Hook de Acciones
@@ -226,6 +243,71 @@ const DepositDetailModal = ({
   // Estado del selector de Google Drive (se referenciaba en la vista compacta
   // sin estar definido, lo que rompía el modal en móvil).
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+
+  // Cuenta regresiva del candado de 4 min (mismo dato que ya muestra la
+  // tarjeta del Kanban, DepositCard.jsx, pero acá no se veía nada -- el
+  // usuario no tenía forma de saber cuánto le quedaba antes de que
+  // useDepositLockTimer.js liberara el depósito y cerrara este modal solo).
+  const [lockRemainingMs, setLockRemainingMs] = useState(null);
+  useEffect(() => {
+    const isMine =
+      deposit?.estado === "procesado" &&
+      currentUser &&
+      String(deposit?.validado_por || "").toLowerCase() === String(currentUser.id).toLowerCase();
+    if (!isMine || !deposit?.fecha_bloqueo) {
+      setLockRemainingMs(null);
+      return undefined;
+    }
+    const tick = () => setLockRemainingMs(getDepositLockRemainingMs(deposit));
+    tick();
+    const intervalId = setInterval(tick, 1000);
+    return () => clearInterval(intervalId);
+  }, [deposit?.estado, deposit?.validado_por, deposit?.fecha_bloqueo, currentUser]);
+
+  // Modal propio de confirmación (panel compacto Y modal completo): reemplaza
+  // los window.alert() que usaba handleConfirmDeposit -- además de que
+  // alert() no se ve de forma confiable en un side panel de Chrome, es un
+  // diálogo nativo con el nombre de la extensión en el título, no algo que
+  // se sienta parte de la app. A diferencia de un toast que desaparece solo,
+  // este se queda centrado en pantalla hasta que el usuario lo cierra
+  // ("Aceptar" o clic afuera).
+  const [compactActionToast, setCompactActionToast] = useState(null);
+
+  // Aviso cuando el Anexo elegido no coincide con la Moneda ya seleccionada
+  // (ver anexoMonedaWarning en useDepositForm.js -- "MN" = Soles, "ME" =
+  // Dólares). Objeto nuevo en cada aviso real, así este efecto no reabre el
+  // mismo mensaje en cada render.
+  useEffect(() => {
+    if (!anexoMonedaWarning) return;
+    showCompactToast(
+      `⚠️ Anexo "${anexoMonedaWarning.anexo}" es de ${MONEDA_LABEL[anexoMonedaWarning.expectedMoneda] || anexoMonedaWarning.expectedMoneda}, pero la moneda elegida es ${MONEDA_LABEL[anexoMonedaWarning.currentMoneda] || anexoMonedaWarning.currentMoneda}.`,
+      "warning",
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anexoMonedaWarning]);
+
+  const showCompactToast = (message, tone = "success") => {
+    setCompactActionToast({ message, tone });
+    setTimeout(() => {
+      setCompactActionToast((current) => (current?.message === message ? null : current));
+    }, 4000);
+  };
+  const closeCompactToast = () => setCompactActionToast(null);
+
+  // Wrapper compartido por los 3 botones de "Confirmar" (panel compacto,
+  // popup "Sin duplicados" del modal completo, y el botón directo del modal
+  // completo): todos dependen de este mismo toast en vez de window.alert().
+  // closeOnSuccess es una función opcional (p. ej. cerrar el popup de
+  // duplicados) que se llama solo si la confirmación salió bien.
+  const handleConfirmDepositWithFeedback = async (closeOnSuccess) => {
+    const result = await handleConfirmDeposit();
+    if (result?.success) {
+      closeOnSuccess?.();
+      showCompactToast("✅ Depósito confirmado exitosamente.", "success");
+    } else if (result?.error) {
+      showCompactToast(`❌ ${result.error}`, "error");
+    }
+  };
 
   // Cierre con tecla Escape del modal raíz (ver hooks/useEscapeClose.js).
   useEscapeClose(onClose);
@@ -525,6 +607,56 @@ const DepositDetailModal = ({
   }, [displayVoucherUrl, compactVoucherUrl]);
   const rotateVoucherImage = () => setVoucherRotation((prev) => (prev + 90) % 360);
 
+  // Zoom con la rueda del mouse (+ arrastrar cuando ya está ampliado), mismo
+  // comportamiento que el side panel de la extensión (sidepanel.js,
+  // setupVoucherZoom) -- acá no había NADA de esto, la imagen no se podía
+  // agrandar. offset/scale se resetean junto con la rotación cada vez que
+  // cambia el voucher mostrado. El arrastre usa un ref (no state) para las
+  // coordenadas del último mousemove, así no dispara un render por cada
+  // pixel movido.
+  const [voucherZoomScale, setVoucherZoomScale] = useState(1);
+  const [voucherZoomOffset, setVoucherZoomOffset] = useState({ x: 0, y: 0 });
+  const voucherZoomDragRef = useRef({ dragging: false, lastX: 0, lastY: 0 });
+
+  useEffect(() => {
+    setVoucherZoomScale(1);
+    setVoucherZoomOffset({ x: 0, y: 0 });
+  }, [displayVoucherUrl, compactVoucherUrl]);
+
+  const handleVoucherWheelZoom = (event) => {
+    event.preventDefault();
+    const step = event.deltaY < 0 ? 0.2 : -0.2;
+    setVoucherZoomScale((prev) => {
+      const next = Math.min(Math.max(prev + step, 1), 6);
+      if (next === 1) setVoucherZoomOffset({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const handleVoucherDragStart = (event) => {
+    if (voucherZoomScale <= 1) return;
+    voucherZoomDragRef.current = { dragging: true, lastX: event.clientX, lastY: event.clientY };
+    event.preventDefault();
+  };
+
+  const handleVoucherDragMove = (event) => {
+    if (!voucherZoomDragRef.current.dragging) return;
+    const dx = event.clientX - voucherZoomDragRef.current.lastX;
+    const dy = event.clientY - voucherZoomDragRef.current.lastY;
+    voucherZoomDragRef.current.lastX = event.clientX;
+    voucherZoomDragRef.current.lastY = event.clientY;
+    setVoucherZoomOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+  };
+
+  const stopVoucherDrag = () => {
+    voucherZoomDragRef.current.dragging = false;
+  };
+
+  const resetVoucherZoom = () => {
+    setVoucherZoomScale(1);
+    setVoucherZoomOffset({ x: 0, y: 0 });
+  };
+
   // FIX: la vista compacta/móvil usa compactVoucherUrl, pero nunca se poblaba
   // (setCompactVoucherUrl no se llamaba en ningún lado), así que el voucher no
   // se veía en móvil. Lo sincronizamos con la URL real del voucher del hook.
@@ -658,6 +790,10 @@ const DepositDetailModal = ({
 
   const compactStoreDataRows = useMemo(
     () => [
+      {
+        label: "Empresa",
+        value: getMovimientosBancariosEmpresaCodigo(editableData.empresa_id, empresas) || "-",
+      },
       { label: "Banco", value: selectedBanco?.abreviatura || selectedBanco?.nombre || "-" },
       { label: "Anexo", value: editableData.anexo || deposit?.anexo || "-" },
       { label: "Moneda", value: selectedMoneda || "-" },
@@ -665,7 +801,7 @@ const DepositDetailModal = ({
       { label: "Importe", value: formatCompactMoney(editableData.monto || deposit?.monto, selectedMoneda || deposit?.moneda) },
       { label: "Fecha depósito", value: editableData.fecha_deposito || deposit?.fecha_deposito || "-" },
     ],
-    [deposit, editableData, selectedBanco, selectedMoneda],
+    [deposit, editableData, empresas, selectedBanco, selectedMoneda],
   );
 
   const compactStoreDataText = useMemo(
@@ -1245,7 +1381,7 @@ const DepositDetailModal = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 16 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className={`relative flex h-[96vh] w-full min-w-0 max-w-none flex-col overflow-hidden rounded-2xl border bg-[#f8fafc] shadow-2xl dark:bg-gray-950 ${compactModalBorderClass}`}
+            className={`relative flex h-[99vh] w-full min-w-0 max-w-none flex-col overflow-hidden rounded-xl border bg-[#f8fafc] shadow-2xl dark:bg-gray-950 ${compactModalBorderClass}`}
           >
             <div
               className={`flex items-center justify-between gap-2 border-b px-2 py-1.5 ${compactModalHeaderClass}`}
@@ -1287,6 +1423,19 @@ const DepositDetailModal = ({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {lockRemainingMs !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold tabular-nums ${
+                      lockRemainingMs <= 60000
+                        ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                    }`}
+                    title="Se libera solo si nadie lo confirma/rechaza en 4 minutos"
+                  >
+                    <Hourglass className="h-3.5 w-3.5" />
+                    {formatLockRemaining(lockRemainingMs)}
+                  </span>
+                )}
                 <span
                   className={`inline-flex items-center space-x-2 rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${statusColor}`}
                 >
@@ -1327,10 +1476,15 @@ const DepositDetailModal = ({
             <div className="flex-1 overflow-hidden px-2 py-2">
               <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                 <div className="shrink-0 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/70 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/85 dark:shadow-black/20">
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-4 gap-2">
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                  <div className="space-y-2">
+                    {/* Empresa + Cliente, después Banco/Moneda/Anexo y
+                        Importe/Nro.op/Fecha en tríos -- mismo agrupamiento
+                        que ya usa el side panel de AppExtension (ver
+                        AppExtension/sidepanel.js), para que el flujo se vea
+                        igual en los dos lugares. */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div className="space-y-0.5">
+                        <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                           Empresa
                         </label>
                         <select
@@ -1338,7 +1492,7 @@ const DepositDetailModal = ({
                           value={editableData.empresa_id}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm outline-none transition-colors focus:ring-2 ${
+                          className={`w-full rounded-xl border px-2.5 py-1 text-lg outline-none transition-colors focus:ring-2 ${
                             !editableData.empresa_id
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
                               : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
@@ -1353,8 +1507,25 @@ const DepositDetailModal = ({
                         </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                      <div className="space-y-0.5">
+                        <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          Cliente
+                        </label>
+                        <input
+                          type="text"
+                          name="cliente"
+                          value={editableData.cliente}
+                          onChange={handleChange}
+                          disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          placeholder="Nombre del cliente"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="space-y-0.5">
+                        <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                           Banco
                         </label>
                         <select
@@ -1362,7 +1533,7 @@ const DepositDetailModal = ({
                           value={editableData.banco_id}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm font-mono outline-none transition-colors focus:ring-2 ${
+                          className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${
                             !editableData.banco_id
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
                               : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
@@ -1377,8 +1548,29 @@ const DepositDetailModal = ({
                         </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                      <div className="space-y-0.5">
+                        <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          Moneda
+                        </label>
+                        <select
+                          name="moneda"
+                          value={selectedMoneda}
+                          onChange={handleChange}
+                          disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
+                          className={`w-full rounded-xl border px-2.5 py-1 text-lg outline-none transition-colors focus:ring-2 ${
+                            !selectedMoneda
+                              ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
+                              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                          }`}
+                        >
+                          <option value="">Seleccionar</option>
+                          <option value="PEN">Soles (PEN)</option>
+                          <option value="USD">Dólares (USD)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                           Anexo
                         </label>
                         <select
@@ -1386,7 +1578,7 @@ const DepositDetailModal = ({
                           value={editableData.anexo}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm font-mono outline-none transition-colors focus:ring-2 ${
+                          className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${
                             !editableData.anexo
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
                               : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
@@ -1400,32 +1592,11 @@ const DepositDetailModal = ({
                           ))}
                         </select>
                       </div>
-
-      <div className="space-y-1">
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-          Moneda
-        </label>
-        <select
-          name="moneda"
-          value={selectedMoneda}
-          onChange={handleChange}
-          disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm outline-none transition-colors focus:ring-2 ${
-            !selectedMoneda
-              ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
-          }`}
-        >
-          <option value="">Seleccionar</option>
-          <option value="PEN">Soles (PEN)</option>
-          <option value="USD">Dólares (USD)</option>
-        </select>
-      </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <label className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="space-y-0.5">
+                        <label className="flex items-center justify-between gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                           <span>Importe</span>
                           <button
                             type="button"
@@ -1445,14 +1616,14 @@ const DepositDetailModal = ({
                           value={editableData.monto}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                           placeholder="0.00"
                           step="0.01"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                      <div className="space-y-0.5">
+                        <label className="flex items-center justify-between gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                           <span>Nro. op.</span>
                           <button
                             type="button"
@@ -1472,14 +1643,27 @@ const DepositDetailModal = ({
                           value={editableData.numero_operacion_banco}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm font-mono outline-none transition-colors focus:ring-2 ${nroOperacionClasses}`}
+                          className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${nroOperacionClasses}`}
                           placeholder="pega la operacion"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Fecha depósito
+                      <div className="space-y-0.5">
+                        <label className="flex items-center justify-between gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          <span>Fecha depósito</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleChange({ target: { name: "fecha_deposito", value: getTodayDateInputValue() } })
+                            }
+                            disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
+                            className="inline-flex h-6 min-w-[3.25rem] shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 text-[10px] font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900/50 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50"
+                            title="Usar fecha de hoy"
+                            aria-label="Usar fecha de hoy"
+                          >
+                            <Calendar className="h-3 w-3" />
+                            <span>Hoy</span>
+                          </button>
                         </label>
                         <input
                           type="date"
@@ -1487,7 +1671,7 @@ const DepositDetailModal = ({
                           value={editableData.fecha_deposito}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                         />
                       </div>
                     </div>
@@ -1523,6 +1707,70 @@ const DepositDetailModal = ({
                         <Ban className="h-4 w-4" />
                         Rechazar
                       </button>
+                      {/* Regularizar/Marcar antiguo: mismas condiciones que el
+                          modal completo (solo finanzas/admin) -- ver esas
+                          mismas reglas más abajo en el return no-compacto. */}
+                      {canRegularize &&
+                        deposit.estado === "confirmado" &&
+                        !deposit.pendiente_regularizar && (
+                          <button
+                            type="button"
+                            onClick={handleMarkRegularize}
+                            disabled={isMarkingRegularize}
+                            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                            title="Marcar para regularizar el voucher"
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                            Regularizar
+                          </button>
+                        )}
+                      {canRegularize && deposit.pendiente_regularizar && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowRegularizeUpload(true)}
+                            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-purple-100 px-3 py-2 text-xs font-semibold text-purple-800 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                            title="Subir la nueva imagen/pdf del voucher"
+                          >
+                            <UploadCloud className="h-4 w-4" />
+                            Subir imagen
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleUnmarkRegularize}
+                            disabled={isMarkingRegularize}
+                            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                            title="Quitar la marca de regularizar"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Quitar marca
+                          </button>
+                        </>
+                      )}
+                      {canRegularize && !depositIsAntiguo && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAntiguo}
+                          disabled={isMarkingAntiguo}
+                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                          title="Marcar este depósito como antiguo manualmente"
+                        >
+                          <Clock className="h-4 w-4" />
+                          Marcar antiguo
+                        </button>
+                      )}
+                      {canRegularize && depositIsAntiguo && (
+                        <button
+                          type="button"
+                          onClick={handleUnmarkAntiguo}
+                          disabled={isMarkingAntiguo}
+                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500"
+                          title="Quitar la marca de antiguo"
+                        >
+                          <RotateCw className="h-4 w-4" />
+                          Quitar antiguo
+                        </button>
+                      )}
                     </div>
 
                     <div
@@ -1548,36 +1796,39 @@ const DepositDetailModal = ({
                   </div>
                 </div>
               <div className="flex min-h-0 flex-1 self-stretch flex-col rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/70 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/85 dark:shadow-black/20">
-                <div className="mb-2 flex items-center justify-between gap-3 flex-none">
-                  <p className="min-w-0 truncate text-sm font-medium text-slate-900 dark:text-gray-100">
-                    {deposit?.cliente || "Sin cliente"}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {compactVoucherUrl && !compactUsesIframe && !voucherImgFailed && (
-                      <button
-                        type="button"
-                        onClick={rotateVoucherImage}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
-                        title="Rotar imagen"
-                      >
-                        <RotateCw className="h-4 w-4" />
-                      </button>
-                    )}
-                    {compactVoucherUrl && (
+                <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/80">
+                  {/* Rotar/Abrir flotan sobre la imagen (esquina superior
+                      derecha) en vez de una fila aparte arriba -- el nombre
+                      del cliente ya se ve en la cabecera (campo Cliente), no
+                      hace falta repetirlo acá. Mismo patrón que el side
+                      panel de AppExtension (.preview-toolbar en
+                      sidepanel.css). */}
+                  {compactVoucherUrl && (
+                    <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
+                      {!compactUsesIframe && !voucherImgFailed && (
+                        <button
+                          type="button"
+                          onClick={rotateVoucherImage}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
+                          title="Rotar imagen"
+                          aria-label="Rotar imagen"
+                        >
+                          <RotateCw className="h-4 w-4" />
+                        </button>
+                      )}
                       <a
                         href={compactVoucherUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
+                        title="Abrir en pestaña nueva"
+                        aria-label="Abrir en pestaña nueva"
                       >
                         <ExternalLink className="h-4 w-4" />
-                        Abrir
                       </a>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  )}
 
-                <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/80">
                   {!compactVoucherUrl ? (
                     <div className="flex h-full min-h-0 items-center justify-center p-6 text-center text-sm text-slate-300">
                       No hay voucher disponible.
@@ -1591,12 +1842,24 @@ const DepositDetailModal = ({
                       />
                     </div>
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black">
+                    <div
+                      className="absolute inset-0 flex items-center justify-center bg-black"
+                      onWheel={handleVoucherWheelZoom}
+                      onMouseDown={handleVoucherDragStart}
+                      onMouseMove={handleVoucherDragMove}
+                      onMouseUp={stopVoucherDrag}
+                      onMouseLeave={stopVoucherDrag}
+                      onDoubleClick={resetVoucherZoom}
+                      title="Rueda del mouse para acercar/alejar. Doble clic para restablecer."
+                    >
                       <img
                         src={compactVoucherUrl}
                         alt={`Voucher ${deposit.numero_voucher || deposit.numero_operacion}`}
                         className="max-h-full max-w-full object-contain object-center transition-transform duration-150"
-                        style={{ transform: `rotate(${voucherRotation}deg)` }}
+                        style={{
+                          transform: `translate(${voucherZoomOffset.x}px, ${voucherZoomOffset.y}px) scale(${voucherZoomScale}) rotate(${voucherRotation}deg)`,
+                          cursor: voucherZoomScale > 1 ? "grab" : "default",
+                        }}
                         onError={() => {
                           if (compactVoucherUrl) setVoucherImgFailed(true);
                         }}
@@ -1721,7 +1984,7 @@ const DepositDetailModal = ({
                     <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
                       <button
                         type="button"
-                        onClick={handleConfirmDeposit}
+                        onClick={() => handleConfirmDepositWithFeedback(closeDuplicateModal)}
                         disabled={!canConfirm || isSending || isProcessing}
                         className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                         title="Confirmar depósito"
@@ -1887,6 +2150,51 @@ const DepositDetailModal = ({
             </div>
           </div>
           </motion.div>
+          {compactActionToast && (
+            <div
+              className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4"
+              onClick={closeCompactToast}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-gray-900"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div
+                  className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${
+                    compactActionToast.tone === "error"
+                      ? "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300"
+                      : compactActionToast.tone === "warning"
+                        ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300"
+                        : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  }`}
+                >
+                  {compactActionToast.tone === "error" ? (
+                    <XCircle className="h-8 w-8" />
+                  ) : compactActionToast.tone === "warning" ? (
+                    <AlertTriangle className="h-8 w-8" />
+                  ) : (
+                    <CheckCircle className="h-8 w-8" />
+                  )}
+                </div>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {compactActionToast.message}
+                </p>
+                <button
+                  type="button"
+                  onClick={closeCompactToast}
+                  className={`mt-6 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors ${
+                    compactActionToast.tone === "error"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : compactActionToast.tone === "warning"
+                        ? "bg-amber-600 hover:bg-amber-700"
+                        : "bg-emerald-600 hover:bg-emerald-700"
+                  }`}
+                >
+                  Aceptar
+                </button>
+              </div>
+            </div>
+          )}
           {isRejectionModalOpen && (
             <RejectionModal
               onClose={() => setIsRejectionModalOpen(false)}
@@ -1898,6 +2206,13 @@ const DepositDetailModal = ({
             <GoogleDrivePicker
               onClose={() => setIsPickerOpen(false)}
               onFileSelect={handleFileSelectFromPicker}
+            />
+          )}
+          {showRegularizeUpload && (
+            <RegularizeImageModal
+              deposit={deposit}
+              onClose={() => setShowRegularizeUpload(false)}
+              onSubmit={handleSubmitRegularizeImage}
             />
           )}
 
@@ -1916,6 +2231,51 @@ const DepositDetailModal = ({
           {sqlSelectionToast}
         </div>
       ) : null}
+      {compactActionToast && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4"
+          onClick={closeCompactToast}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-gray-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${
+                compactActionToast.tone === "error"
+                  ? "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300"
+                  : compactActionToast.tone === "warning"
+                    ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300"
+                    : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
+              }`}
+            >
+              {compactActionToast.tone === "error" ? (
+                <XCircle className="h-8 w-8" />
+              ) : compactActionToast.tone === "warning" ? (
+                <AlertTriangle className="h-8 w-8" />
+              ) : (
+                <CheckCircle className="h-8 w-8" />
+              )}
+            </div>
+            <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              {compactActionToast.message}
+            </p>
+            <button
+              type="button"
+              onClick={closeCompactToast}
+              className={`mt-6 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors ${
+                compactActionToast.tone === "error"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : compactActionToast.tone === "warning"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
       <div
         className={`fixed inset-0 z-50 flex items-center justify-center ${
           isCompactPresentation ? "bg-black/45 p-2 md:p-3" : "bg-black/60 dark:bg-black/70 p-4"
@@ -2607,7 +2967,7 @@ const DepositDetailModal = ({
                 {/* Grupo de confirmación */}
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={handleConfirmDeposit}
+                    onClick={() => handleConfirmDepositWithFeedback()}
                     disabled={!canConfirm || isSending || isProcessing}
                     className="px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm flex items-center justify-center space-x-2"
                     title="Confirmar depósito"
@@ -2686,7 +3046,12 @@ const DepositDetailModal = ({
           setIsNoDuplicateModalOpen(false);
         }}
         snapshotText={compactStoreDataSnapshot}
-        onConfirm={handleConfirmDeposit}
+        onConfirm={() =>
+          handleConfirmDepositWithFeedback(() => {
+            setDuplicateModalMode("none");
+            setIsNoDuplicateModalOpen(false);
+          })
+        }
         canConfirm={canConfirm}
         isSending={isSending}
         isProcessing={isProcessing}

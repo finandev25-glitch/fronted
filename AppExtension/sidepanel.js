@@ -5,6 +5,21 @@ const QUEUE_STORAGE_KEY = "voucher_queue_state";
 // entre plataformas a tamaños chicos; el trazo del SVG se ve nítido.
 const SEARCH_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2.4"/><path d="M17 17L13.4 13.4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 
+// Ícono de calendario con un check para el botón "Usar fecha de hoy" (ver
+// .queue-date-today-btn más abajo).
+const TODAY_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="14" height="13" rx="1.6" stroke="currentColor" stroke-width="2"/><path d="M3 8H17" stroke="currentColor" stroke-width="2"/><path d="M6.5 12.3L8.3 14L13 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+// YYYY-MM-DD en horario local (no UTC) -- coincide con lo que espera un
+// <input type="date">. new Date().toISOString() usaría UTC y podía dar el
+// día siguiente/anterior según la hora y la zona horaria del usuario.
+function getTodayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const elements = {
   queueList: document.getElementById("queueList"),
   queueCount: document.getElementById("queueCount"),
@@ -21,24 +36,54 @@ const elements = {
 let toastHideTimer = null;
 
 const TOAST_CHECK_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10.5L8 14.5L16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const TOAST_WARNING_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L18 17H2L10 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 8.2V11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1" fill="currentColor"/></svg>`;
 
-function showToast(message) {
+// tone: "success" (verde, default) | "warning" (ámbar) -- ver
+// checkAnexoMonedaMismatch más abajo, primer uso de "warning".
+function showToast(message, tone = "success") {
   if (toastHideTimer) clearTimeout(toastHideTimer);
   // Restart de la animación de "pop" (@keyframes toast-pop): sacar y volver a
   // poner is-visible en el mismo tick no alcanza para reiniciar una CSS
   // animation ya corriendo, hace falta el reflow forzado (offsetWidth) del
   // medio para que el navegador "olvide" el estado anterior.
   elements.toast.classList.remove("is-visible");
-  elements.toast.innerHTML = `<span class="toast-icon">${TOAST_CHECK_ICON_SVG}</span><span>${escapeHtml(message)}</span>`;
+  elements.toast.classList.toggle("tone-warning", tone === "warning");
+  const icon = tone === "warning" ? TOAST_WARNING_ICON_SVG : TOAST_CHECK_ICON_SVG;
+  elements.toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${escapeHtml(message)}</span>`;
   elements.toast.hidden = false;
   void elements.toast.offsetWidth;
   elements.toast.classList.add("is-visible");
+  // Las advertencias se quedan un poco más -- son más largas y hay que
+  // llegar a leerlas, no son solo un "listo".
+  const duration = tone === "warning" ? 3800 : 2000;
   toastHideTimer = setTimeout(() => {
     elements.toast.classList.remove("is-visible");
     toastHideTimer = setTimeout(() => {
       elements.toast.hidden = true;
     }, 200);
-  }, 2000);
+  }, duration);
+}
+
+// Anexo termina en "MN" (moneda nacional, Soles) o "ME" (moneda extranjera,
+// Dólares) -- si no coincide con la Moneda ya elegida, es casi seguro que
+// alguien se equivocó de anexo o de moneda. Se avisa con un toast (no se
+// corrige solo, el usuario decide cuál de los dos está mal).
+const ANEXO_SUFFIX_TO_MONEDA = { MN: "PEN", ME: "USD" };
+const MONEDA_LABEL = { PEN: "Soles (PEN)", USD: "Dólares (USD)" };
+
+function checkAnexoMonedaMismatch(inner, anexoValue) {
+  const suffix = String(anexoValue || "").trim().toUpperCase().slice(-2);
+  const expectedMoneda = ANEXO_SUFFIX_TO_MONEDA[suffix];
+  if (!expectedMoneda) return;
+
+  const monedaEl = inner.querySelector('[data-field="moneda"]');
+  const currentMoneda = monedaEl?.value || "";
+  if (currentMoneda && currentMoneda !== expectedMoneda) {
+    showToast(
+      `⚠️ Anexo "${anexoValue}" es de ${MONEDA_LABEL[expectedMoneda]}, pero la moneda elegida es ${MONEDA_LABEL[currentMoneda] || currentMoneda}.`,
+      "warning",
+    );
+  }
 }
 
 let queueItems = [];
@@ -394,6 +439,33 @@ function buildAnexoOptionsFromCuentas(cuentasBancarias, bancoId) {
   ];
 }
 
+// Orden fijo de Anexo para BCP, distinto por empresa -- mismo criterio que
+// ya se aplica del lado de la app web (sortAnexosForBancoEmpresa en
+// depositDetailModalHelpers.jsx). Para cualquier otro banco, o un anexo que
+// no esté en esta lista (cuenta nueva todavía no contemplada), se deja tal
+// cual venía -- nunca se oculta un anexo real por no estar acá.
+const BCP_ANEXO_ORDER_POR_EMPRESA = [
+  { match: "jch", order: ["RECAU MN", "RECAU ME", "CREDI MN", "CREDI ME", "LCRED MN", "LCRED ME", "YCREDMN"] },
+  { match: "evolution", order: ["CREDI MN", "CREDI ME", "LCRED MN", "LCRED ME", "YCREDMN"] },
+];
+
+const normalizeAnexoKey = (value) => String(value || "").trim().toUpperCase().replace(/\s+/g, " ");
+
+function sortAnexosForBcp(anexos, { bancoNombre, empresaTexto } = {}) {
+  if (String(bancoNombre || "").toUpperCase() !== "BCP") return anexos;
+  const empresaLower = String(empresaTexto || "").toLowerCase();
+  const config = BCP_ANEXO_ORDER_POR_EMPRESA.find((c) => empresaLower.includes(c.match));
+  if (!config) return anexos;
+
+  const orderIndex = new Map(config.order.map((value, index) => [normalizeAnexoKey(value), index]));
+  return [...anexos].sort((a, b) => {
+    const indexA = orderIndex.has(normalizeAnexoKey(a)) ? orderIndex.get(normalizeAnexoKey(a)) : config.order.length;
+    const indexB = orderIndex.has(normalizeAnexoKey(b)) ? orderIndex.get(normalizeAnexoKey(b)) : config.order.length;
+    if (indexA !== indexB) return indexA - indexB;
+    return String(a).localeCompare(String(b));
+  });
+}
+
 function buildAnexoFieldMarkup(options, currentValue) {
   if (options.length > 0) {
     return `<select class="queue-edit-input" data-field="anexo" data-required="1">
@@ -456,6 +528,10 @@ function wireEditInput(editEl, itemId) {
       void saveQueueItemFields(itemId, { monto: value, importe: value });
       return;
     }
+    if (field === "anexo") {
+      const inner = editEl.closest(".queue-item-detail-inner");
+      if (inner) checkAnexoMonedaMismatch(inner, value);
+    }
     void saveQueueItemFields(itemId, { [field]: value });
   };
 
@@ -508,11 +584,15 @@ function buildQueueItemDetailContent(item, data) {
   // Si el depósito no tiene cuentasBancarias (se agregó a la cola antes de
   // esta actualización), se cae a data.anexoOptions como respaldo.
   const cuentasBancarias = Array.isArray(data.cuentasBancarias) ? data.cuentasBancarias : [];
-  const anexoOptions = cuentasBancarias.length
+  const anexoOptionsRaw = cuentasBancarias.length
     ? buildAnexoOptionsFromCuentas(cuentasBancarias, data.bancoId)
     : Array.isArray(data.anexoOptions)
       ? data.anexoOptions
       : [];
+  const anexoOptions = sortAnexosForBcp(anexoOptionsRaw, {
+    bancoNombre: data.banco,
+    empresaTexto: data.empresa,
+  });
   const anexoFieldHtml = buildAnexoFieldMarkup(anexoOptions, currentAnexo);
 
   // Banco: editable si la app mandó el catálogo (bancoOptions); si no, se
@@ -579,7 +659,10 @@ function buildQueueItemDetailContent(item, data) {
         <input type="text" class="queue-edit-input" data-field="numero_operacion_solicitante" data-required="1" value="${escapeHtml(operationValue)}" placeholder="Número de operación" />
       </div>
       <div class="queue-item-field">
-        <span class="label">Fecha depósito</span>
+        <span class="label label--with-action">
+          <span>Fecha depósito</span>
+          <button type="button" class="field-today-btn queue-date-today-btn" title="Usar fecha de hoy" aria-label="Usar fecha de hoy">${TODAY_ICON_SVG}</button>
+        </span>
         <input type="date" class="queue-edit-input" data-field="fecha_deposito" data-required="1" value="${escapeHtml(resolveDepositDate(data))}" />
       </div>
     </div>
@@ -640,7 +723,10 @@ function buildQueueItemDetailContent(item, data) {
       const anexoCell = inner.querySelector("[data-anexo-cell]");
       if (anexoCell) {
         const cuentasBancarias = Array.isArray(data.cuentasBancarias) ? data.cuentasBancarias : [];
-        const newAnexoOptions = buildAnexoOptionsFromCuentas(cuentasBancarias, newBancoId);
+        const newAnexoOptions = sortAnexosForBcp(
+          buildAnexoOptionsFromCuentas(cuentasBancarias, newBancoId),
+          { bancoNombre: selectedBanco?.nombre, empresaTexto: data.empresa },
+        );
         if (!cuentasBancarias.length) {
           // Este depósito se agregó a la cola ANTES de que se mandara este
           // catálogo (versión vieja de la extensión/app, o el item quedó en
@@ -670,6 +756,17 @@ function buildQueueItemDetailContent(item, data) {
   inner.querySelector(".queue-rotate-btn")?.addEventListener("click", (event) => {
     event.stopPropagation();
     rotateVoucherImage();
+  });
+
+  inner.querySelector(".queue-date-today-btn")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const fechaEl = inner.querySelector('[data-field="fecha_deposito"]');
+    if (!fechaEl) return;
+    fechaEl.value = getTodayDateInputValue();
+    // Los <input type="date"> se guardan en el "change" de wireEditInput,
+    // así que hace falta dispararlo a mano -- setear .value con JS no
+    // dispara ningún evento solo.
+    fechaEl.dispatchEvent(new Event("change", { bubbles: true }));
   });
 
   inner.querySelector(".queue-search-op-btn").addEventListener("click", (event) => {
