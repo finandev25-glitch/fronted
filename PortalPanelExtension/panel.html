@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirmo - Portal</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Se usa <iframe> en vez de location.replace: Chrome no deja que el
+         side panel navegue por completo a un origen externo (se queda
+         "colgado" en la página de la extensión sin avisar). portal.tyresperu.com
+         no manda X-Frame-Options ni CSP frame-ancestors (verificado con
+         curl), así que puede embeberse sin problema. -->
+    <iframe src="https://portal.tyresperu.com/extension.html" title="Confirmo"></iframe>
+  </body>
+</html>

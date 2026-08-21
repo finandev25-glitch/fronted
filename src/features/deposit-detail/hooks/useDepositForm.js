@@ -8,6 +8,11 @@ import {
   sortAnexosForBancoEmpresa,
 } from "../../deposits/components/depositDetailModalHelpers.jsx";
 
+// "MN" = moneda nacional (Soles), "ME" = moneda extranjera (Dólares) --
+// mismo criterio que ya usa el side panel de AppExtension
+// (checkAnexoMonedaMismatch en sidepanel.js).
+const ANEXO_SUFFIX_TO_MONEDA = { MN: "PEN", ME: "USD" };
+
 /**
  * Hook central que gestiona el estado editable de un depósito.
  *
@@ -47,6 +52,15 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
   });
 
   const [filteredAnexos, setFilteredAnexos] = useState([]);
+
+  // Aviso (no bloqueante) cuando el Anexo recién elegido no coincide con la
+  // Moneda ya seleccionada -- se compara por los últimos 2 caracteres del
+  // anexo: "MN" (moneda nacional) = PEN, "ME" (moneda extranjera) = USD.
+  // No se corrige nada solo, el usuario decide cuál de los dos estaba mal.
+  // Objeto nuevo en cada aviso (no un booleano) para que un efecto en el
+  // componente pueda mostrar el toast solo cuando cambia, sin re-disparar en
+  // cada render.
+  const [anexoMonedaWarning, setAnexoMonedaWarning] = useState(null);
 
   // ─── Inicialización del formulario ──────────────────────────────────────────
   // lastInitializedDepositId evita que el WebSocket, al actualizar el depósito,
@@ -203,6 +217,19 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
       cleanedValue = normalizeDepositCurrency(value);
     }
 
+    // Anexo termina en "MN" (Soles) o "ME" (Dólares) -- si no coincide con
+    // la Moneda que ya estaba elegida, es casi seguro que alguien se
+    // equivocó de anexo o de moneda (no se corrige solo, ver
+    // anexoMonedaWarning más arriba).
+    if (name === "anexo") {
+      const suffix = String(value || "").trim().toUpperCase().slice(-2);
+      const expectedMoneda = ANEXO_SUFFIX_TO_MONEDA[suffix];
+      const currentMoneda = editableData.moneda;
+      if (expectedMoneda && currentMoneda && currentMoneda !== expectedMoneda) {
+        setAnexoMonedaWarning({ anexo: value, expectedMoneda, currentMoneda });
+      }
+    }
+
     setEditableData((prev) => {
       // Al cambiar el banco, resetear el anexo
       if (name === "banco_id") {
@@ -210,7 +237,7 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
       }
       return { ...prev, [name]: cleanedValue };
     });
-  }, []);
+  }, [editableData.moneda]);
 
   const handleFileSelect = useCallback((url) => {
     setEditableData((prev) => ({ ...prev, imagen_voucher: url }));
@@ -251,6 +278,7 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
     editableData,
     setEditableData,
     filteredAnexos,
+    anexoMonedaWarning,
     selectedMoneda,
     selectedBanco,
     activeEmpresas,
