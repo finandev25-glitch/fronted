@@ -6,12 +6,24 @@ import {
   rejectDeposit,
   fetchDepositById,
 } from "../../deposits/api/depositsApi.js";
+import { searchActiveTab, isActiveTabSearchAvailable } from "../lib/activeTabSearch.js";
+import { findAnexoValidationRule } from "../data/anexoValidationRules.js";
 
 // "MN" = moneda nacional (Soles), "ME" = moneda extranjera (Dólares) --
 // mismo criterio que useDepositForm.js (anexoMonedaWarning) y el side panel
 // de AppExtension (checkAnexoMonedaMismatch en sidepanel.js).
 const ANEXO_SUFFIX_TO_MONEDA = { MN: "PEN", ME: "USD" };
 const MONEDA_LABEL = { PEN: "Soles (PEN)", USD: "Dólares (USD)" };
+
+// YYYY-MM-DD en horario local (no UTC) -- mismo criterio que
+// getTodayDateInputValue en DepositDetailModal.jsx/AppExtension/sidepanel.js.
+function getTodayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Hook que encapsula la lógica de confirmación, rechazo y acciones sobre el depósito.
@@ -34,6 +46,13 @@ export function useDepositActions({
   const [duplicateDeposits, setDuplicateDeposits] = useState([]);
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
 
+  // Aviso (no bloqueante) cuando la Fecha depósito no es la de hoy -- se
+  // dispara al tocar "Duplicados", para que el usuario la revise antes de
+  // seguir (no impide nada: hay depósitos legítimos de días anteriores,
+  // "antiguos"). Objeto nuevo en cada aviso real para que el componente
+  // pueda mostrarlo con un efecto sin repetirse en cada render.
+  const [dateReviewWarning, setDateReviewWarning] = useState(null);
+
   // ─── Valores derivados ──────────────────────────────────────────────────────
   const canCheckDuplicates =
     editableData.empresa_id &&
@@ -44,6 +63,14 @@ export function useDepositActions({
     editableData.numero_operacion_banco &&
     editableData.fecha_deposito;
 
+  // Regla principal: no se puede llegar a confirmar (ni mostrar el popup
+  // "Sin duplicados") si falta CUALQUIER campo, con la única excepción de
+  // Cliente -- mismos campos que exige canCheckDuplicates de arriba. Antes
+  // canConfirm solo miraba Empresa/Banco/Anexo/Moneda: si el usuario
+  // comprobaba duplicados con todo completo y DESPUÉS borraba, por ejemplo,
+  // la Fecha depósito, checkResult.checked seguía en true (quedaba de la
+  // comprobación anterior) y el botón/popup de Confirmar se habilitaba
+  // igual, con datos incompletos.
   const canConfirm =
     !isChecking &&
     checkResult.checked &&
@@ -51,7 +78,10 @@ export function useDepositActions({
     editableData.empresa_id &&
     editableData.banco_id &&
     editableData.anexo &&
-    selectedMoneda;
+    selectedMoneda &&
+    editableData.monto &&
+    editableData.numero_operacion_banco &&
+    editableData.fecha_deposito;
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
   const buildUpdatePayload = useCallback(
@@ -109,14 +139,23 @@ export function useDepositActions({
 
   // ─── Comprobar duplicados ────────────────────────────────────────────────────
 
+  // Devuelve { blocked, message } en los casos que cortan el flujo antes de
+  // llegar a buscar duplicados de verdad -- el llamador (DepositDetailModal)
+  // usa esto para mostrar el mismo modal de error que ya se usa para
+  // confirmar/rechazar, además del mensaje que ya queda en la barra de
+  // estado (checkResult.message).
   const handleCheckDuplicates = useCallback(async () => {
     if (!canCheckDuplicates) {
-      setCheckResult({
-        checked: true,
-        isDuplicate: true,
-        message: "Completa empresa, banco, anexo, moneda, importe, nro. de operación y fecha de depósito antes de comprobar duplicados.",
-      });
-      return;
+      const message = "Completa empresa, banco, anexo, moneda, importe, nro. de operación y fecha de depósito antes de comprobar duplicados.";
+      setCheckResult({ checked: true, isDuplicate: true, message });
+      return { blocked: true, message };
+    }
+
+    // Aviso (no bloqueante) si la Fecha depósito no es la de hoy -- se
+    // revisa siempre que se toca "Duplicados" (con campos completos), sin
+    // frenar el resto del flujo.
+    if (editableData.fecha_deposito && editableData.fecha_deposito !== getTodayDateInputValue()) {
+      setDateReviewWarning({ fecha: editableData.fecha_deposito });
     }
 
     // Anexo termina en "MN" (Soles) o "ME" (Dólares) -- si no coincide con
@@ -127,12 +166,39 @@ export function useDepositActions({
     const anexoSuffix = String(editableData.anexo || "").trim().toUpperCase().slice(-2);
     const expectedMoneda = ANEXO_SUFFIX_TO_MONEDA[anexoSuffix];
     if (expectedMoneda && selectedMoneda && expectedMoneda !== selectedMoneda) {
-      setCheckResult({
-        checked: true,
-        isDuplicate: true,
-        message: `⚠️ El anexo "${editableData.anexo}" es de ${MONEDA_LABEL[expectedMoneda]}, pero la moneda elegida es ${MONEDA_LABEL[selectedMoneda] || selectedMoneda}. Corregilo antes de confirmar.`,
-      });
-      return;
+      const message = `El anexo "${editableData.anexo}" es de ${MONEDA_LABEL[expectedMoneda]}, pero la moneda elegida es ${MONEDA_LABEL[selectedMoneda] || selectedMoneda}. Corregilo antes de confirmar.`;
+      setCheckResult({ checked: true, isDuplicate: true, message: `⚠️ ${message}` });
+      return { blocked: true, message };
+    }
+
+    // Validación contra Validacion.xlsx (ver anexoValidationRules.js): si la
+    // combinación Empresa+Anexo elegida tiene una fila ahí, se busca en la
+    // PESTAÑA ACTIVA (el voucher/página del banco, mismo mecanismo que
+    // "Buscar importe"/"Buscar nro. operación") que aparezcan tanto el
+    // nombre de empresa como el dato de cuenta que le corresponden -- si
+    // falta alguno de los dos, no tiene sentido seguir: el Anexo elegido
+    // probablemente no es el de esa cuenta. Sin la extensión instalada
+    // (isActiveTabSearchAvailable() === false) no hay forma de comprobar
+    // esto, así que se deja pasar sin bloquear.
+    const empresaNombre =
+      (empresas || []).find((e) => String(e.id) === String(editableData.empresa_id))?.nombre || "";
+    const validationRule = findAnexoValidationRule(empresaNombre, editableData.anexo);
+    if (validationRule && isActiveTabSearchAvailable()) {
+      setCheckResult({ checked: false, isDuplicate: false, message: "Validando datos de la cuenta en la pestaña activa..." });
+      const [empresaCheck, datoCheck] = await Promise.all([
+        searchActiveTab([validationRule.empresaValidar]),
+        searchActiveTab([validationRule.datoValidar]),
+      ]);
+
+      const faltantes = [];
+      if (!empresaCheck?.found) faltantes.push(`empresa "${validationRule.empresaValidar}"`);
+      if (!datoCheck?.found) faltantes.push(`dato "${validationRule.datoValidar}"`);
+
+      if (faltantes.length > 0) {
+        const message = `No se encontró en la pestaña activa: ${faltantes.join(" ni ")}. Revisá que el Anexo/Empresa elegidos coincidan con la cuenta del voucher.`;
+        setCheckResult({ checked: true, isDuplicate: true, message: `⚠️ ${message}` });
+        return { blocked: true, message };
+      }
     }
 
     setIsChecking(true);
@@ -222,7 +288,7 @@ export function useDepositActions({
     } finally {
       setIsChecking(false);
     }
-  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits]);
+  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits, empresas]);
 
   // ─── Confirmar depósito ───────────────────────────────────────────────────────
   // Devuelve { success, error? } en vez de usar window.alert(): además de que
@@ -354,6 +420,7 @@ export function useDepositActions({
     duplicateDeposits,
     isRejectionModalOpen,
     setIsRejectionModalOpen,
+    dateReviewWarning,
     // Derivados
     canConfirm,
     canCheckDuplicates,

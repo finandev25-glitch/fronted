@@ -150,6 +150,7 @@ const DepositDetailModal = ({
     duplicateDeposits,
     isRejectionModalOpen,
     setIsRejectionModalOpen,
+    dateReviewWarning,
     canConfirm,
     canCheckDuplicates,
     handleCheckDuplicates,
@@ -286,8 +287,23 @@ const DepositDetailModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anexoMonedaWarning]);
 
+  // Aviso cuando la Fecha depósito no es la de hoy (ver dateReviewWarning en
+  // useDepositActions.js) -- se dispara al tocar "Duplicados". No bloquea
+  // nada, solo pide revisar (hay depósitos legítimos de días anteriores).
+  useEffect(() => {
+    if (!dateReviewWarning) return;
+    showCompactToast(`⚠️ La fecha de depósito (${dateReviewWarning.fecha}) no es la de hoy. Revisala antes de continuar.`, "warning");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateReviewWarning]);
+
+  // tone "warning" (anexoMonedaWarning / dateReviewWarning más arriba) NO se
+  // cierran solos -- son avisos/errores que hay que leer con atención y
+  // decidir algo (revisar el anexo, revisar la fecha, corregir el error de
+  // duplicados/confirmar), no algo para pasar de largo. Solo "success"
+  // (confirmar/rechazar OK) se sigue cerrando solo a los 4s como antes.
   const showCompactToast = (message, tone = "success") => {
     setCompactActionToast({ message, tone });
+    if (tone !== "success") return;
     setTimeout(() => {
       setCompactActionToast((current) => (current?.message === message ? null : current));
     }, 4000);
@@ -306,6 +322,20 @@ const DepositDetailModal = ({
       showCompactToast("✅ Depósito confirmado exitosamente.", "success");
     } else if (result?.error) {
       showCompactToast(`❌ ${result.error}`, "error");
+    }
+  };
+
+  // Wrapper para los 2 botones "Duplicados" (panel compacto y modal
+  // completo): si handleCheckDuplicates corta el flujo antes de buscar de
+  // verdad (campos incompletos, anexo/moneda que no coinciden, o el dato de
+  // la cuenta no aparece en la pestaña activa -- ver Validacion.xlsx /
+  // anexoValidationRules.js), se muestra en el mismo modal de error que ya
+  // se usa para confirmar/rechazar, además del mensaje que ya queda en la
+  // barra de estado.
+  const handleCheckDuplicatesWithFeedback = async () => {
+    const result = await handleCheckDuplicates();
+    if (result?.blocked) {
+      showCompactToast(`❌ ${result.message}`, "error");
     }
   };
 
@@ -441,10 +471,16 @@ const DepositDetailModal = ({
       // vacío -- ahí no hay nada que mostrar en un modal, la barra de
       // estado ya explica qué falta.
       if (duplicateDeposits.length > 0) openDuplicateModal("duplicate");
-    } else {
+    } else if (canConfirm) {
+      // Regla principal: el popup "Sin duplicados" (con el botón Confirmar)
+      // solo se abre si de verdad se puede confirmar -- canConfirm ya exige
+      // todos los campos completos salvo Cliente (ver useDepositActions.js).
+      // Sin este chequeo acá, si el usuario borraba un campo justo después
+      // de comprobar duplicados, el popup se abría igual con datos
+      // incompletos.
       openDuplicateModal("no_duplicate");
     }
-  }, [checkResult, duplicateDeposits, shouldUseDuplicateModals]);
+  }, [checkResult, duplicateDeposits, shouldUseDuplicateModals, canConfirm]);
 
   // Status computation
   const statusInfo = getStatusInfo(deposit.estado);
@@ -1679,7 +1715,7 @@ const DepositDetailModal = ({
                     <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
                       <button
                         type="button"
-                        onClick={handleCheckDuplicates}
+                        onClick={handleCheckDuplicatesWithFeedback}
                         className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isProcessing || !canCheckDuplicates}
                       >
@@ -2473,7 +2509,7 @@ const DepositDetailModal = ({
                           </h4>
                         </div>
                         <button
-                          onClick={handleCheckDuplicates}
+                          onClick={handleCheckDuplicatesWithFeedback}
                           disabled={isChecking || !canCheckDuplicates}
                           className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-medium flex items-center justify-center disabled:bg-yellow-300 w-full sm:w-auto flex-shrink-0 text-sm"
                         >

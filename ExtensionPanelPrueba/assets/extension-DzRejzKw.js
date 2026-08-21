@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/main-DOWqkNgb.js","assets/preload-helper-B8tWKQ1F.js","assets/main-D9ktFq-b.css"])))=>i.map(i=>d[i]);
+import{_ as t}from"./preload-helper-B8tWKQ1F.js";window.__APP_UI_MODE__="extension";window.__API_BASE_URL__="https://n5vqr8.tyresperu.com";window.__SIGNALR_HUB_URL__="https://n5vqr8.tyresperu.com/hubs/deposits";t(()=>import("./main-DOWqkNgb.js").then(_=>_.m),__vite__mapDeps([0,1,2]));
