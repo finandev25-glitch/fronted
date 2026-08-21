@@ -8,6 +8,7 @@ import { useDepositSql } from "../hooks/useDepositSql.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
 import ZoomableVoucherImage from "./ZoomableVoucherImage.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
+import { campoVerificacion, claseSegunAccion, motivoVisible } from "../../deposits/utils/verificacionOcrHelpers.js";
 import { searchActiveTab } from "../lib/activeTabSearch.js";
 import {
   fetchCuentas,
@@ -118,6 +119,7 @@ const DepositDetailModal = ({
     activeEmpresas,
     activeBancos,
     voucherUrl: displayVoucherUrl,
+    verificacionOcr,
     handleChange,
     handleFileSelect,
     handleFileSelectFromPicker,
@@ -369,7 +371,14 @@ const DepositDetailModal = ({
   const statusColor = statusInfo.color;
   const statusLabel = statusInfo.label;
   const StatusIcon = statusInfo.Icon;
-  
+
+  // Depósito ya resuelto (terminal): "Transcurrido" pierde sentido acá --
+  // ese contador es para saber cuánto lleva esperando validación. Una vez
+  // confirmado/rechazado, lo relevante es CUÁNDO se resolvió, no un timer
+  // corriendo indefinidamente desde que se recibió.
+  const isResolved = deposit.estado === "confirmado" || deposit.estado === "rechazado";
+  const resolvedLabel = deposit.estado === "confirmado" ? "Confirmado" : "Rechazado";
+
   // Candado de validacion: el backend marca "validado_por" cuando alguien
   // toma el deposito (POST /lock) y lo revisa antes de aceptar confirm/reject
   // de otro usuario. Si el que tiene el candado no somos nosotros, el
@@ -405,6 +414,8 @@ const DepositDetailModal = ({
   const [elapsedTime, setElapsedTime] = useState("");
   const [receivedTime, setReceivedTime] = useState("");
   const [receivedDate, setReceivedDate] = useState("");
+  const [resolvedTime, setResolvedTime] = useState("");
+  const [resolvedDate, setResolvedDate] = useState("");
 
   useEffect(() => {
     if (!deposit.fecha_registro) return;
@@ -426,6 +437,11 @@ const DepositDetailModal = ({
       }),
     );
 
+    // Ya resuelto: no hace falta un timer de "transcurrido" corriendo cada
+    // segundo -- ver el segundo useEffect de más abajo, que en su lugar
+    // calcula UNA vez la fecha/hora de confirmación o rechazo.
+    if (isResolved) return;
+
     // Función para calcular tiempo transcurrido
     const calculateElapsed = () => {
       const now = new Date();
@@ -443,8 +459,36 @@ const DepositDetailModal = ({
     const timer = setInterval(calculateElapsed, 1000);
 
     return () => clearInterval(timer);
-  }, [deposit.fecha_registro]);
-  
+  }, [deposit.fecha_registro, isResolved]);
+
+  // fecha_validacion se pisa tanto al tomar el candado (POST /lock) como al
+  // confirmar/rechazar -- pero solo en el estado terminal (confirmado/
+  // rechazado) representa el momento de la resolución, que es lo que se
+  // muestra acá.
+  useEffect(() => {
+    if (!isResolved || !deposit.fecha_validacion) {
+      setResolvedDate("");
+      setResolvedTime("");
+      return;
+    }
+
+    const resolvedAt = new Date(deposit.fecha_validacion);
+    setResolvedDate(
+      resolvedAt.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+    );
+    setResolvedTime(
+      resolvedAt.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+    );
+  }, [isResolved, deposit.fecha_validacion]);
+
   useEffect(() => {
     if (deposit.estado === "rechazado") {
       try {
@@ -1410,10 +1454,11 @@ const DepositDetailModal = ({
           value={selectedMoneda}
           onChange={handleChange}
           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
+          title={motivoVisible(campoVerificacion(verificacionOcr, "moneda")) || undefined}
           className={`w-full rounded-xl border px-2.5 py-1.5 text-sm outline-none transition-colors focus:ring-2 ${
             !selectedMoneda
               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+              : claseSegunAccion(campoVerificacion(verificacionOcr, "moneda")?.accion, { compact: true })
           }`}
         >
           <option value="">Seleccionar</option>
@@ -1445,7 +1490,8 @@ const DepositDetailModal = ({
                           value={editableData.monto}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          title={motivoVisible(campoVerificacion(verificacionOcr, "monto")) || undefined}
+                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "monto")?.accion, { compact: true })}`}
                           placeholder="0.00"
                           step="0.01"
                         />
@@ -1487,7 +1533,8 @@ const DepositDetailModal = ({
                           value={editableData.fecha_deposito}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          title={motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) || undefined}
+                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "fecha_deposito")?.accion, { compact: true })}`}
                         />
                       </div>
                     </div>
@@ -1948,12 +1995,29 @@ const DepositDetailModal = ({
                       {receivedDate} {receivedTime}
                     </strong>
                   </span>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    ⏱️ Transcurrido:{" "}
-                    <strong className="text-orange-600 dark:text-orange-400">
-                      {elapsedTime}
-                    </strong>
-                  </span>
+                  {isResolved ? (
+                    resolvedDate && (
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {deposit.estado === "confirmado" ? "✅" : "🚫"} {resolvedLabel}:{" "}
+                        <strong
+                          className={
+                            deposit.estado === "confirmado"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-red-600 dark:text-red-400"
+                          }
+                        >
+                          {resolvedDate} {resolvedTime}
+                        </strong>
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-gray-600 dark:text-gray-400">
+                      ⏱️ Transcurrido:{" "}
+                      <strong className="text-orange-600 dark:text-orange-400">
+                        {elapsedTime}
+                      </strong>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -2098,6 +2162,7 @@ const DepositDetailModal = ({
                     handleChange={handleChange}
                     isFieldsOnlyEdit={isFieldsOnlyEdit}
                     isFullEditDisabled={isFullEditDisabled}
+                    verificacionOcr={verificacionOcr}
                     activeEmpresas={activeEmpresas}
                     activeBancos={activeBancos}
                     filteredAnexos={filteredAnexos}

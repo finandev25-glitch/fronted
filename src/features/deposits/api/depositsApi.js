@@ -395,6 +395,17 @@ export async function fetchDepositsByDate(date) {
   return fetchDepositsList({ desde, hasta });
 }
 
+// Rango arbitrario [desdeDate, hastaDate] (ambos "YYYY-MM-DD", inclusive) --
+// usado por VouchersPreviewPage para extender la busqueda mas alla de un
+// solo dia. El tope de 6 dias se valida del lado del componente, no aca.
+export async function fetchDepositsByRange(desdeDate, hastaDate) {
+  if (!desdeDate) return fetchDepositsList();
+
+  const { desde } = dateToDayRange(desdeDate);
+  const { hasta } = dateToDayRange(hastaDate || desdeDate);
+  return fetchDepositsList({ desde, hasta });
+}
+
 export async function fetchDepositsByPeriod(period) {
   const now = new Date();
 

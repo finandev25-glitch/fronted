@@ -237,6 +237,15 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
     return url;
   }, [editableData.imagen_voucher, deposit?.imagen_voucher]);
 
+  // Resultado del chequeo cruzado OCR vs. IA que escribe el worker Python en
+  // datos_ocr.verificacion (monto/moneda/fecha_operacion -> {accion, motivo}).
+  // Puede no existir todavía en depósitos viejos o si el worker no llegó a
+  // correr el chequeo -- por eso el fallback a {}.
+  const verificacionOcr = useMemo(
+    () => deposit?.datos_ocr?.verificacion || {},
+    [deposit?.datos_ocr],
+  );
+
   return {
     // Estado
     editableData,
@@ -247,6 +256,7 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
     activeEmpresas,
     activeBancos,
     voucherUrl,
+    verificacionOcr,
     isBackendConnected,
     currentUser,
     // true recien cuando llego el detalle completo (GET /v1/deposits/{id}),

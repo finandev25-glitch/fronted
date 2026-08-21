@@ -12,6 +12,7 @@ import AvisosView from "../components/AvisosView";
 import ReportesView from "../components/ReportesView";
 import SucursalesView from "../components/SucursalesView";
 import TableView from "../pages/deposits-table/ui/TablePage.jsx";
+import VouchersPreviewPage from "../pages/vouchers-preview/ui/VouchersPreviewPage.jsx";
 import TrabajadoresView from "../components/TrabajadoresView";
 import UsuariosView from "../components/UsuariosView";
 import AuthPage from "../features/auth/pages/AuthPage.jsx";
@@ -76,6 +77,17 @@ export function AppRoutes({
             sucursales={dashboard.sucursales}
             onOpenVoucherWindow={dashboard.handleOpenVoucherWindow}
             detailPresentationMode={detailPresentationMode}
+          />
+        }
+      />
+      <Route
+        path="/vouchers-preview"
+        element={
+          <VouchersPreviewPage
+            empresas={dashboard.empresas}
+            bancos={dashboard.bancos}
+            sucursales={dashboard.sucursales}
+            onSelectDate={dashboard.handleSelectDate}
           />
         }
       />

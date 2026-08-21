@@ -1,6 +1,7 @@
 import React from "react";
 import { Building, CreditCard, Hash, Calendar, DollarSign, User, Fingerprint, Info, MessageSquare } from "lucide-react";
 import { FormRow } from "../../deposits/components/depositDetailModalHelpers.jsx";
+import { campoVerificacion, claseSegunAccion, motivoVisible } from "../../deposits/utils/verificacionOcrHelpers.js";
 
 export const DepositFormPanel = ({
   editableData,
@@ -11,8 +12,12 @@ export const DepositFormPanel = ({
   activeBancos,
   filteredAnexos,
   selectedMoneda,
-  nroOperacionClasses
+  nroOperacionClasses,
+  verificacionOcr,
 }) => {
+  const vMonto = campoVerificacion(verificacionOcr, "monto");
+  const vMoneda = campoVerificacion(verificacionOcr, "moneda");
+  const vFecha = campoVerificacion(verificacionOcr, "fecha_deposito");
   return (
     <>
                   <h4 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
@@ -109,8 +114,12 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          title={motivoVisible(vFecha) || undefined}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${claseSegunAccion(vFecha?.accion)}`}
                         />
+                        {motivoVisible(vFecha) && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{motivoVisible(vFecha)}</p>
+                        )}
                       </FormRow>
                     </div>
 
@@ -152,10 +161,14 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-lg font-bold text-right disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          title={motivoVisible(vMonto) || undefined}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-lg font-bold text-right disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${claseSegunAccion(vMonto?.accion)}`}
                           placeholder="0.00"
                           step="0.01"
                         />
+                        {motivoVisible(vMonto) && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{motivoVisible(vMonto)}</p>
+                        )}
                       </FormRow>
                     </div>
                     <div className="col-span-3">
@@ -167,16 +180,20 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
+                          title={motivoVisible(vMoneda) || undefined}
                           className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-lg disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
                             !selectedMoneda
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
-                              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                              : claseSegunAccion(vMoneda?.accion)
                           }`}
                         >
                           <option value="">Seleccionar</option>
                           <option value="PEN">Soles (PEN)</option>
                           <option value="USD">Dólares (USD)</option>
                         </select>
+                        {motivoVisible(vMoneda) && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{motivoVisible(vMoneda)}</p>
+                        )}
                       </FormRow>
                     </div>
 

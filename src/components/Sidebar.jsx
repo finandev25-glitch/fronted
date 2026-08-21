@@ -6,6 +6,7 @@ import { useTheme } from "../contexts/ThemeContext.jsx";
 import {
   LayoutDashboard,
   Table,
+  Images,
   Building2,
   CreditCard,
   Users,
@@ -57,6 +58,7 @@ const SidebarContent = ({
       items: [
         { view: "kanban", icon: LayoutDashboard, label: "Kanban" },
         { view: "table", icon: Table, label: "Depósitos" },
+        { view: "vouchers-preview", icon: Images, label: "Vista Previa Vouchers" },
         { view: "sucursales", icon: Building2, label: "Sucursales" },
       ],
     },
