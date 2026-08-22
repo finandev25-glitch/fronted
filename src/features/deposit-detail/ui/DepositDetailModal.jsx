@@ -1672,31 +1672,6 @@ const DepositDetailModal = ({
                           ))}
                         </select>
                       </div>
-<<<<<<< HEAD
-
-      <div className="space-y-1">
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-          Moneda
-        </label>
-        <select
-          name="moneda"
-          value={selectedMoneda}
-          onChange={handleChange}
-          disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-          title={motivoVisible(campoVerificacion(verificacionOcr, "moneda")) || undefined}
-          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm outline-none transition-colors focus:ring-2 ${
-            !selectedMoneda
-              ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-              : claseSegunAccion(campoVerificacion(verificacionOcr, "moneda")?.accion, { compact: true })
-          }`}
-        >
-          <option value="">Seleccionar</option>
-          <option value="PEN">Soles (PEN)</option>
-          <option value="USD">Dólares (USD)</option>
-        </select>
-      </div>
-=======
->>>>>>> a1def36dfa69b144edb221bde3f5f2f049448920
                     </div>
 
                     <div className="grid grid-cols-3 gap-1.5">
@@ -1721,12 +1696,8 @@ const DepositDetailModal = ({
                           value={editableData.monto}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-<<<<<<< HEAD
                           title={motivoVisible(campoVerificacion(verificacionOcr, "monto")) || undefined}
                           className={`w-full rounded-xl border px-2.5 py-1.5 text-sm font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "monto")?.accion, { compact: true })}`}
-=======
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
->>>>>>> a1def36dfa69b144edb221bde3f5f2f049448920
                           placeholder="0.00"
                           step="0.01"
                         />
@@ -1781,12 +1752,8 @@ const DepositDetailModal = ({
                           value={editableData.fecha_deposito}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-<<<<<<< HEAD
                           title={motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) || undefined}
                           className={`w-full rounded-xl border px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "fecha_deposito")?.accion, { compact: true })}`}
-=======
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
->>>>>>> a1def36dfa69b144edb221bde3f5f2f049448920
                         />
                       </div>
                     </div>
