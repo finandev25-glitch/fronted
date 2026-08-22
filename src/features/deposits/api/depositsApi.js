@@ -268,6 +268,23 @@ function buildVoucherImageUrl(depositId) {
   );
 }
 
+function normalizeDatosOcr(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (typeof value === "object") return value;
+
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      console.warn("DatosOcr no contiene JSON válido:", error);
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function mapDeposit(item) {
     const hasVoucher = Boolean(item.imagenUrl || item.imagenVoucher);
     return {
@@ -281,6 +298,9 @@ function mapDeposit(item) {
       estado: item.estado,
       numero_operacion_banco: item.numeroOperacionBanco,
       fecha_deposito: item.fechaDeposito,
+      datos_ocr: normalizeDatosOcr(
+        item.datosOcr ?? item.DatosOcr ?? item.datos_ocr,
+      ),
       imagen_voucher: hasVoucher ? buildVoucherImageUrl(item.id) : null,
       // OJO: "imagenUrl" significa cosas distintas segun el endpoint que
       // responda. En el LISTADO (GET /v1/deposits, de donde sale esto) es la

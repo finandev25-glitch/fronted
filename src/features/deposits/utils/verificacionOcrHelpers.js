@@ -8,15 +8,15 @@
  * NO en api-worker ni api-bridge, así que se puede editar directo acá.
  */
 
-// Clases de borde/fondo por acción. "ninguna" y "ninguna_confianza_alta" no
-// llevan alerta visual -- coincidencia exacta no necesita aviso, y ausencia
-// de OCR + confianza alta de la IA no es evidencia de nada malo, solo
-// ausencia de datos con que contrastar.
+// El modificador `!` mantiene visible la verificación incluso cuando el campo
+// está deshabilitado y también recibe clases como `disabled:bg-gray-100`.
 const CLASES_POR_ACCION = {
+  ninguna:
+    "!border-green-400 !bg-green-50 dark:!border-green-600 dark:!bg-green-900/25",
   revision_manual:
-    "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20",
+    "!border-red-400 !bg-red-50 dark:!border-red-600 dark:!bg-red-900/30",
   auto_corregido:
-    "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
+    "!border-amber-400 !bg-amber-50 dark:!border-amber-600 dark:!bg-amber-900/30",
 };
 
 const CLASE_DEFAULT =
@@ -25,8 +25,7 @@ const CLASE_DEFAULT =
 // Variante "compacta" usada en el bloque inline de DepositDetailModal.jsx
 // (rounded-xl en vez de rounded-lg, mismo criterio de color).
 const CLASES_COMPACT_POR_ACCION = {
-  revision_manual: "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20",
-  auto_corregido: "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
+  ...CLASES_POR_ACCION,
 };
 
 const CLASE_COMPACT_DEFAULT = "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950";
@@ -40,11 +39,14 @@ export function claseSegunAccion(accion, { compact = false } = {}) {
 // Texto corto para mostrar como aviso debajo del campo (label o tooltip).
 export function motivoVisible(verificacionCampo) {
   if (!verificacionCampo) return "";
+  if (verificacionCampo.accion === "ninguna") {
+    return verificacionCampo.motivo || "Valor verificado: Llama y OCR coinciden.";
+  }
   if (verificacionCampo.accion === "revision_manual") {
-    return verificacionCampo.motivo || "Revisar: el sistema no pudo confirmar este valor.";
+    return verificacionCampo.motivo || "Revisar: Llama y OCR obtuvieron valores diferentes.";
   }
   if (verificacionCampo.accion === "auto_corregido") {
-    return verificacionCampo.motivo || "Corregido automáticamente por el OCR.";
+    return verificacionCampo.motivo || "Llama no obtuvo el valor; se utilizó el candidato OCR.";
   }
   return "";
 }
