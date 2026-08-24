@@ -51,7 +51,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
   const [hasta, setHasta] = useState("");
   const [zoomImage, setZoomImage] = useState(null);
 
-  const userRol = currentUser?.user_rol || currentUser?.rol || "";
+  const userRol = currentUser?.user_rol || "";
   const canView = userRol === "finanzas" || userRol === "admin";
 
   const load = async () => {

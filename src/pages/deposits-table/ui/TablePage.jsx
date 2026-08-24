@@ -57,7 +57,7 @@ const TablePage = ({
   const [showExportModal, setShowExportModal] = useState(false);
 
   const { currentUser } = useContext(AuthContext);
-  const userRol = currentUser?.user_rol || currentUser?.rol || "";
+  const userRol = currentUser?.user_rol || "";
   const canRegularize = userRol === "finanzas" || userRol === "admin";
 
   const formatDate = (isoString) => {

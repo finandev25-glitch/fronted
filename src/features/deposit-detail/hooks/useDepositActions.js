@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
-import { apiPut } from "../../../services/backendApi.js";
 import {
   checkDuplicate,
   confirmDeposit,
   rejectDeposit,
+  restoreDepositToPending,
   fetchDepositById,
 } from "../../deposits/api/depositsApi.js";
 import { searchActiveTab, isActiveTabSearchAvailable } from "../lib/activeTabSearch.js";
@@ -380,14 +380,31 @@ export function useDepositActions({
   }, [buildEditableFieldsForRequest, currentUser, deposit, editableData, isProcessing, onClose, onUpdateDeposit]);
 
   // ─── Restaurar a pendiente ───────────────────────────────────────────────────
+  // FIX: antes llamaba a apiPut(`/depositos/${id}`, ...) -- esa ruta no existe
+  // (el backend expone /api/v1/deposits/..., no /api/depositos/..., y no hay
+  // ningún PUT genérico por id, solo transiciones específicas). Siempre
+  // terminaba en 404. Ahora usa POST /v1/deposits/{id}/restore-to-pending
+  // (solo finanzas/admin), que deja el depósito en "procesado" sin asignar
+  // para que cualquiera lo pueda tomar de nuevo -- el backend responde solo
+  // {depositId, estado}, así que el resto de los campos limpiados
+  // (motivo_rechazo/validado_por/fecha_validacion/fecha_bloqueo) se reflejan
+  // acá localmente, ya que sabemos que el backend los limpió también.
   const handleRestoreToPending = useCallback(async () => {
     if (isProcessing) return;
     setIsProcessing(true);
-    const payload = buildUpdatePayload({ estado: "recibido", motivo_rechazo: null, validado_por: null, fecha_validacion: null });
     try {
-      const response = await apiPut(`/depositos/${deposit.id}`, payload);
-      if (response.error) throw new Error(response.error);
-      onUpdateDeposit({ ...deposit, ...payload });
+      const response = await restoreDepositToPending(deposit.id);
+      onUpdateDeposit(
+        {
+          ...deposit,
+          estado: response.estado,
+          motivo_rechazo: null,
+          validado_por: null,
+          fecha_validacion: null,
+          fecha_bloqueo: null,
+        },
+        { skipPersist: true },
+      );
       setCheckResult({ checked: false, isDuplicate: false, message: "" });
       setDuplicateDeposits([]);
       alert("✅ Depósito restaurado a pendiente correctamente.");
@@ -397,7 +414,7 @@ export function useDepositActions({
     } finally {
       setIsProcessing(false);
     }
-  }, [buildUpdatePayload, deposit, isProcessing, onClose, onUpdateDeposit]);
+  }, [deposit, isProcessing, onClose, onUpdateDeposit]);
 
   // ─── Guardar cambios (sin confirmar) ────────────────────────────────────────
   const handleSaveChanges = useCallback(() => {

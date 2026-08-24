@@ -83,7 +83,7 @@ function MessageBubble({ message }) {
 export default function VendorChatWidget({ currentUser: currentUserProp } = {}) {
   const authContext = useContext(AuthContext);
   const currentUser = currentUserProp || authContext?.currentUser || null;
-  const role = currentUser?.user_rol || currentUser?.rol;
+  const role = currentUser?.user_rol;
   const canUseChat = !!currentUser && FINANCE_ROLES.includes(role);
 
   const [isOpen, setIsOpen] = useState(false);

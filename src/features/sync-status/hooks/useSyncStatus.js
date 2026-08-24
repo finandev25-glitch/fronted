@@ -25,7 +25,7 @@ function computeRowStatus(ultimaCorridaEn, now) {
 
 export function useSyncStatus() {
   const { currentUser } = useContext(AuthContext);
-  const role = currentUser?.user_rol || currentUser?.rol;
+  const role = currentUser?.user_rol;
   const enabled = !!currentUser && FINANCE_ROLES.includes(role);
 
   const [rows, setRows] = useState([]);

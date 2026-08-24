@@ -2,6 +2,7 @@ import { buildApiUrl } from "../../../services/apiBase.js";
 import { apiBlob } from "../../../services/backendApi.js";
 import { MOCK_MODE_ENABLED } from "../../../mocks/mockServer.js";
 import { createInitialMockState } from "../../../mocks/mockData.js";
+import { toLocalISOString } from "../../../utils/dateFormatters.js";
 
 const API_BASE = "/api";
 const DEPOSITS_BASE = "/v1/deposits";
@@ -38,12 +39,60 @@ function mapMockDeposit(deposit) {
   };
 }
 
-// Rango [desde, hasta] del mismo dia calendario (00:00:00.000 a 23:59:59.999),
-// tomando la fecha "YYYY-MM-DD" tal cual, sin ajustar por zona horaria.
+// Offset real de America/Lima respecto a UTC, en minutos (Lima no observa
+// horario de verano, asi que en la practica esto siempre da -300 = UTC-5 --
+// se calcula con Intl en vez de hardcodear el numero, para no depender de un
+// magic number si algo cambiara).
+function getLimaUtcOffsetMinutes(referenceDate = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Lima",
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(referenceDate)
+      .filter((p) => p.type !== "literal")
+      .map((p) => [p.type, p.value]),
+  );
+
+  const asIfUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return Math.round((asIfUtc - referenceDate.getTime()) / 60000);
+}
+
+// Convierte una fecha/hora "de pared" en huso de Lima (YYYY-MM-DD + h:m:s) al
+// instante UTC real que le corresponde.
+//
+// FIX: antes dateToDayRange armaba `${dateStr}T00:00:00.000Z` directo,
+// tratando la fecha de Lima como si esas horas YA fueran UTC. Como Lima es
+// UTC-5, la medianoche real de Lima cae a las 05:00 UTC -- la ventana de
+// "hoy" quedaba corrida ~5 horas antes de lo real. Un deposito hecho a las
+// 9pm en Lima (2am UTC del dia siguiente) quedaba FUERA del "hoy" que
+// consultaba el Kanban, y solo aparecia si se consultaba el dia siguiente.
+function limaWallTimeToUtcISO(dateStr, hour, minute, second, ms) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const offsetMinutes = getLimaUtcOffsetMinutes();
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, second, ms) - offsetMinutes * 60000;
+  return new Date(utcMs).toISOString();
+}
+
+// Rango [desde, hasta] del mismo dia calendario EN HUSO DE LIMA (00:00:00.000
+// a 23:59:59.999 hora Lima), convertido a instantes UTC reales.
 function dateToDayRange(dateStr) {
   return {
-    desde: `${dateStr}T00:00:00.000Z`,
-    hasta: `${dateStr}T23:59:59.999Z`,
+    desde: limaWallTimeToUtcISO(dateStr, 0, 0, 0, 0),
+    hasta: limaWallTimeToUtcISO(dateStr, 23, 59, 59, 999),
   };
 }
 
@@ -294,7 +343,13 @@ function mapDeposit(item) {
       monto: item.monto,
       moneda: item.moneda,
       fecha_registro: item.fechaRegistro,
-      fecha_solo_date: item.fechaRegistro ? item.fechaRegistro.slice(0, 10) : null,
+      // FIX: antes era item.fechaRegistro.slice(0, 10) -- cortaba el string
+      // UTC crudo, así que un depósito hecho entre ~19:00 y 23:59 hora Lima
+      // (que en UTC ya cayó en el día siguiente) quedaba con la fecha de
+      // MAÑANA acá, y todos los filtros por día que comparan contra esto
+      // (Kanban, Tabla, tarjetas) lo escondían del día en que realmente se
+      // recibió. toLocalISOString ya convierte a huso America/Lima.
+      fecha_solo_date: item.fechaRegistro ? toLocalISOString(item.fechaRegistro) : null,
       estado: item.estado,
       numero_operacion_banco: item.numeroOperacionBanco,
       fecha_deposito: item.fechaDeposito,
@@ -397,15 +452,27 @@ async function fetchDepositsList(params = {}) {
   return items.map(mapDeposit);
 }
 
-// UTC "ingenuo": construye el limite de dia (00:00:00 o 23:59:59) tomando la
-// fecha calendario tal cual, sin ajustar por zona horaria. Se usa para rangos
-// amplios (semana/mes) donde una diferencia de horas no cambia el resultado.
-function naiveUtcDayStart(date) {
-  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)).toISOString();
+// FIX: reemplaza a las viejas naiveUtcDayStart/naiveUtcDayEnd, que tomaban
+// date.getFullYear()/getMonth()/getDate() (huso del NAVEGADOR, no
+// necesariamente Lima) y ademas armaban el limite como si esas horas ya
+// fueran UTC -- mismo bug que dateToDayRange, aplicado a los rangos de
+// semana/mes. Estas reciben directamente un string "YYYY-MM-DD" en huso
+// Lima y usan limaWallTimeToUtcISO para la conversion real.
+function limaDayRangeStart(dateStr) {
+  return limaWallTimeToUtcISO(dateStr, 0, 0, 0, 0);
 }
 
-function naiveUtcDayEnd(date) {
-  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)).toISOString();
+function limaDayRangeEnd(dateStr) {
+  return limaWallTimeToUtcISO(dateStr, 23, 59, 59, 999);
+}
+
+// Suma/resta dias a un string "YYYY-MM-DD" por aritmetica de calendario pura
+// (sin pasar por horas locales, para no arrastrar el huso del navegador).
+function addDaysToDateStr(dateStr, dias) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  dt.setUTCDate(dt.getUTCDate() + dias);
+  return dt.toISOString().slice(0, 10);
 }
 
 export async function fetchDepositsByDate(date) {
@@ -427,29 +494,33 @@ export async function fetchDepositsByRange(desdeDate, hastaDate) {
 }
 
 export async function fetchDepositsByPeriod(period) {
-  const now = new Date();
+  // FIX: antes "hoy" salia de now.toISOString().slice(0, 10) -- fecha
+  // calendario UTC, no Lima. Despues de las 19:00 hora Lima (cuando el dia
+  // UTC ya rodo al siguiente) esto pedia el dia de MAÑANA como si fuera
+  // "hoy". toLocalISOString ya calcula el dia calendario correcto en huso
+  // America/Lima (igual que hace el resto del archivo).
+  const hoy = toLocalISOString(new Date());
 
   if (period === "today") {
-    const today = now.toISOString().slice(0, 10);
-    return fetchDepositsByDate(today);
+    return fetchDepositsByDate(hoy);
   }
 
   if (period === "week") {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 7);
-    return fetchDepositsList({ desde: naiveUtcDayStart(start), hasta: naiveUtcDayEnd(now) });
+    const desdeStr = addDaysToDateStr(hoy, -7);
+    return fetchDepositsList({ desde: limaDayRangeStart(desdeStr), hasta: limaDayRangeEnd(hoy) });
   }
 
   if (typeof period === "string" && period.startsWith("month:")) {
     const [year, month] = period.slice("month:".length).split("-").map(Number);
-    const start = new Date(Date.UTC(year, month - 1, 1));
-    const end = new Date(Date.UTC(year, month, 0));
-    return fetchDepositsList({ desde: naiveUtcDayStart(start), hasta: naiveUtcDayEnd(end) });
+    const desdeStr = `${year}-${String(month).padStart(2, "0")}-01`;
+    const ultimoDia = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const hastaStr = `${year}-${String(month).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+    return fetchDepositsList({ desde: limaDayRangeStart(desdeStr), hasta: limaDayRangeEnd(hastaStr) });
   }
 
   if (period === "month" || period === "mes") {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return fetchDepositsList({ desde: naiveUtcDayStart(start), hasta: naiveUtcDayEnd(now) });
+    const [year, month] = hoy.split("-");
+    return fetchDepositsList({ desde: limaDayRangeStart(`${year}-${month}-01`), hasta: limaDayRangeEnd(hoy) });
   }
 
   return fetchDepositsList();
@@ -780,6 +851,25 @@ export async function markDepositAntiguo(id) {
 // POST /v1/deposits/{id}/unmark-antiguo — vuelve Condicion a "actual".
 export async function unmarkDepositAntiguo(id) {
   return apiJson(`${DEPOSITS_BASE}/${id}/unmark-antiguo`, { method: "POST" });
+}
+
+// POST /v1/deposits/{id}/restore-to-pending — Solo finanzas/admin (el backend
+// valida el rol). Devuelve un depósito rechazado a "procesado" sin asignar
+// (validado_por limpio), para que cualquiera lo pueda tomar de nuevo -- el
+// backend también limpia motivo_rechazo/fecha_validacion/fecha_bloqueo.
+// Solo funciona si el depósito está actualmente "rechazado" (el backend
+// devuelve 400 si no).
+export async function restoreDepositToPending(id) {
+  return apiJson(`${DEPOSITS_BASE}/${id}/restore-to-pending`, { method: "POST" });
+}
+
+// POST /v1/deposits/pull-rezagados-a-hoy — Solo finanzas/admin. Trae a "hoy"
+// los depósitos que siguen "procesado" con fecha de registro de un día
+// anterior (rezagados que quedaron sin revisar, ej. porque llegaron después
+// del horario de oficina). Les actualiza fecha_registro al momento del click
+// y los marca condicion="antiguo". Devuelve { movedCount, depositIds }.
+export async function pullRezagadosAHoy() {
+  return apiJson(`${DEPOSITS_BASE}/pull-rezagados-a-hoy`, { method: "POST" });
 }
 
 // PUT /v1/deposits/{id}/finance-regularize-image — reemplaza UNICAMENTE el
