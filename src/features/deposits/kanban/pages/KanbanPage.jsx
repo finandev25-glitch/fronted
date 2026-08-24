@@ -11,6 +11,7 @@ import DepositCard from "../../../../entities/deposit/ui/DepositCard.jsx";
 import DepositDetailModal from "../../../../features/deposit-detail/ui/DepositDetailModal.jsx";
 import ContactosModal from "../../../../features/deposit-contacts/ui/ContactosModal.jsx";
 import { AuthContext } from "../../../auth/context/AuthContext.jsx";
+import { useToast } from "../../../../components/ToastProvider.jsx";
 import { toLocalISOString } from "../../../../utils/dateFormatters";
 import {
   saveOpenDepositId,
@@ -20,10 +21,10 @@ import {
 } from "../../../../utils/persistenceHelpers";
 import { KanbanToolbar } from "../../../../widgets/deposits-kanban-board/ui/KanbanToolbar.jsx";
 import { KanbanColumns } from "../../../../widgets/deposits-kanban-board/ui/KanbanColumns.jsx";
-import { fetchDepositById } from "../../api/depositsApi.js";
+import { fetchDepositById, pullRezagadosAHoy } from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
-import { ListChecks, ChevronRight } from "lucide-react";
+import { ListChecks, ChevronRight, History, Loader2 } from "lucide-react";
 import {
   getKanbanBucket,
   isDepositAntiguo,
@@ -116,6 +117,7 @@ const KanbanPage = ({
   detailPresentationMode = "default",
 }) => {
   const { currentUser, users } = useContext(AuthContext);
+  const toast = useToast();
   const depositQueue = useDepositQueue({
     deposits,
     cuentas,
@@ -156,9 +158,6 @@ const KanbanPage = ({
   const [filterDateOption, setFilterDateOption] = useState("specific");
   const [specificDate, setSpecificDate] = useState(() => {
     const fecha = toLocalISOString(new Date());
-    console.log("🎯 KANBAN: specificDate inicializado con:", fecha);
-    console.log("🎯 KANBAN: fecha actual (new Date()):", new Date());
-    console.log("🎯 KANBAN: toLocalISOString result:", fecha);
     return fecha;
   });
   const [selectedDeposit, setSelectedDeposit] = useState(null);
@@ -178,7 +177,18 @@ const KanbanPage = ({
   // Estado para modal de contactos
   const [showContactosModal, setShowContactosModal] = useState(false);
   const [selectedValidatorFilter, setSelectedValidatorFilter] = useState(null);
+  const [isPullingRezagados, setIsPullingRezagados] = useState(false);
   const isCompactKanban = detailPresentationMode === "compact";
+
+  // Botón "Traer rezagados": solo finanzas/admin, y solo tiene sentido
+  // mostrarlo cuando finanzas está mirando el día de hoy (si está viendo
+  // otra fecha, no queda claro "a qué día" se estarían trayendo).
+  const puedeTraerRezagados =
+    currentUser?.user_rol === "finanzas" || currentUser?.user_rol === "admin";
+  const hoyKanban = toLocalISOString(new Date());
+  const viendoHoy =
+    filterDateOption === "today" ||
+    (filterDateOption === "specific" && specificDate === hoyKanban);
 
   const getUserInitials = useCallback((name) => {
     const cleanName = String(name || "").trim();
@@ -197,32 +207,17 @@ const KanbanPage = ({
 
   // Fetch deposits cuando cambia la fecha específica (incluyendo montaje inicial)
   useEffect(() => {
-    console.log("🔄 KANBAN useEffect ejecutado:", {
-      onFetchDepositsByDate: !!onFetchDepositsByDate,
-      filterDateOption,
-      specificDate,
-    });
-
     const loadDate = onSelectDate || onFetchDepositsByDate;
     if (!loadDate) {
-      console.log("⚠️ KANBAN: no hay handler para cargar depósitos por fecha");
       return;
     }
 
     if (filterDateOption === "specific" && specificDate) {
-      console.log(
-        "🔄 KANBAN: Solicitando depósitos para fecha específica:",
-        specificDate,
-      );
       loadDate(specificDate);
     } else if (filterDateOption === "today") {
       const today = toLocalISOString(new Date());
-      console.log("🔄 KANBAN: Solicitando depósitos para hoy:", today);
       loadDate(today);
     } else if (filterDateOption === "all") {
-      console.log(
-        "🔄 KANBAN: Opción 'Cualquier fecha' seleccionada - cargando TODOS los depósitos",
-      );
       if (onSelectDate) {
         onSelectDate(null);
       } else if (onFetchAllDeposits) {
@@ -230,13 +225,6 @@ const KanbanPage = ({
       } else {
         console.warn("⚠️ KANBAN: onFetchAllDeposits no está disponible");
       }
-    } else {
-      console.log(
-        "⚠️ KANBAN: No se cumple ninguna condición para cargar depósitos. filterDateOption:",
-        filterDateOption,
-        "specificDate:",
-        specificDate,
-      );
     }
   }, [
     specificDate,
@@ -249,10 +237,6 @@ const KanbanPage = ({
   // Notificar a App cuando cambie la fecha seleccionada
   useEffect(() => {
     if (onSelectedDateChange && specificDate) {
-      console.log(
-        "📅 KANBAN: Notificando cambio de fecha a App:",
-        specificDate,
-      );
       onSelectedDateChange(specificDate);
     }
   }, [specificDate, onSelectedDateChange]);
@@ -262,17 +246,12 @@ const KanbanPage = ({
     selectedDepositRef.current = selectedDeposit;
     if (selectedDeposit) {
       modalOpenTimeRef.current = Date.now();
-      console.log(
-        "📂 KANBAN: Modal abierto, guardando en localStorage. ID:",
-        selectedDeposit.id,
-      );
 
       // Guardar ID del depósito abierto para restaurar después del reload
       saveOpenDepositId(selectedDeposit.id);
     } else {
       // No limpiar automáticamente localStorage aquí
       // Se limpia explícitamente en handleCloseModal cuando el usuario cierra el modal
-      console.log("🔒 KANBAN: Modal cerrado (selectedDeposit es null)");
     }
   }, [selectedDeposit]);
 
@@ -280,11 +259,6 @@ const KanbanPage = ({
   useEffect(() => {
     // Solo restaurar una vez al cargar
     if (hasRestoredRef.current) return;
-
-    console.log(
-      "🔍 KANBAN: Verificando restauración inicial. deposits:",
-      deposits?.length,
-    );
 
     if (deposits && deposits.length > 0) {
       const wasRestored = restoreOpenDeposit(
@@ -295,27 +269,18 @@ const KanbanPage = ({
       hasRestoredRef.current = true;
 
       if (wasRestored) {
-        console.log(
-          "✅ KANBAN: Modal restaurado exitosamente en carga inicial",
-        );
       } else {
-        console.log("ℹ️ KANBAN: No hay modal para restaurar en carga inicial");
       }
     }
   }, [deposits, selectedDeposit]);
 
   // Monitor deposits prop changes
-  useEffect(() => {
-    console.log("📊 KANBAN: Prop deposits actualizada:", deposits?.length);
-  }, [deposits]);
+  useEffect(() => {}, [deposits]);
 
   // 👁️ Restaurar modal cuando la pestaña vuelve a estar visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log(
-          "👁️ KANBAN: Pestaña visible, verificando si hay modal para restaurar",
-        );
         restoreOpenDeposit(deposits, setSelectedDeposit, selectedDeposit);
       }
     };
@@ -328,18 +293,7 @@ const KanbanPage = ({
   }, [deposits, selectedDeposit]);
 
   // Monitorear cambios en selectedDeposit
-  useEffect(() => {
-    console.log(
-      "🔍 KANBAN: selectedDeposit cambió:",
-      selectedDeposit
-        ? {
-            id: selectedDeposit.id,
-            estado: selectedDeposit.estado,
-            es_antiguo: selectedDeposit.es_antiguo,
-          }
-        : "null",
-    );
-  }, [selectedDeposit]);
+  useEffect(() => {}, [selectedDeposit]);
 
   // CRÍTICO: Sincronizar selectedDeposit cuando deposits cambia (por Realtime)
   useEffect(() => {
@@ -358,15 +312,6 @@ const KanbanPage = ({
           updatedDeposit.riesgo !== selectedDeposit.riesgo;
 
         if (hasChanges) {
-          console.log(
-            "🔄 KANBAN: Actualizando selectedDeposit con datos de Realtime",
-            {
-              id: updatedDeposit.id,
-              es_antiguo_prev: selectedDeposit.es_antiguo,
-              es_antiguo_new: updatedDeposit.es_antiguo,
-              estado: updatedDeposit.estado,
-            },
-          );
           // NO reemplazar selectedDeposit entero por updatedDeposit: updatedDeposit
           // sale de `deposits` (GET /v1/deposits, la versión resumida del listado)
           // y mapDeposit() siempre incluye TODAS sus claves aunque sea con null
@@ -400,11 +345,7 @@ const KanbanPage = ({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log(
-          "🟢 KANBAN: Página visible - Los clicks deberían funcionar",
-        );
       } else {
-        console.log("🔴 KANBAN: Página oculta - Inactividad detectada");
       }
     };
 
@@ -424,29 +365,15 @@ const KanbanPage = ({
 
   const filteredDeposits = useMemo(() => {
     if (!deposits || !Array.isArray(deposits)) {
-      console.log(
-        "⚠️ KANBAN: No hay deposits o no es array:",
-        deposits?.length,
-      );
       return [];
     }
 
-    console.log("🔍 KANBAN: Filtrando deposits:", {
-      total: deposits.length,
-      filterDateOption,
-      specificDate,
-      searchTerm: debouncedSearchTerm,
-    });
     // Debug: mostrar las primeras 5 fechas disponibles
     const fechasDisponibles = deposits.slice(0, 5).map((d) => ({
       id: d.id,
       fecha_solo_date: d.fecha_solo_date,
       fecha_registro: d.fecha_registro?.substring(0, 10),
     }));
-    console.log(
-      "📅 KANBAN: Fechas disponibles (primeros 5):",
-      fechasDisponibles,
-    );
     const parsedAmountSearch = normalizeAmountInput(amountSearch);
     const normalizedBranchSearch = branchPersonSearch.toLowerCase().trim();
     const selectedDateFilter = getSelectedDateFilter(
@@ -526,12 +453,6 @@ const KanbanPage = ({
       return matchesDate && matchesSearch && matchesAmount && matchesBranchPerson;
     });
 
-    console.log(
-      "✅ KANBAN: Resultado filtrado:",
-      filtered.length,
-      "de",
-      deposits.length,
-    );
     return filtered;
   }, [deposits, debouncedSearchTerm, amountSearch, branchPersonSearch]);
 
@@ -685,14 +606,6 @@ const KanbanPage = ({
 
   const handleCardClick = useCallback(
     async (deposit) => {
-      console.log("👆 KANBAN: Click en card detectado", {
-        depositId: deposit.id,
-        estado: deposit.estado,
-        timestamp: new Date().toISOString(),
-      });
-
-      console.log("📂 KANBAN: Abriendo modal de forma optimista");
-
       // Si este depósito está en la cola de la extensión y el usuario ya
       // corrigió algún campo desde el side panel (fecha, número de
       // operación, importe, moneda, cliente), esos valores editados tienen
@@ -739,11 +652,7 @@ const KanbanPage = ({
         String(deposit.validado_por).toLowerCase() !== String(currentUser.id).toLowerCase();
 
       if (lockedByOther) {
-        console.log("🔒 KANBAN: Depósito ya tomado por otro usuario, se abre solo lectura");
       } else if (deposit.estado === "procesado" && !deposit.validado_por && currentUser) {
-        console.log("🔄 KANBAN: Es pendiente y esta libre, llamando onTakeDeposit (lock real)...");
-        console.log("⏳ KANBAN: Esperando respuesta del servidor...");
-
         // IMPORTANTE: el candado (POST /lock) se espera ANTES de pedir el
         // detalle completo (GET /v1/deposits/{id}), no en paralelo. Antes
         // ambas llamadas salian al mismo tiempo: si el GET (una simple
@@ -757,17 +666,7 @@ const KanbanPage = ({
         const updatedDeposit = await onTakeDeposit(deposit);
         const endTime = Date.now();
 
-        console.log(
-          `⏱️ KANBAN: onTakeDeposit completado en ${endTime - startTime}ms`,
-        );
-        console.log("📦 KANBAN: Resultado de onTakeDeposit:", {
-          success: !!updatedDeposit,
-          id: updatedDeposit?.id,
-          validado_por: updatedDeposit?.validado_por,
-        });
-
         if (updatedDeposit) {
-          console.log("✅ KANBAN: Sincronizando modal con depósito actualizado (candado tomado)");
           setSelectedDeposit((prev) =>
             prev && prev.id === deposit.id ? { ...prev, ...updatedDeposit } : prev
           );
@@ -778,7 +677,6 @@ const KanbanPage = ({
         }
       }
 
-      console.log("🌐 KANBAN: Consultando detalle completo GET /v1/deposits/{id}");
       fetchDepositById(deposit.id)
         .then((fullDeposit) => {
           if (!fullDeposit) return;
@@ -812,7 +710,6 @@ const KanbanPage = ({
           console.warn("⚠️ KANBAN: No se pudo obtener el detalle completo del deposito:", error);
         });
 
-      console.log("🎬 KANBAN: Fin de handleCardClick");
     },
     [currentUser, onTakeDeposit, depositQueue],
   );
@@ -835,6 +732,30 @@ const KanbanPage = ({
     queueFlowActiveRef.current = true;
     void handleCardClick(found);
   }, [depositQueue, deposits, handleCardClick]);
+
+  // Trae a "hoy" los depósitos que quedaron "procesado" (pendientes) de días
+  // anteriores -- típicamente rezagados que llegaron después del horario de
+  // oficina y nadie llegó a revisar. El backend les actualiza fecha_registro
+  // al momento del click y los marca condicion="antiguo". Solo finanzas/admin.
+  const handlePullRezagados = useCallback(async () => {
+    if (isPullingRezagados) return;
+    setIsPullingRezagados(true);
+    try {
+      const { movedCount } = await pullRezagadosAHoy();
+      if (!movedCount) {
+        toast.info("No hay depósitos rezagados para traer a hoy.");
+        return;
+      }
+      toast.success(
+        `Se ${movedCount === 1 ? "trajo" : "trajeron"} ${movedCount} depósito${movedCount === 1 ? "" : "s"} rezagado${movedCount === 1 ? "" : "s"} a hoy.`,
+      );
+      await onFetchDepositsByDate?.(hoyKanban);
+    } catch (error) {
+      toast.error(`No se pudo traer los rezagados: ${error.message}`);
+    } finally {
+      setIsPullingRezagados(false);
+    }
+  }, [hoyKanban, isPullingRezagados, onFetchDepositsByDate, toast]);
 
   // Envuelve onUpdateDeposit: cuando un depósito que estaba en la cola llega
   // a un estado final (confirmado O rechazado), lo saca de la cola y, si el
@@ -878,19 +799,11 @@ const KanbanPage = ({
     const now = Date.now();
     const timeSinceOpen = now - modalOpenTimeRef.current;
 
-    console.log("🚪 KANBAN: handleCloseModal llamado", {
-      timeSinceOpen,
-      modalOpenTime: modalOpenTimeRef.current,
-    });
-
     // Ignorar cierres que ocurren menos del tiempo mínimo después de abrir
     // Esto previene cierres accidentales/automáticos
     if (timeSinceOpen < PERSISTENCE_CONFIG.MIN_MODAL_OPEN_TIME) {
-      console.log("⚠️ KANBAN: Cierre ignorado - modal recién abierto");
       return;
     }
-
-    console.log("🚪 KANBAN: Cerrando modal");
 
     // Limpiar localStorage ya que el usuario cerró explícitamente el modal
     clearOpenDepositId();
@@ -957,6 +870,25 @@ const KanbanPage = ({
           setBranchPersonSearch={setBranchPersonSearch}
           onFetchDepositsByDate={onFetchDepositsByDate}
         />
+
+        {puedeTraerRezagados && viendoHoy && (
+          <button
+            type="button"
+            onClick={handlePullRezagados}
+            disabled={isPullingRezagados}
+            className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/40 dark:hover:bg-amber-900/50"
+            title="Trae a hoy los depósitos pendientes que quedaron de días anteriores"
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+              {isPullingRezagados ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <History size={16} />
+              )}
+              <span>Traer rezagados de días anteriores</span>
+            </div>
+          </button>
+        )}
 
         {depositQueue.attendedQueueIds.length > 0 && (
           <button

@@ -360,7 +360,7 @@ const DepositDetailModal = ({
   // mismo flujo que ya existe en el listado de tabla (TablePage), pero
   // disponible aca tambien porque el Kanban abre el detalle SIEMPRE a traves
   // de este modal (no tiene un listado propio donde marcar la fila).
-  const userRolForRegularize = currentUser?.user_rol || currentUser?.rol || "";
+  const userRolForRegularize = currentUser?.user_rol || "";
   const canRegularize = userRolForRegularize === "finanzas" || userRolForRegularize === "admin";
   const [isMarkingRegularize, setIsMarkingRegularize] = useState(false);
   const [showRegularizeUpload, setShowRegularizeUpload] = useState(false);
@@ -1696,8 +1696,7 @@ const DepositDetailModal = ({
                           value={editableData.monto}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          title={motivoVisible(campoVerificacion(verificacionOcr, "monto")) || undefined}
-                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "monto")?.accion, { compact: true })}`}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                           placeholder="0.00"
                           step="0.01"
                         />
@@ -1752,8 +1751,7 @@ const DepositDetailModal = ({
                           value={editableData.fecha_deposito}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          title={motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) || undefined}
-                          className={`w-full rounded-xl border px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "fecha_deposito")?.accion, { compact: true })}`}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                         />
                       </div>
                     </div>
