@@ -78,6 +78,11 @@ function buildQueueDepositData(deposit, cuentas, bancos) {
     monto: deposit?.monto,
     deposit_id: deposit?.id,
     voucherUrl,
+    // Resultado del chequeo cruzado OCR (Vision) vs. IA (LlamaCloud) -- ver
+    // verificacionOcrHelpers.js para el shape y el origen real
+    // (deposit.datos_ocr.verificacion). AppExtension lo usa para pintar
+    // Moneda/Importe/Fecha igual que DepositDetailModal.jsx.
+    verificacionOcr: deposit?.datos_ocr?.verificacion || null,
   };
 }
 

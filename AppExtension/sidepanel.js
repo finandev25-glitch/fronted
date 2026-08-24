@@ -38,8 +38,22 @@ let toastHideTimer = null;
 const TOAST_CHECK_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10.5L8 14.5L16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const TOAST_WARNING_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L18 17H2L10 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 8.2V11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1" fill="currentColor"/></svg>`;
 
-// tone: "success" (verde, default) | "warning" (ámbar) -- ver
-// checkAnexoMonedaMismatch más abajo, primer uso de "warning".
+function hideToast() {
+  if (toastHideTimer) clearTimeout(toastHideTimer);
+  elements.toast.classList.remove("is-visible");
+  toastHideTimer = setTimeout(() => {
+    elements.toast.hidden = true;
+  }, 200);
+}
+elements.toast.addEventListener("click", () => {
+  // Solo "error" se queda hasta que lo cierren a mano (ver showToast) --
+  // clickear un toast que ya se iba a cerrar solo no rompe nada.
+  hideToast();
+});
+
+// tone: "success" (verde, default) | "warning" (ámbar, se cierra solo) |
+// "error" (rojo, NO se cierra solo -- el usuario lo cierra tocándolo; ver
+// findAnexoValidationRule más abajo, primer uso de "error").
 function showToast(message, tone = "success") {
   if (toastHideTimer) clearTimeout(toastHideTimer);
   // Restart de la animación de "pop" (@keyframes toast-pop): sacar y volver a
@@ -48,20 +62,18 @@ function showToast(message, tone = "success") {
   // medio para que el navegador "olvide" el estado anterior.
   elements.toast.classList.remove("is-visible");
   elements.toast.classList.toggle("tone-warning", tone === "warning");
-  const icon = tone === "warning" ? TOAST_WARNING_ICON_SVG : TOAST_CHECK_ICON_SVG;
-  elements.toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${escapeHtml(message)}</span>`;
+  elements.toast.classList.toggle("tone-error", tone === "error");
+  const icon = tone === "warning" || tone === "error" ? TOAST_WARNING_ICON_SVG : TOAST_CHECK_ICON_SVG;
+  const closeHint = tone === "error" ? '<span class="toast-close-hint">Toca para cerrar</span>' : "";
+  elements.toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${escapeHtml(message)}</span>${closeHint}`;
   elements.toast.hidden = false;
   void elements.toast.offsetWidth;
   elements.toast.classList.add("is-visible");
+  if (tone === "error") return;
   // Las advertencias se quedan un poco más -- son más largas y hay que
   // llegar a leerlas, no son solo un "listo".
   const duration = tone === "warning" ? 3800 : 2000;
-  toastHideTimer = setTimeout(() => {
-    elements.toast.classList.remove("is-visible");
-    toastHideTimer = setTimeout(() => {
-      elements.toast.hidden = true;
-    }, 200);
-  }, duration);
+  toastHideTimer = setTimeout(hideToast, duration);
 }
 
 // Anexo termina en "MN" (moneda nacional, Soles) o "ME" (moneda extranjera,
@@ -84,6 +96,87 @@ function checkAnexoMonedaMismatch(inner, anexoValue) {
       "warning",
     );
   }
+}
+
+// ── Verificación OCR (Llama vs. Vision) ──────────────────────────────────
+// Copia de src/features/deposits/utils/verificacionOcrHelpers.js -- pinta
+// Moneda/Importe/Fecha según deposit.datos_ocr.verificacion (mandado por la
+// app web en depositData.verificacionOcr, ver useDepositQueue.js). Shape:
+// { monto: {accion, motivo}, moneda: {...}, fecha_deposito: {...} }.
+const CLASE_POR_ACCION_OCR = {
+  ninguna: "verif-ok",
+  revision_manual: "verif-revisar",
+  auto_corregido: "verif-auto",
+};
+
+function campoVerificacionOcr(verificacionOcr, campo) {
+  if (!verificacionOcr) return null;
+  return verificacionOcr[campo] || null;
+}
+
+function claseSegunAccionOcr(accion) {
+  return CLASE_POR_ACCION_OCR[accion] || "";
+}
+
+function motivoVisibleOcr(verificacionCampo) {
+  if (!verificacionCampo) return "";
+  if (verificacionCampo.accion === "ninguna") {
+    return verificacionCampo.motivo || "Valor verificado: Llama y OCR coinciden.";
+  }
+  if (verificacionCampo.accion === "revision_manual") {
+    return verificacionCampo.motivo || "Revisar: Llama y OCR obtuvieron valores diferentes.";
+  }
+  if (verificacionCampo.accion === "auto_corregido") {
+    return verificacionCampo.motivo || "Llama no obtuvo el valor; se utilizó el candidato OCR.";
+  }
+  return "";
+}
+
+// ── Validación Anexo/Empresa vs. página del banco ────────────────────────
+// Copia de src/features/deposit-detail/data/anexoValidationRules.js -- si el
+// Excel (Validacion.xlsx) cambia, hay que actualizar ambas copias a mano.
+const ANEXO_VALIDATION_RULES = [
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "YCREDMN", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Soles 191-6661277-0-24" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "LCRED ME", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Dólares 193-9948591-1-26" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "LCRED MN", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Soles 193-9945454-0-29" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "CREDI ME", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Dólares 540-0051071-1-23" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "CREDI MN", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Soles 540-0051072-0-23" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "RECAU MN", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Soles 540-1187644-0-47" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "RECAU ME", empresaValidar: "J.CH.COMERCIAL S.A.", datoValidar: "Corriente Dólares 540-1188858-1-19" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "YCREDMN", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Corriente Soles 191-6661334-0-00" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "LCRED MN", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Corriente Soles 193-9951933-0-73" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "LCRED ME", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Corriente Dólares 193-9953618-1-03" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "CREDI MN", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Corriente Soles 540-1588073-0-85" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "CREDI ME", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Corriente Dólares 540-1599931-1-72" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "CONTI ME", empresaValidar: "J CH COMERCIAL SA", datoValidar: "Nº de la Cuenta: 0011-0232-01-00047073 - CUENTA CORRIENTE" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "CONTI MN", empresaValidar: "J CH COMERCIAL SA", datoValidar: "Nº de la Cuenta: 0011-0232-01-00047065 - CUENTA CORRIENTE" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "BBVA MN", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Nº de la Cuenta: 0011-0409-01-00005410 - CUENTA CORRIENTE" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "BBVA ME", empresaValidar: "EVOLUTION CAR SERVICE EIRL", datoValidar: "Nº de la Cuenta: 0011-0409-01-00005429 - CUENTA CORRIENTE" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "INTER MN", empresaValidar: "J CH COMERCIAL", datoValidar: "Corriente Soles 340-0001256733" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "INTER ME", empresaValidar: "J CH COMERCIAL", datoValidar: "Corriente Dólares 340-0001256732" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "INTER MN", empresaValidar: "EVOLUTION CAR SERVICE", datoValidar: "Corriente Soles 340-3001121616" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "INTER ME", empresaValidar: "EVOLUTION CAR SERVICE", datoValidar: "Corriente Dólares 340-3000998246" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "SCOTI MN", empresaValidar: "J.CH. COMERCIAL S.A.", datoValidar: "Cuenta Corriente CCMN 258-1030020" },
+  { empresaSeleccionado: "JCH COMERCIAL SA", anexoSeleccionado: "SCOTI ME", empresaValidar: "J.CH. COMERCIAL S.A.", datoValidar: "Cuenta Corriente CCME 258-1030021" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "SCOTI MN", empresaValidar: "EVOLUTION CAR SERVIC", datoValidar: "Cuenta Corriente CCMN 000-2558512" },
+  { empresaSeleccionado: "EVOLUTION CAR SERVICE EIRL", anexoSeleccionado: "SCOTI ME", empresaValidar: "EVOLUTION CAR SERVIC", datoValidar: "Cuenta Corriente CCME 000-5155551" },
+];
+
+function normalizeAnexoValidationKey(value) {
+  return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function findAnexoValidationRule(empresaNombre, anexo) {
+  const empresaKey = normalizeAnexoValidationKey(empresaNombre);
+  const anexoKey = normalizeAnexoValidationKey(anexo);
+  if (!empresaKey || !anexoKey) return null;
+  return (
+    ANEXO_VALIDATION_RULES.find(
+      (rule) =>
+        normalizeAnexoValidationKey(rule.empresaSeleccionado) === empresaKey &&
+        normalizeAnexoValidationKey(rule.anexoSeleccionado) === anexoKey,
+    ) || null
+  );
 }
 
 let queueItems = [];
@@ -595,6 +688,23 @@ function buildQueueItemDetailContent(item, data) {
   });
   const anexoFieldHtml = buildAnexoFieldMarkup(anexoOptions, currentAnexo);
 
+  // Verificación OCR (Llama vs. Vision) -- ver campoVerificacionOcr más
+  // arriba. verificacionOcr viaja en depositData tal cual la mandó la app
+  // web (useDepositQueue.js); items agregados a la cola antes de esa
+  // actualización simplemente no tienen el campo y no se pinta nada.
+  const verificacionOcr = data.verificacionOcr || null;
+  const vMoneda = campoVerificacionOcr(verificacionOcr, "moneda");
+  const vMonto = campoVerificacionOcr(verificacionOcr, "monto");
+  const vFecha = campoVerificacionOcr(verificacionOcr, "fecha_deposito");
+  const monedaVerifClass = claseSegunAccionOcr(vMoneda?.accion);
+  const montoVerifClass = claseSegunAccionOcr(vMonto?.accion);
+  const fechaVerifClass = claseSegunAccionOcr(vFecha?.accion);
+  const monedaVerifTitle = motivoVisibleOcr(vMoneda);
+  const montoVerifTitle = motivoVisibleOcr(vMonto);
+  const fechaVerifTitle = motivoVisibleOcr(vFecha);
+  const verifNoteHtml = (text) =>
+    text ? `<p class="field-verif-note">${escapeHtml(text)}</p>` : "";
+
   // Banco: editable si la app mandó el catálogo (bancoOptions); si no, se
   // muestra de solo lectura igual que Sucursal (un texto libre no serviría,
   // el resto del formulario necesita el id real del banco).
@@ -631,11 +741,12 @@ function buildQueueItemDetailContent(item, data) {
       </div>
       <div class="queue-item-field">
         <span class="label">Moneda</span>
-        <select class="queue-edit-input" data-field="moneda" data-required="1">
+        <select class="queue-edit-input ${monedaVerifClass}" data-field="moneda" data-required="1" title="${escapeHtml(monedaVerifTitle)}">
           <option value=""${moneda ? "" : " selected"}>Seleccionar</option>
           <option value="PEN"${moneda === "PEN" ? " selected" : ""}>Soles (PEN)</option>
           <option value="USD"${moneda === "USD" ? " selected" : ""}>Dólares (USD)</option>
         </select>
+        ${verifNoteHtml(monedaVerifTitle)}
       </div>
       <div class="queue-item-field" data-anexo-cell>
         <span class="label">Anexo</span>
@@ -649,7 +760,8 @@ function buildQueueItemDetailContent(item, data) {
           <span>Importe</span>
           <button type="button" class="field-search-btn queue-search-amount-btn" title="Buscar importe" aria-label="Buscar importe">${SEARCH_ICON_SVG}</button>
         </span>
-        <input type="number" step="0.01" class="queue-edit-input" data-field="monto" data-required="1" value="${escapeHtml(rawAmount)}" placeholder="0.00" />
+        <input type="number" step="0.01" class="queue-edit-input ${montoVerifClass}" data-field="monto" data-required="1" value="${escapeHtml(rawAmount)}" placeholder="0.00" title="${escapeHtml(montoVerifTitle)}" />
+        ${verifNoteHtml(montoVerifTitle)}
       </div>
       <div class="queue-item-field">
         <span class="label label--with-action">
@@ -663,7 +775,8 @@ function buildQueueItemDetailContent(item, data) {
           <span>Fecha depósito</span>
           <button type="button" class="field-today-btn queue-date-today-btn" title="Usar fecha de hoy" aria-label="Usar fecha de hoy">${TODAY_ICON_SVG}</button>
         </span>
-        <input type="date" class="queue-edit-input" data-field="fecha_deposito" data-required="1" value="${escapeHtml(resolveDepositDate(data))}" />
+        <input type="date" class="queue-edit-input ${fechaVerifClass}" data-field="fecha_deposito" data-required="1" value="${escapeHtml(resolveDepositDate(data))}" title="${escapeHtml(fechaVerifTitle)}" />
+        ${verifNoteHtml(fechaVerifTitle)}
       </div>
     </div>
     <div class="queue-item-search-status search-status">Busca por nro. operación o importe en la pestaña activa.</div>
@@ -777,7 +890,8 @@ function buildQueueItemDetailContent(item, data) {
     event.stopPropagation();
     void runQueueItemSearch(item, "amount", inner);
   });
-  inner.querySelector(".queue-item-attend-btn").addEventListener("click", async (event) => {
+  const attendBtn = inner.querySelector(".queue-item-attend-btn");
+  attendBtn.addEventListener("click", async (event) => {
     event.stopPropagation();
 
     const willAttend = !item.atendido;
@@ -792,6 +906,54 @@ function buildQueueItemDetailContent(item, data) {
         invalidEls[0].focus();
         invalidEls[0].scrollIntoView({ behavior: "smooth", block: "center" });
         return;
+      }
+
+      // Anexo/Empresa vs. la página del banco (mismo criterio que
+      // "Comprobar Duplicados" en la app web, ver useDepositActions.js
+      // handleCheckDuplicates): si la combinación Empresa+Anexo elegida
+      // tiene una fila en ANEXO_VALIDATION_RULES, hay que encontrar TANTO
+      // la empresa como el dato de cuenta en la pestaña activa antes de
+      // dejar guardar -- si falta alguno de los dos, se bloquea.
+      const empresaNombre = item.depositData?.empresa || "";
+      const anexoEl = inner.querySelector('[data-field="anexo"]');
+      const anexoValue = anexoEl?.value || item.depositData?.anexo || "";
+      const rule = findAnexoValidationRule(empresaNombre, anexoValue);
+      if (rule) {
+        const originalLabel = attendBtn.textContent;
+        attendBtn.disabled = true;
+        attendBtn.textContent = "Validando...";
+        try {
+          const result = await chrome.runtime.sendMessage({
+            type: "SEARCH_ANEXO_VALIDATION_IN_PAGE",
+            empresaValidar: rule.empresaValidar,
+            datoValidar: rule.datoValidar,
+          });
+          if (!result?.ok) {
+            showToast(`No se pudo validar anexo/empresa: ${result?.message || "error desconocido"}.`, "error");
+            attendBtn.disabled = false;
+            attendBtn.textContent = originalLabel;
+            return;
+          }
+          const faltantes = [];
+          if (!result.empresaFound) faltantes.push(`empresa "${rule.empresaValidar}"`);
+          if (!result.datoFound) faltantes.push(`dato "${rule.datoValidar}"`);
+          if (faltantes.length > 0) {
+            showToast(
+              `No se encontró en la pestaña activa: ${faltantes.join(" ni ")}. Revisá que el Anexo/Empresa elegidos coincidan con la cuenta del voucher.`,
+              "error",
+            );
+            attendBtn.disabled = false;
+            attendBtn.textContent = originalLabel;
+            return;
+          }
+        } catch (error) {
+          showToast(`Error al validar anexo/empresa: ${error.message}`, "error");
+          attendBtn.disabled = false;
+          attendBtn.textContent = originalLabel;
+          return;
+        }
+        attendBtn.disabled = false;
+        attendBtn.textContent = originalLabel;
       }
     }
 

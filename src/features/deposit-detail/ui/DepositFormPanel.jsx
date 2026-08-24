@@ -118,7 +118,7 @@ export const DepositFormPanel = ({
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${claseSegunAccion(vFecha?.accion)}`}
                         />
                         {motivoVisible(vFecha) && (
-                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{motivoVisible(vFecha)}</p>
+                          <p className="mt-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">{motivoVisible(vFecha)}</p>
                         )}
                       </FormRow>
                     </div>
@@ -167,7 +167,7 @@ export const DepositFormPanel = ({
                           step="0.01"
                         />
                         {motivoVisible(vMonto) && (
-                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{motivoVisible(vMonto)}</p>
+                          <p className="mt-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">{motivoVisible(vMonto)}</p>
                         )}
                       </FormRow>
                     </div>
@@ -192,7 +192,7 @@ export const DepositFormPanel = ({
                           <option value="USD">Dólares (USD)</option>
                         </select>
                         {motivoVisible(vMoneda) && (
-                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{motivoVisible(vMoneda)}</p>
+                          <p className="mt-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">{motivoVisible(vMoneda)}</p>
                         )}
                       </FormRow>
                     </div>

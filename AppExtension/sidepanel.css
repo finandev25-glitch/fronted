@@ -478,6 +478,33 @@ body {
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
+/* Verificación OCR (Llama vs. Vision), ver campoVerificacionOcr en
+   sidepanel.js -- mismos 3 colores que DepositDetailModal.jsx
+   (verificacionOcrHelpers.js): verde = coinciden, ámbar = se corrigió solo
+   con el candidato OCR, rojo = hay que revisar a mano. */
+.queue-edit-input.verif-ok {
+  border-color: #4ade80;
+  background: rgba(220, 252, 231, 0.6);
+}
+
+.queue-edit-input.verif-auto {
+  border-color: #fbbf24;
+  background: rgba(254, 243, 199, 0.6);
+}
+
+.queue-edit-input.verif-revisar {
+  border-color: #f87171;
+  background: rgba(254, 226, 226, 0.6);
+}
+
+.field-verif-note {
+  margin: 2px 0 0;
+  font-size: 8px;
+  line-height: 1.25;
+  color: #64748b;
+  white-space: normal;
+}
+
 /* Toast "Datos grabados" tras marcar Atender -- el modal ya se cerró en ese
    momento, así que no hay dónde mostrar un status inline dentro de él.
    Centrado en el panel (no pegado abajo) y con una entrada tipo "pop" (ver
@@ -516,6 +543,25 @@ body {
 .toast.tone-warning {
   background: linear-gradient(135deg, #fbbf24, #d97706);
   box-shadow: 0 16px 40px rgba(217, 119, 6, 0.45);
+}
+
+/* Error bloqueante (validación anexo/empresa, ver findAnexoValidationRule en
+   sidepanel.js) -- a diferencia de "success"/"warning", NO se cierra solo:
+   hay que leerlo y decidir algo, así que se queda hasta que el usuario lo
+   toque (ver hideToast/click listener en sidepanel.js). cursor:pointer +
+   toast-close-hint avisan que es tocable. */
+.toast.tone-error {
+  background: linear-gradient(135deg, #f87171, #dc2626);
+  box-shadow: 0 16px 40px rgba(220, 38, 38, 0.45);
+  cursor: pointer;
+}
+
+.toast-close-hint {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .toast.is-visible {

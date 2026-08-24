@@ -160,6 +160,60 @@ function buildSearchVariants(payload, searchType = "both") {
   return variants;
 }
 
+// Búsqueda de texto plano (sin resaltar, sin dígitos/variantes de monto) --
+// usada por la validación Anexo/Empresa (ver SEARCH_ANEXO_VALIDATION_IN_PAGE
+// más abajo y findAnexoValidationRule en sidepanel.js): solo hace falta
+// saber si el texto de la empresa/cuenta a validar aparece en la página, no
+// resaltarlo ni hacer scroll -- lo hace searchInActiveTab con el importe/nro
+// de operación.
+async function searchPlainTextInActiveTab(terms) {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab?.id) {
+    return { ok: false, message: "No hay una pestaña activa para buscar." };
+  }
+
+  const cleanTerms = (terms || []).filter(Boolean);
+  if (cleanTerms.length === 0) {
+    return { ok: false, message: "No hay texto para buscar." };
+  }
+
+  const frameResults = await chrome.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    func: (searchTerms) => {
+      const normalizeText = (value) =>
+        String(value || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
+          .replace(/\s+/g, " ")
+          .trim();
+      const bodyText = normalizeText(document.body ? document.body.innerText : "");
+      const results = {};
+      searchTerms.forEach((term) => {
+        const normalized = normalizeText(term);
+        results[term] = !!normalized && bodyText.includes(normalized);
+      });
+      return results;
+    },
+    args: [cleanTerms],
+  });
+
+  const merged = {};
+  cleanTerms.forEach((term) => {
+    merged[term] = false;
+  });
+  (frameResults || []).forEach((frame) => {
+    const result = frame?.result;
+    if (!result) return;
+    Object.keys(result).forEach((key) => {
+      if (result[key]) merged[key] = true;
+    });
+  });
+
+  return { ok: true, results: merged };
+}
+
 async function searchInActiveTab(payload, searchType = "both") {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -520,6 +574,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     updateQueueItemFields({ id: message.id, fields: message.fields })
       .then((state) => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "SEARCH_ANEXO_VALIDATION_IN_PAGE") {
+    (async () => {
+      const terms = [message.empresaValidar, message.datoValidar].filter(Boolean);
+      const search = await searchPlainTextInActiveTab(terms);
+      if (!search.ok) {
+        sendResponse({ ok: false, message: search.message });
+        return;
+      }
+      sendResponse({
+        ok: true,
+        empresaFound: !!search.results[message.empresaValidar],
+        datoFound: !!search.results[message.datoValidar],
+      });
+    })().catch((error) => {
+      sendResponse({ ok: false, message: error.message });
+    });
     return true;
   }
 

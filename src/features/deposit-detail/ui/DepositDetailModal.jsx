@@ -1637,16 +1637,22 @@ const DepositDetailModal = ({
                           value={selectedMoneda}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
+                          title={motivoVisible(campoVerificacion(verificacionOcr, "moneda")) || undefined}
                           className={`w-full rounded-xl border px-2.5 py-1 text-lg outline-none transition-colors focus:ring-2 ${
                             !selectedMoneda
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-                              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                              : claseSegunAccion(campoVerificacion(verificacionOcr, "moneda")?.accion, { compact: true })
                           }`}
                         >
                           <option value="">Seleccionar</option>
                           <option value="PEN">Soles (PEN)</option>
                           <option value="USD">Dólares (USD)</option>
                         </select>
+                        {motivoVisible(campoVerificacion(verificacionOcr, "moneda")) && (
+                          <p className="truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                            {motivoVisible(campoVerificacion(verificacionOcr, "moneda"))}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-0.5">
@@ -1701,6 +1707,11 @@ const DepositDetailModal = ({
                           placeholder="0.00"
                           step="0.01"
                         />
+                        {motivoVisible(campoVerificacion(verificacionOcr, "monto")) && (
+                          <p className="truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                            {motivoVisible(campoVerificacion(verificacionOcr, "monto"))}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-0.5">
@@ -1755,6 +1766,11 @@ const DepositDetailModal = ({
                           title={motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) || undefined}
                           className={`w-full rounded-xl border px-2.5 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:text-gray-100 ${claseSegunAccion(campoVerificacion(verificacionOcr, "fecha_deposito")?.accion, { compact: true })}`}
                         />
+                        {motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) && (
+                          <p className="truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                            {motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito"))}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2901,6 +2917,7 @@ const DepositDetailModal = ({
                           deposit.banco?.abreviatura || deposit.banco?.nombre || "",
                         monto: editableData.monto || deposit.monto,
                         deposit_id: deposit.id,
+                        verificacionOcr,
                       })
                     }
                     className="px-2 md:px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium flex items-center justify-center space-x-2 text-sm"
@@ -2967,6 +2984,7 @@ const DepositDetailModal = ({
                           deposit.banco?.abreviatura || deposit.banco?.nombre || "",
                         monto: editableData.monto || deposit.monto,
                         deposit_id: deposit.id,
+                        verificacionOcr,
                       })
                     }
                     className="px-2 md:px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium flex items-center justify-center space-x-2 text-sm"
