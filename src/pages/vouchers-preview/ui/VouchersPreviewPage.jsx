@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, FileText, Loader2, XCircle } from "lucide-react";
-import { fetchDepositsByDate, fetchDepositsByRange } from "../../../features/deposits/api/depositsApi.js";
+import {
+  fetchDepositsByDate,
+  fetchDepositsByRange,
+  markDepositForRegularize,
+} from "../../../features/deposits/api/depositsApi.js";
 import { toLocalISOString } from "../../../utils/dateFormatters.js";
+import { AuthContext } from "../../../features/auth/context/AuthContext.jsx";
+import { useToast } from "../../../components/ToastProvider.jsx";
 import VoucherGallery from "./VoucherGallery.jsx";
 import VoucherLightbox from "./VoucherLightbox.jsx";
 
@@ -34,6 +40,10 @@ function diffDays(desdeStr, hastaStr) {
 const VouchersPreviewPage = ({ empresas = [], bancos = [], sucursales = [], onSelectDate }) => {
   const hoy = useMemo(() => toLocalISOString(new Date()), []);
   const navigate = useNavigate();
+  const { currentUser } = useContext(AuthContext);
+  const toast = useToast();
+  const canRegularize =
+    currentUser?.user_rol === "finanzas" || currentUser?.user_rol === "admin";
 
   const [desde, setDesde] = useState(hoy);
   const [hasta, setHasta] = useState(hoy);
@@ -42,6 +52,30 @@ const VouchersPreviewPage = ({ empresas = [], bancos = [], sucursales = [], onSe
   const [error, setError] = useState("");
   const [pdfCount, setPdfCount] = useState(0);
   const [lightboxDeposit, setLightboxDeposit] = useState(null);
+  const [regularizingId, setRegularizingId] = useState(null);
+
+  // Marca un depósito como pendiente de regularizar (mismo endpoint que ya
+  // usan TablePage y DepositDetailModal). Esta pantalla mantiene su propio
+  // estado de "deposits" a propósito (ver comentario del componente más
+  // abajo), así que actualiza localmente en vez de pisar el estado
+  // compartido del dashboard.
+  const handleMarkRegularize = useCallback(async (deposit) => {
+    if (!canRegularize || regularizingId) return;
+    if (!window.confirm("¿Marcar este depósito para regularizar el voucher?")) return;
+
+    setRegularizingId(deposit.id);
+    try {
+      await markDepositForRegularize(deposit.id);
+      setDeposits((prev) =>
+        prev.map((d) => (d.id === deposit.id ? { ...d, pendiente_regularizar: true } : d)),
+      );
+      toast.success("Depósito marcado para regularizar.");
+    } catch (error) {
+      toast.error(`No se pudo marcar el depósito: ${error.message}`);
+    } finally {
+      setRegularizingId(null);
+    }
+  }, [canRegularize, regularizingId, toast]);
 
   const cargar = useCallback(async (desdeVal, hastaVal) => {
     setLoading(true);
@@ -202,6 +236,9 @@ const VouchersPreviewPage = ({ empresas = [], bancos = [], sucursales = [], onSe
           deposits={depositsEnriquecidos}
           onOpen={setLightboxDeposit}
           onPdfCountChange={setPdfCount}
+          canRegularize={canRegularize}
+          onMarkRegularize={handleMarkRegularize}
+          regularizingId={regularizingId}
         />
       )}
 

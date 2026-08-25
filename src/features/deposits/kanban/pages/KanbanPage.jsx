@@ -872,22 +872,22 @@ const KanbanPage = ({
         />
 
         {puedeTraerRezagados && viendoHoy && (
-          <button
-            type="button"
-            onClick={handlePullRezagados}
-            disabled={isPullingRezagados}
-            className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/40 dark:hover:bg-amber-900/50"
-            title="Trae a hoy los depósitos pendientes que quedaron de días anteriores"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={handlePullRezagados}
+              disabled={isPullingRezagados}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50"
+              title="Trae a hoy los depósitos pendientes que quedaron de días anteriores"
+            >
               {isPullingRezagados ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 size={13} className="animate-spin" />
               ) : (
-                <History size={16} />
+                <History size={13} />
               )}
-              <span>Traer rezagados de días anteriores</span>
-            </div>
-          </button>
+              <span>Traer rezagados</span>
+            </button>
+          </div>
         )}
 
         {depositQueue.attendedQueueIds.length > 0 && (

@@ -3,14 +3,17 @@ import * as XLSX from "xlsx";
 import { AuthContext } from "../contexts/AuthContext.jsx";
 import {
   fetchRegularizacionesHistorial,
+  financeRegularizeImage,
   getRegularizacionImagenAnteriorUrl,
   getRegularizacionImagenNuevaUrl,
 } from "../features/deposits/api/depositsApi.js";
+import RegularizeImageModal from "../features/deposits/components/RegularizeImageModal.jsx";
+import { useToast } from "./ToastProvider.jsx";
 import VoucherModal from "./VoucherModal.jsx";
-import { Download, Search, RefreshCw, History, Image as ImageIcon } from "lucide-react";
+import { Download, Search, RefreshCw, History, Image as ImageIcon, UploadCloud } from "lucide-react";
 
 const ACCION_LABELS = {
-  marcado: "Marcado",
+  marcado: "Pendiente",
   resuelto: "Resuelto",
   desmarcado: "Desmarcado",
 };
@@ -40,6 +43,7 @@ function formatMonto(monto) {
 
 const RegularizacionesHistorialView = ({ empresas = [] }) => {
   const { currentUser } = useContext(AuthContext);
+  const toast = useToast();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -50,6 +54,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [zoomImage, setZoomImage] = useState(null);
+  const [uploadRow, setUploadRow] = useState(null);
 
   const userRol = currentUser?.user_rol || "";
   const canView = userRol === "finanzas" || userRol === "admin";
@@ -77,6 +82,22 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView, desde, hasta, filterAccion, filterEmpresa]);
+
+  // Sube la imagen nueva directo desde esta vista (antes solo se podía desde
+  // Tabla). Solo se ofrece el botón para filas en estado "marcado" -- el
+  // backend exige que el depósito esté pendienteRegularizar, y esta vista ya
+  // solo lo habilita en ese caso, así que siempre va a funcionar.
+  const handleSubmitRegularizeImage = async (imagenBase64) => {
+    if (!uploadRow) return;
+    try {
+      await financeRegularizeImage(uploadRow.depositoId, imagenBase64);
+      toast.success("Voucher actualizado correctamente.");
+      setUploadRow(null);
+      await load();
+    } catch (err) {
+      toast.error(`No se pudo cargar la imagen: ${err.message}`);
+    }
+  };
 
   const filteredRows = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -124,7 +145,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
             Historial de Regularizaciones
           </h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Registro de todos los depósitos marcados, resueltos o desmarcados para regularizar.
+            Un registro por depósito con su estado actual de regularización.
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -163,8 +184,8 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
           onChange={(e) => setFilterAccion(e.target.value)}
           className="border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200"
         >
-          <option value="all">Todas las acciones</option>
-          <option value="marcado">Marcado</option>
+          <option value="all">Todos los estados</option>
+          <option value="marcado">Pendiente</option>
           <option value="resuelto">Resuelto</option>
           <option value="desmarcado">Desmarcado</option>
         </select>
@@ -212,9 +233,10 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Cliente</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Empresa</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Monto</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Acción</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Estado</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Usuario</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Vouchers</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Cargar voucher</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -232,7 +254,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.usuarioNombre || "-"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {row.accion === "resuelto" && row.imagenAnterior && row.imagenNueva ? (
+                    {row.imagenAnterior && row.imagenNueva ? (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setZoomImage(getRegularizacionImagenAnteriorUrl(row.id))}
@@ -255,18 +277,33 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                       <span className="text-xs text-gray-400">-</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <button
+                      onClick={() => setUploadRow(row)}
+                      disabled={row.accion !== "marcado"}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 disabled:hover:bg-transparent dark:disabled:border-gray-700 dark:disabled:text-gray-600"
+                      title={
+                        row.accion === "marcado"
+                          ? "Cargar voucher nuevo"
+                          : "Solo disponible para depósitos pendientes"
+                      }
+                    >
+                      <UploadCloud size={11} />
+                      Cargar
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     No hay registros para los filtros seleccionados.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     Cargando...
                   </td>
                 </tr>
@@ -277,6 +314,14 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
       </div>
 
       {zoomImage && <VoucherModal imageUrl={zoomImage} onClose={() => setZoomImage(null)} />}
+
+      {uploadRow && (
+        <RegularizeImageModal
+          deposit={{ numero_operacion_banco: uploadRow.numeroOperacion }}
+          onClose={() => setUploadRow(null)}
+          onSubmit={handleSubmitRegularizeImage}
+        />
+      )}
     </div>
   );
 };
