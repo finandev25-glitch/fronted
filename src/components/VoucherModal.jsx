@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { X, Download } from "lucide-react";
 import { useEscapeClose } from "../hooks/useEscapeClose.js";
 
-const VoucherModal = ({ imageUrl, onClose }) => {
+const VoucherModal = ({ imageUrl, onClose, isPdf: isPdfProp }) => {
   useEscapeClose(onClose);
 
   if (!imageUrl) return null;
@@ -35,7 +35,13 @@ const VoucherModal = ({ imageUrl, onClose }) => {
     }
   };
 
-  const isPdf = imageUrl.toLowerCase().includes(".pdf");
+  // Estas URLs a veces son un endpoint estable del backend que redirige a un
+  // archivo firmado (ej. el historial de regularizaciones), y no tienen
+  // ".pdf" en el string aunque el archivo real sí lo sea -- por eso el
+  // llamador puede pasar isPdf explícito cuando ya sabe el tipo real
+  // (nombre del objeto en GCS). Si no lo pasa, se sigue infiriendo de la URL
+  // como antes (vouchers con URL directa a archivo).
+  const isPdf = isPdfProp ?? imageUrl.toLowerCase().includes(".pdf");
 
   return (
     <div

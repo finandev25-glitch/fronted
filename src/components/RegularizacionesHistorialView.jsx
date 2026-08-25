@@ -257,7 +257,12 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                     {row.imagenAnterior && row.imagenNueva ? (
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setZoomImage(getRegularizacionImagenAnteriorUrl(row.id))}
+                          onClick={() =>
+                            setZoomImage({
+                              url: getRegularizacionImagenAnteriorUrl(row.id),
+                              isPdf: (row.imagenAnterior || "").toLowerCase().endsWith(".pdf"),
+                            })
+                          }
                           className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                           title="Ver voucher anterior"
                         >
@@ -265,7 +270,12 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                           Anterior
                         </button>
                         <button
-                          onClick={() => setZoomImage(getRegularizacionImagenNuevaUrl(row.id))}
+                          onClick={() =>
+                            setZoomImage({
+                              url: getRegularizacionImagenNuevaUrl(row.id),
+                              isPdf: (row.imagenNueva || "").toLowerCase().endsWith(".pdf"),
+                            })
+                          }
                           className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
                           title="Ver voucher nuevo"
                         >
@@ -313,7 +323,13 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
         </div>
       </div>
 
-      {zoomImage && <VoucherModal imageUrl={zoomImage} onClose={() => setZoomImage(null)} />}
+      {zoomImage && (
+        <VoucherModal
+          imageUrl={zoomImage.url}
+          isPdf={zoomImage.isPdf}
+          onClose={() => setZoomImage(null)}
+        />
+      )}
 
       {uploadRow && (
         <RegularizeImageModal
