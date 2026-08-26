@@ -117,7 +117,9 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
       Cliente: row.cliente || "",
       Empresa: row.empresaNombre || "",
       Monto: formatMonto(row.monto),
-      Acción: ACCION_LABELS[row.accion] || row.accion || "",
+      Moneda: row.moneda || "",
+      Anexo: row.anexo || "",
+      Estado: ACCION_LABELS[row.accion] || row.accion || "",
       Usuario: row.usuarioNombre || "",
       Motivo: row.motivo || "",
     }));
@@ -233,6 +235,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Cliente</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Empresa</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Monto</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Anexo</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Estado</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Usuario</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Vouchers</th>
@@ -246,7 +249,10 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.numeroOperacion || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.cliente || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.empresaNombre || "-"}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatMonto(row.monto)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    {row.moneda === "USD" ? "$" : "S/"} {formatMonto(row.monto)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.anexo || "-"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${ACCION_STYLES[row.accion] || ACCION_STYLES.desmarcado}`}>
                       {ACCION_LABELS[row.accion] || row.accion}
@@ -306,14 +312,14 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
               ))}
               {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     No hay registros para los filtros seleccionados.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     Cargando...
                   </td>
                 </tr>
