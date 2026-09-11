@@ -108,6 +108,13 @@ const DepositCard = ({
     isDepositAntiguo(deposit) && effectiveEstado === "en_validacion";
   // Depósito procesado marcado con riesgo -> peligro (parpadeo rojo + ícono).
   const isRiesgo = deposit.estado === "procesado" && deposit.riesgo === true;
+  // Depósito procesado vía pago con link (Niubiz, ver sección "Pagos con
+  // link" del Kanban) -> fondo turquesa (color de marca Niubiz), mismo
+  // criterio que pendientesSeparated en KanbanPage.jsx (banco.abreviatura
+  // === "NIUBIZ").
+  const isPagoConLink =
+    deposit.estado === "procesado" &&
+    (deposit.banco?.abreviatura || "").toUpperCase() === "NIUBIZ";
   // Depósito marcado como pendiente de regularizar -> color turquesa.
   const isRegularizar = deposit.pendiente_regularizar === true;
   const rejectedObservation =
@@ -121,11 +128,13 @@ const DepositCard = ({
       className={`relative rounded-xl border border-gray-200 dark:border-gray-700/80 border-l-4 ${
         isRiesgo
           ? "border-l-red-600 bg-gradient-to-br from-red-100 to-rose-50 dark:from-red-950/50 dark:to-rose-950/30 shadow-red-300/60 dark:shadow-red-900/50"
-          : isRegularizar
-            ? "border-l-purple-500 bg-gradient-to-br from-purple-100 to-violet-50 dark:from-purple-950/50 dark:to-violet-950/30 shadow-purple-200/50 dark:shadow-purple-900/40"
-            : isOldDeposit
-              ? "border-l-orange-500 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 shadow-orange-200/50 dark:shadow-orange-900/30"
-              : `${statusStyles.borderColor} ${statusStyles.gradient} ${statusStyles.shadow}`
+          : isPagoConLink
+            ? "border-l-teal-500 bg-gradient-to-br from-teal-100 to-cyan-50 dark:from-teal-950/50 dark:to-cyan-950/30 shadow-md dark:shadow-black/30 hover:shadow-lg hover:shadow-teal-500/50 dark:hover:shadow-teal-400/40"
+            : isRegularizar
+              ? "border-l-purple-500 bg-gradient-to-br from-purple-100 to-violet-50 dark:from-purple-950/50 dark:to-violet-950/30 shadow-purple-200/50 dark:shadow-purple-900/40"
+              : isOldDeposit
+                ? "border-l-orange-500 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 shadow-orange-200/50 dark:shadow-orange-900/30"
+                : `${statusStyles.borderColor} ${statusStyles.gradient} ${statusStyles.shadow}`
       } px-3.5 py-2.5 transition-all duration-300 cursor-pointer flex flex-col h-full ${
         isRiesgo
           ? "danger-blink ring-2 ring-red-400 dark:ring-red-600"

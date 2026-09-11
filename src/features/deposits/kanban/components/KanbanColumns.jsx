@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Link2 } from "lucide-react";
 import {
   AnimatePresence,
   LayoutGroup,
@@ -26,7 +26,7 @@ const columnItem = {
   },
 };
 
-function KanbanSection({ tone, title, count, isOpen, onToggle, children }) {
+function KanbanSection({ tone, title, icon: Icon, count, isOpen, onToggle, children }) {
   const reduce = useReducedMotion();
   // overflow-hidden es necesario SOLO mientras dura la animación de altura
   // (para que el contenido no se desborde al colapsar/expandir). En reposo se
@@ -58,6 +58,12 @@ function KanbanSection({ tone, title, count, isOpen, onToggle, children }) {
       bg: "bg-green-100 dark:bg-green-900/30",
       border: "border-green-300 dark:border-green-700",
     },
+    teal: {
+      line: "bg-teal-300 dark:bg-teal-700",
+      text: "text-teal-700 dark:text-teal-400",
+      bg: "bg-teal-100 dark:bg-teal-900/30",
+      border: "border-teal-300 dark:border-teal-700",
+    },
   };
 
   const palette = tones[tone];
@@ -68,6 +74,7 @@ function KanbanSection({ tone, title, count, isOpen, onToggle, children }) {
         <div className={`h-px flex-1 ${palette.line}`} />
         <span className={`flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-bold uppercase tracking-wider ${palette.text} ${palette.bg} ${palette.border}`}>
           <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+          {Icon && <Icon className="h-3 w-3" />}
           {title} (<AnimatedCount value={count} />)
         </span>
         <div className={`h-px flex-1 ${palette.line}`} />
@@ -110,6 +117,8 @@ function KanbanColumnBody({
   setShowPendientesEspeciales,
   showPendientesOtros,
   setShowPendientesOtros,
+  showPagosConLink,
+  setShowPagosConLink,
   handleCardClick,
   selectedDepositId,
   highlights,
@@ -186,19 +195,48 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {pendientesSeparated.otros.length > 0 && (
-          <KanbanColumnContent
-            deposits={pendientesSeparated.otros}
-            onCardClick={handleCardClick}
-            selectedDepositId={selectedDepositId}
-            highlights={highlights}
-            {...queueProps}
-          />
+        {pendientesSeparated.pagosConLink.length > 0 && (
+          <KanbanSection
+            tone="teal"
+            title="Pagos con link"
+            icon={Link2}
+            count={pendientesSeparated.pagosConLink.length}
+            isOpen={showPagosConLink}
+            onToggle={() => setShowPagosConLink(!showPagosConLink)}
+          >
+            <KanbanColumnContent
+              deposits={pendientesSeparated.pagosConLink}
+              onCardClick={handleCardClick}
+              selectedDepositId={selectedDepositId}
+              highlights={highlights}
+              {...queueProps}
+            />
+          </KanbanSection>
         )}
 
-        {pendientesSeparated.especiales.length === 0 && pendientesSeparated.otros.length === 0 && (
-          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
+        {pendientesSeparated.otros.length > 0 && (
+          <KanbanSection
+            tone="blue"
+            title="Pendientes"
+            count={pendientesSeparated.otros.length}
+            isOpen={showPendientesOtros}
+            onToggle={() => setShowPendientesOtros(!showPendientesOtros)}
+          >
+            <KanbanColumnContent
+              deposits={pendientesSeparated.otros}
+              onCardClick={handleCardClick}
+              selectedDepositId={selectedDepositId}
+              highlights={highlights}
+              {...queueProps}
+            />
+          </KanbanSection>
         )}
+
+        {pendientesSeparated.especiales.length === 0 &&
+          pendientesSeparated.pagosConLink.length === 0 &&
+          pendientesSeparated.otros.length === 0 && (
+            <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
+          )}
       </>
     );
   }
@@ -274,6 +312,8 @@ export function KanbanColumns(props) {
     setShowPendientesEspeciales,
     showPendientesOtros,
     setShowPendientesOtros,
+    showPagosConLink,
+    setShowPagosConLink,
     handleCardClick,
     selectedDepositId,
     realtimeActivity,
@@ -313,6 +353,8 @@ export function KanbanColumns(props) {
     setShowPendientesEspeciales,
     showPendientesOtros,
     setShowPendientesOtros,
+    showPagosConLink,
+    setShowPagosConLink,
     handleCardClick,
     selectedDepositId,
     highlights,

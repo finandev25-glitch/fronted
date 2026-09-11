@@ -6,6 +6,7 @@
  */
 import { useState, useCallback } from "react";
 import { apiGet, apiPost } from "../../../services/backendApi.js";
+import { useToast } from "../../../components/ToastProvider.jsx";
 import {
   getSqlPeriodRangeFromYYYYMM,
   getMovimientosBancariosEmpresaCodigo,
@@ -16,6 +17,7 @@ import {
 import * as XLSX from "xlsx";
 
 export function useDepositSql({ empresaId, empresas, deposit, editableData, setEditableData, selectedMoneda }) {
+  const toast = useToast();
   const [isSqlMovementsModalOpen, setIsSqlMovementsModalOpen] = useState(false);
   const [sqlMovementsLoading, setSqlMovementsLoading] = useState(false);
   const [sqlMovementsError, setSqlMovementsError] = useState("");
@@ -268,7 +270,14 @@ export function useDepositSql({ empresaId, empresas, deposit, editableData, setE
   // cliente del voucher -- se escribe en el campo TIPO, tanto en Postgres como
   // (via la cola que consume el BankSyncWorker) en el SQL Server de oficina.
   // Si esta escritura falla, no se bloquea la seleccion (lo mas importante es
-  // que el formulario del deposito quede cargado); solo se avisa en el toast.
+  // que el formulario del deposito quede cargado); pero a diferencia de antes,
+  // ahora SIEMPRE se avisa de forma visible (toast) cuando el TIPO no se pudo
+  // marcar -- antes, tanto el caso "sin cliente cargado" (el if simplemente no
+  // entraba) como el de una falla real del fetch (que solo iba a console.warn,
+  // silenciado en produccion por consoleGuard.js) mostraban el mismo toast
+  // generico de "exito", haciendo indistinguible un marcado real de uno que
+  // nunca se intento -- esto dejo la cola movimientos_tipo_pendientes vacia en
+  // produccion sin que nadie lo notara.
   const handleSelectSqlMovement = useCallback(
     async (row) => {
       setSqlSelectedMovement(row || null);
@@ -276,29 +285,36 @@ export function useDepositSql({ empresaId, empresas, deposit, editableData, setE
 
       const clienteNombre = String(editableData?.cliente || deposit?.cliente || "").trim();
       let tipoMarcado = false;
+      let tipoSkippedSinCliente = false;
 
-      if (row?.ID_ORIGEN && sqlMovementsEmpresa && clienteNombre) {
-        try {
-          await apiPost("/v1/movimientos-bancarios/marcar-tipo", {
-            empresa: sqlMovementsEmpresa,
-            idOrigen: row.ID_ORIGEN,
-            tipo: clienteNombre,
-            depositoId: deposit?.id || null,
-          });
-          tipoMarcado = true;
-        } catch (err) {
-          console.warn("No se pudo marcar el TIPO del movimiento:", err.message);
+      if (row?.ID_ORIGEN && sqlMovementsEmpresa) {
+        if (!clienteNombre) {
+          tipoSkippedSinCliente = true;
+        } else {
+          try {
+            await apiPost("/v1/movimientos-bancarios/marcar-tipo", {
+              empresa: sqlMovementsEmpresa,
+              idOrigen: row.ID_ORIGEN,
+              tipo: clienteNombre,
+              depositoId: deposit?.id || null,
+            });
+            tipoMarcado = true;
+          } catch (err) {
+            toast.error(`No se pudo marcar el TIPO del movimiento: ${err.message}`);
+          }
         }
       }
 
       setSqlSelectionToast(
         tipoMarcado
           ? "Campos cargados. El movimiento quedó marcado con el cliente (se sincroniza con SQL Server en breve)."
-          : "Campos cargados desde Movimientos por identificar.",
+          : tipoSkippedSinCliente
+            ? "Campos cargados, pero no se marcó el TIPO: el depósito no tiene cliente cargado."
+            : "Campos cargados desde Movimientos por identificar.",
       );
       closeSqlMovementsModal();
     },
-    [applySqlMovementSelectionToDeposit, closeSqlMovementsModal, editableData, deposit, sqlMovementsEmpresa],
+    [applySqlMovementSelectionToDeposit, closeSqlMovementsModal, editableData, deposit, sqlMovementsEmpresa, toast],
   );
 
   const handleSelectSqlCortado = useCallback(

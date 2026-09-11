@@ -173,6 +173,7 @@ const KanbanPage = ({
   const [showPendientesEspeciales, setShowPendientesEspeciales] =
     useState(true);
   const [showPendientesOtros, setShowPendientesOtros] = useState(true);
+  const [showPagosConLink, setShowPagosConLink] = useState(true);
 
   // Estado para modal de contactos
   const [showContactosModal, setShowContactosModal] = useState(false);
@@ -577,31 +578,36 @@ const KanbanPage = ({
     };
   }, [groupedDeposits]);
 
-  // Separar depósitos pendientes por número de teléfono 981199322
+  // Separar depósitos pendientes: primero por número de teléfono
+  // 981199322 (especiales), luego por pagos con link de Niubiz (se
+  // registran como un banco más, sin tocar el esquema de BD -- se
+  // identifican por el banco. Asume abreviatura "NIUBIZ"; ajustar si el
+  // código real usado al crear el banco difiere), y el resto en "otros".
   const pendientesSeparated = useMemo(() => {
     const pendientes = groupedDeposits["procesado"] || [];
-    return {
-      especiales: pendientes.filter((d) => {
-        // Verificar si el trabajador tiene el número específico
-        const telefono = d.trabajador?.telefono_origen;
-        if (!telefono) return false;
 
-        // Normalizar el teléfono (quitar +51 si lo tiene)
-        const telefonoNormalizado = telefono.startsWith("51")
-          ? telefono.slice(2)
-          : telefono;
-        return telefonoNormalizado === "981199322";
-      }),
-      otros: pendientes.filter((d) => {
-        const telefono = d.trabajador?.telefono_origen;
-        if (!telefono) return true; // Si no hay teléfono, va a "otros"
-
-        const telefonoNormalizado = telefono.startsWith("51")
-          ? telefono.slice(2)
-          : telefono;
-        return telefonoNormalizado !== "981199322";
-      }),
+    const esEspecial = (d) => {
+      const telefono = d.trabajador?.telefono_origen;
+      if (!telefono) return false;
+      // Normalizar el teléfono (quitar +51 si lo tiene)
+      const telefonoNormalizado = telefono.startsWith("51")
+        ? telefono.slice(2)
+        : telefono;
+      return telefonoNormalizado === "981199322";
     };
+
+    const esPagoConLink = (d) =>
+      (d.banco?.abreviatura || "").toUpperCase() === "NIUBIZ";
+
+    const especiales = pendientes.filter((d) => esEspecial(d));
+    const pagosConLink = pendientes.filter(
+      (d) => !esEspecial(d) && esPagoConLink(d),
+    );
+    const otros = pendientes.filter(
+      (d) => !esEspecial(d) && !esPagoConLink(d),
+    );
+
+    return { especiales, pagosConLink, otros };
   }, [groupedDeposits]);
 
   const handleCardClick = useCallback(
@@ -922,6 +928,8 @@ const KanbanPage = ({
           setShowPendientesEspeciales={setShowPendientesEspeciales}
           showPendientesOtros={showPendientesOtros}
           setShowPendientesOtros={setShowPendientesOtros}
+          showPagosConLink={showPagosConLink}
+          setShowPagosConLink={setShowPagosConLink}
           handleCardClick={handleCardClick}
           selectedDepositId={selectedDeposit?.id}
           realtimeActivity={realtimeActivity}
