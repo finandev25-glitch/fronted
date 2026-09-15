@@ -327,6 +327,13 @@ export const normalizeDepositCurrency = (value) => {
   return "";
 };
 
+// Depósitos vía Niubiz "Pago con Link": se tratan como un banco más (sin
+// tabla/columna aparte en BD), identificados por la abreviatura del banco.
+// Helper compartido para no repetir la misma comparación en KanbanPage,
+// DepositCard y DepositDetailModal (antes cada uno la reimplementaba a mano).
+export const isNiubizBanco = (banco) =>
+  String(banco?.abreviatura || "").trim().toUpperCase() === "NIUBIZ";
+
 export const renderSqlCell = (value, key) => {
   if (value == null || value === "") return "-";
   if (key === "FECHA") return formatSqlDateDDMMYYYY(value);

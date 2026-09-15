@@ -49,6 +49,7 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
     ruc_cliente: "",
     observaciones: "",
     referencia_cliente: "",
+    numero_tarjeta: "",
   });
 
   const [filteredAnexos, setFilteredAnexos] = useState([]);
@@ -99,6 +100,7 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
         ruc_cliente: deposit.ruc_cliente || "",
         observaciones: deposit.observaciones || "",
         referencia_cliente: deposit.referencia_cliente || "",
+        numero_tarjeta: deposit.numero_tarjeta || "",
       });
 
       lastInitializedDepositId.current = deposit.id;
@@ -120,6 +122,7 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
           prev.imagen_voucher || deposit.imagen_voucher || deposit.imagenUrl || deposit.imagenVoucher || "",
         ruc_cliente: prev.ruc_cliente || deposit.ruc_cliente || "",
         referencia_cliente: prev.referencia_cliente || deposit.referencia_cliente || "",
+        numero_tarjeta: prev.numero_tarjeta || deposit.numero_tarjeta || "",
       }));
     }
   }, [deposit, hasFullDetail]);
@@ -213,6 +216,10 @@ export function useDepositForm({ deposit, empresas, bancos, queueItem }) {
     let cleanedValue = value;
     if (name === "numero_operacion_banco") {
       cleanedValue = value.replace(/\D/g, "");
+    } else if (name === "numero_tarjeta") {
+      // Solo se guardan los últimos 4 dígitos (Niubiz Pago con Link),
+      // nunca la tarjeta completa ni siquiera enmascarada.
+      cleanedValue = value.replace(/\D/g, "").slice(-4);
     } else if (name === "moneda") {
       cleanedValue = normalizeDepositCurrency(value);
     }

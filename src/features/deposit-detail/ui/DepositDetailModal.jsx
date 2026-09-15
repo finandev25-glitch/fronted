@@ -70,6 +70,7 @@ import {
   getMovimientosBancariosDefaultRange,
   getStatusInfo,
   getYYYYMMFromDate,
+  isNiubizBanco,
   normalizeDateForInput,
   normalizeDepositCurrency,
   normalizeSqlServerRow,
@@ -164,6 +165,7 @@ const DepositDetailModal = ({
     deposit,
     editableData,
     selectedMoneda,
+    selectedBanco,
     currentUser,
     empresas,
     bancos,
@@ -1602,6 +1604,32 @@ const DepositDetailModal = ({
                         />
                       </div>
                     </div>
+
+                    {isNiubizBanco(selectedBanco) &&
+                      (deposit.estado === "procesado" || deposit.estado === "confirmado") && (
+                      <div className="grid grid-cols-1 gap-1.5">
+                        <div className="space-y-0.5">
+                          <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                            Últimos 4 Dígitos de la Tarjeta
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={4}
+                            name="numero_tarjeta"
+                            value={editableData.numero_tarjeta}
+                            onChange={handleChange}
+                            disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
+                            className={`w-full rounded-xl border px-2.5 py-1 text-lg outline-none transition-colors focus:ring-2 ${
+                              !editableData.numero_tarjeta
+                                ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
+                                : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                            }`}
+                            placeholder="Ej: 7801"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-3 gap-1.5">
                       <div className="space-y-0.5">

@@ -8,6 +8,7 @@ import {
 } from "../../deposits/api/depositsApi.js";
 import { searchActiveTab, isActiveTabSearchAvailable } from "../lib/activeTabSearch.js";
 import { findAnexoValidationRule } from "../data/anexoValidationRules.js";
+import { isNiubizBanco } from "../../deposits/components/depositDetailModalHelpers.jsx";
 
 // "MN" = moneda nacional (Soles), "ME" = moneda extranjera (Dólares) --
 // mismo criterio que useDepositForm.js (anexoMonedaWarning) y el side panel
@@ -32,6 +33,7 @@ export function useDepositActions({
   deposit,
   editableData,
   selectedMoneda,
+  selectedBanco,
   currentUser,
   empresas,
   bancos,
@@ -39,6 +41,10 @@ export function useDepositActions({
   onUpdateDeposit,
   onClose,
 }) {
+  // Depósitos Niubiz "Pago con Link": el Número de Tarjeta es obligatorio
+  // para poder confirmar (ver input condicional en DepositDetailModal.jsx),
+  // para los demás bancos ni siquiera se muestra el campo.
+  const isNiubiz = isNiubizBanco(selectedBanco);
   const [isChecking, setIsChecking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -61,7 +67,8 @@ export function useDepositActions({
     selectedMoneda &&
     editableData.monto &&
     editableData.numero_operacion_banco &&
-    editableData.fecha_deposito;
+    editableData.fecha_deposito &&
+    (!isNiubiz || editableData.numero_tarjeta);
 
   // Regla principal: no se puede llegar a confirmar (ni mostrar el popup
   // "Sin duplicados") si falta CUALQUIER campo, con la única excepción de
@@ -81,7 +88,8 @@ export function useDepositActions({
     selectedMoneda &&
     editableData.monto &&
     editableData.numero_operacion_banco &&
-    editableData.fecha_deposito;
+    editableData.fecha_deposito &&
+    (!isNiubiz || editableData.numero_tarjeta);
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
   const buildUpdatePayload = useCallback(
@@ -111,6 +119,7 @@ export function useDepositActions({
         ruc_cliente: editableData.ruc_cliente || null,
         observaciones: editableData.observaciones || null,
         referencia_cliente: editableData.referencia_cliente || null,
+        numero_tarjeta: editableData.numero_tarjeta || null,
       };
     },
     [editableData, selectedMoneda],
@@ -133,6 +142,7 @@ export function useDepositActions({
       cliente: editableData.cliente || undefined,
       rucCliente: editableData.ruc_cliente || undefined,
       referenciaCliente: editableData.referencia_cliente || undefined,
+      numeroTarjeta: editableData.numero_tarjeta || undefined,
     }),
     [editableData, selectedMoneda],
   );
@@ -310,6 +320,7 @@ export function useDepositActions({
     if (!editableData.banco_id) missing.push("Banco");
     if (!editableData.anexo) missing.push("Anexo");
     if (!selectedMoneda) missing.push("Moneda");
+    if (isNiubiz && !editableData.numero_tarjeta) missing.push("Número de Tarjeta");
     if (missing.length > 0) {
       return { success: false, error: `Por favor, complete los campos requeridos: ${missing.join(", ")}` };
     }

@@ -20,6 +20,7 @@ import { getBankBadgeClassName } from "../utils/bankColors";
 import { getCompanyLogo } from "../utils/companyLogos";
 import { getCurrencyBadge } from "../utils/currencyBadge";
 import { getDepositLockRemainingMs, formatLockRemaining } from "../utils/depositLockHelpers";
+import { isNiubizBanco } from "../features/deposits/components/depositDetailModalHelpers.jsx";
 
 const DepositCard = ({
   deposit,
@@ -112,9 +113,7 @@ const DepositCard = ({
   // link" del Kanban) -> fondo turquesa (color de marca Niubiz), mismo
   // criterio que pendientesSeparated en KanbanPage.jsx (banco.abreviatura
   // === "NIUBIZ").
-  const isPagoConLink =
-    deposit.estado === "procesado" &&
-    (deposit.banco?.abreviatura || "").toUpperCase() === "NIUBIZ";
+  const isPagoConLink = deposit.estado === "procesado" && isNiubizBanco(deposit.banco);
   // Depósito marcado como pendiente de regularizar -> color turquesa.
   const isRegularizar = deposit.pendiente_regularizar === true;
   const rejectedObservation =

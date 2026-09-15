@@ -25,6 +25,7 @@ import { fetchDepositById, pullRezagadosAHoy } from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
 import { ListChecks, ChevronRight, History, Loader2 } from "lucide-react";
+import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
 import {
   getKanbanBucket,
   isDepositAntiguo,
@@ -596,8 +597,7 @@ const KanbanPage = ({
       return telefonoNormalizado === "981199322";
     };
 
-    const esPagoConLink = (d) =>
-      (d.banco?.abreviatura || "").toUpperCase() === "NIUBIZ";
+    const esPagoConLink = (d) => isNiubizBanco(d.banco);
 
     const especiales = pendientes.filter((d) => esEspecial(d));
     const pagosConLink = pendientes.filter(
