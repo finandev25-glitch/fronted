@@ -24,7 +24,7 @@ import { KanbanColumns } from "../../../../widgets/deposits-kanban-board/ui/Kanb
 import { fetchDepositById, pullRezagadosAHoy } from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
-import { ListChecks, ChevronRight, History, Loader2 } from "lucide-react";
+import { ListChecks, ChevronRight } from "lucide-react";
 import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
 import {
   getKanbanBucket,
@@ -875,26 +875,11 @@ const KanbanPage = ({
           branchPersonSearch={branchPersonSearch}
           setBranchPersonSearch={setBranchPersonSearch}
           onFetchDepositsByDate={onFetchDepositsByDate}
+          puedeTraerRezagados={puedeTraerRezagados}
+          viendoHoy={viendoHoy}
+          isPullingRezagados={isPullingRezagados}
+          onPullRezagados={handlePullRezagados}
         />
-
-        {puedeTraerRezagados && viendoHoy && (
-          <div className="mb-3">
-            <button
-              type="button"
-              onClick={handlePullRezagados}
-              disabled={isPullingRezagados}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50"
-              title="Trae a hoy los depósitos pendientes que quedaron de días anteriores"
-            >
-              {isPullingRezagados ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <History size={13} />
-              )}
-              <span>Traer rezagados</span>
-            </button>
-          </div>
-        )}
 
         {depositQueue.attendedQueueIds.length > 0 && (
           <button

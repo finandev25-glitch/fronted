@@ -31,6 +31,7 @@ const DepositCard = ({
   isAttended = false,
 }) => {
   const [elapsedTime, setElapsedTime] = useState("");
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [lockRemainingMs, setLockRemainingMs] = useState(null);
 
   // Temporizador de 4 min del candado: mientras el depósito siga "procesado"
@@ -58,6 +59,7 @@ const DepositCard = ({
       const diffMs = now - registeredAt;
       const diffMins = Math.floor(diffMs / 60000);
       const diffSecs = Math.floor((diffMs % 60000) / 1000);
+      setElapsedMinutes(diffMins);
 
       if (diffMins > 60) {
         setElapsedTime("+60 min");
@@ -116,6 +118,26 @@ const DepositCard = ({
   const isPagoConLink = deposit.estado === "procesado" && isNiubizBanco(deposit.banco);
   // Depósito marcado como pendiente de regularizar -> color turquesa.
   const isRegularizar = deposit.pendiente_regularizar === true;
+
+  // Semáforo de urgencia por tiempo de espera: solo tiene sentido en las
+  // columnas donde "esperar mucho" es un problema (Pendiente/En Validación
+  // -- alguien todavía tiene que atenderlo). En Confirmado/Rechazado el dato
+  // es solo informativo (ya se resolvió), así que se muestra neutro.
+  const urgencyApplies =
+    effectiveEstado === "procesado" || effectiveEstado === "en_validacion";
+  const urgencyTier = !urgencyApplies
+    ? "neutral"
+    : elapsedMinutes >= 30
+      ? "danger"
+      : elapsedMinutes >= 15
+        ? "warning"
+        : "ok";
+  const urgencyBadgeClasses = {
+    neutral: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+    ok: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+    warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    danger: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  }[urgencyTier];
   const rejectedObservation =
     deposit.estado === "rechazado"
       ? String(deposit.observaciones || deposit.motivo_rechazo || "").trim()
@@ -219,8 +241,15 @@ const DepositCard = ({
               })}
             </span>
           </div>
-          <div className="flex items-center space-x-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-            <Hourglass size={13} className="text-amber-500 dark:text-amber-400" />
+          <div
+            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${urgencyBadgeClasses}`}
+            title={
+              urgencyApplies
+                ? "Tiempo en espera de validación"
+                : "Tiempo transcurrido desde el registro"
+            }
+          >
+            <Hourglass size={12} />
             <span>{elapsedTime}</span>
           </div>
         </div>

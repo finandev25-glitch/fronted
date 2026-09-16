@@ -1,7 +1,21 @@
 import React from "react";
-import { Building, CreditCard, Hash, Calendar, DollarSign, User, Fingerprint, Info, MessageSquare } from "lucide-react";
+import { Building, CreditCard, Hash, Calendar, DollarSign, User, Fingerprint, Info, MessageSquare, CheckCircle2, AlertTriangle } from "lucide-react";
 import { FormRow, isNiubizBanco } from "../../deposits/components/depositDetailModalHelpers.jsx";
 import { campoVerificacion, claseSegunAccion, motivoVisible } from "../../deposits/utils/verificacionOcrHelpers.js";
+
+// Ícono acorde a la acción de verificación OCR: refuerza visualmente el
+// texto de motivoVisible(), que antes era solo texto gris chico y se
+// perdía fácil -- en particular el caso "ninguna" (Llama y OCR coinciden),
+// que es la señal de confianza más común y la que menos destacaba.
+const VerificacionIcon = ({ accion }) => {
+  if (accion === "ninguna")
+    return <CheckCircle2 className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />;
+  if (accion === "revision_manual")
+    return <AlertTriangle className="h-3 w-3 shrink-0 text-red-600 dark:text-red-400" />;
+  if (accion === "auto_corregido")
+    return <Info className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />;
+  return null;
+};
 
 export const DepositFormPanel = ({
   editableData,
@@ -29,8 +43,9 @@ export const DepositFormPanel = ({
                   <div className="grid grid-cols-6 gap-3 mb-4">
                     {/* Fila 1: Empresa (ancho completo) */}
                     <div className="col-span-6">
-                      <FormRow icon={Building} label="Empresa">
+                      <FormRow icon={Building} label="Empresa" required>
                         <select
+                          id="field-empresa_id"
                           name="empresa_id"
                           value={editableData.empresa_id}
                           onChange={handleChange}
@@ -55,8 +70,9 @@ export const DepositFormPanel = ({
 
                     {/* Fila 2: Banco (3 cols) + Anexo (3 cols) */}
                     <div className="col-span-3">
-                      <FormRow icon={CreditCard} label="Banco">
+                      <FormRow icon={CreditCard} label="Banco" required>
                         <select
+                          id="field-banco_id"
                           name="banco_id"
                           value={editableData.banco_id}
                           onChange={handleChange}
@@ -79,8 +95,9 @@ export const DepositFormPanel = ({
                       </FormRow>
                     </div>
                     <div className="col-span-3">
-                      <FormRow icon={Hash} label="Anexo">
+                      <FormRow icon={Hash} label="Anexo" required>
                         <select
+                          id="field-anexo"
                           name="anexo"
                           value={editableData.anexo}
                           onChange={handleChange}
@@ -120,7 +137,10 @@ export const DepositFormPanel = ({
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${claseSegunAccion(vFecha?.accion)}`}
                         />
                         {motivoVisible(vFecha) && (
-                          <p className="mt-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">{motivoVisible(vFecha)}</p>
+                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">
+                            <VerificacionIcon accion={vFecha?.accion} />
+                            {motivoVisible(vFecha)}
+                          </p>
                         )}
                       </FormRow>
                     </div>
@@ -169,13 +189,17 @@ export const DepositFormPanel = ({
                           step="0.01"
                         />
                         {motivoVisible(vMonto) && (
-                          <p className="mt-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">{motivoVisible(vMonto)}</p>
+                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">
+                            <VerificacionIcon accion={vMonto?.accion} />
+                            {motivoVisible(vMonto)}
+                          </p>
                         )}
                       </FormRow>
                     </div>
                     <div className="col-span-3">
-                      <FormRow icon={DollarSign} label="Moneda">
+                      <FormRow icon={DollarSign} label="Moneda" required>
                         <select
+                          id="field-moneda"
                           name="moneda"
                           value={selectedMoneda}
                           onChange={handleChange}
@@ -194,7 +218,10 @@ export const DepositFormPanel = ({
                           <option value="USD">Dólares (USD)</option>
                         </select>
                         {motivoVisible(vMoneda) && (
-                          <p className="mt-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">{motivoVisible(vMoneda)}</p>
+                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">
+                            <VerificacionIcon accion={vMoneda?.accion} />
+                            {motivoVisible(vMoneda)}
+                          </p>
                         )}
                       </FormRow>
                     </div>

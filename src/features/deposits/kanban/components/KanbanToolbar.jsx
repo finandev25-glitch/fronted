@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Calendar,
+  History,
+  Loader2,
   Search,
   X,
 } from "lucide-react";
@@ -25,62 +27,91 @@ export function KanbanToolbar({
   branchPersonSearch,
   setBranchPersonSearch,
   onFetchDepositsByDate,
+  puedeTraerRezagados = false,
+  viendoHoy = false,
+  isPullingRezagados = false,
+  onPullRezagados,
 }) {
   return (
     <>
       <div className="mb-4 flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-            <h2 className="whitespace-nowrap text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Kanban de Depósitos
-            </h2>
-
-            <NotificationPermissionButton />
-
-            {/* Chips de usuarios atendidos, al costado derecho del título (desktop) */}
-            {!isCompactKanban && attendedUsersSummary.length > 0 && (
-              <div className="hidden flex-wrap items-center gap-x-2 gap-y-2 lg:flex">
-                {attendedUsersSummary.map((user) => (
-                  <button
-                    key={user.key}
-                    type="button"
-                    onClick={() => handleValidatorFilterToggle(user)}
-                    aria-pressed={selectedValidatorFilter?.key === user.key}
-                    className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 shadow-sm backdrop-blur transition-all ${
-                      selectedValidatorFilter?.key === user.key
-                        ? "alarm-flash border-red-600 bg-red-100 text-slate-900 shadow-lg shadow-red-500/30 dark:border-red-500 dark:bg-red-200 dark:text-slate-900"
-                        : "border-slate-200 bg-white/90 hover:border-red-300 hover:bg-red-50 dark:border-slate-700 dark:bg-gray-900/90 dark:hover:border-red-700 dark:hover:bg-red-950/20"
-                    }`}
-                    title={`${user.name}: ${user.count} depósito${user.count === 1 ? "" : "s"} atendido${user.count === 1 ? "" : "s"}`}
-                  >
-                    <div
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${
-                        selectedValidatorFilter?.key === user.key
-                          ? "from-red-200 to-red-100 text-slate-900"
-                          : "from-slate-800 to-slate-600 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
-                      } text-[11px] font-bold`}
-                    >
-                      {user.count}
-                    </div>
-                    <span className="whitespace-nowrap text-xs font-medium leading-tight text-gray-600 dark:text-gray-300">
-                      {user.name}
-                    </span>
-                  </button>
-                ))}
-                {selectedValidatorFilter && (
-                  <button
-                    type="button"
-                    onClick={clearValidatorFilter}
-                    className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"
-                  >
-                    <span>Filtro: {selectedValidatorFilter.name}</span>
-                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">Limpiar</span>
-                  </button>
+        {/* Nivel 1: título + acciones -- nada más compite acá. "Traer
+            rezagados" vivía en su propia fila debajo del toolbar (empujaba
+            las cards hacia abajo); se agrupa acá con el resto de acciones en
+            vez de reclamar una fila entera solo quando aplica (finanzas/admin
+            + viendo el día de hoy). */}
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="whitespace-nowrap text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Kanban de Depósitos
+          </h2>
+          <div className="flex items-center gap-2">
+            {puedeTraerRezagados && viendoHoy && (
+              <button
+                type="button"
+                onClick={onPullRezagados}
+                disabled={isPullingRezagados}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                title="Trae a hoy los depósitos pendientes que quedaron de días anteriores"
+              >
+                {isPullingRezagados ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <History size={13} />
                 )}
-              </div>
+                <span>Traer rezagados</span>
+              </button>
             )}
+            <NotificationPermissionButton />
           </div>
         </div>
+
+        {/* Nivel 2: carga de trabajo por validador -- secundario a propósito,
+            en su propia franja con fondo y etiqueta, para que no se lea como
+            parte del título ni se confunda con qué son esos números. */}
+        {!isCompactKanban && attendedUsersSummary.length > 0 && (
+          <div className="hidden flex-wrap items-center gap-x-2 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 lg:flex dark:border-slate-800 dark:bg-slate-900/40">
+            <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Carga de hoy
+            </span>
+            {attendedUsersSummary.map((user) => (
+              <button
+                key={user.key}
+                type="button"
+                onClick={() => handleValidatorFilterToggle(user)}
+                aria-pressed={selectedValidatorFilter?.key === user.key}
+                className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 shadow-sm backdrop-blur transition-all ${
+                  selectedValidatorFilter?.key === user.key
+                    ? "alarm-flash border-red-600 bg-red-100 text-slate-900 shadow-lg shadow-red-500/30 dark:border-red-500 dark:bg-red-200 dark:text-slate-900"
+                    : "border-slate-200 bg-white/90 hover:border-red-300 hover:bg-red-50 dark:border-slate-700 dark:bg-gray-900/90 dark:hover:border-red-700 dark:hover:bg-red-950/20"
+                }`}
+                title={`${user.name}: ${user.count} depósito${user.count === 1 ? "" : "s"} atendido${user.count === 1 ? "" : "s"}`}
+              >
+                <div
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${
+                    selectedValidatorFilter?.key === user.key
+                      ? "from-red-200 to-red-100 text-slate-900"
+                      : "from-slate-800 to-slate-600 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+                  } text-[11px] font-bold`}
+                >
+                  {user.count}
+                </div>
+                <span className="whitespace-nowrap text-xs font-medium leading-tight text-gray-600 dark:text-gray-300">
+                  {user.name}
+                </span>
+              </button>
+            ))}
+            {selectedValidatorFilter && (
+              <button
+                type="button"
+                onClick={clearValidatorFilter}
+                className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"
+              >
+                <span>Filtro: {selectedValidatorFilter.name}</span>
+                <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">Limpiar</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {!isCompactKanban && attendedUsersSummary.length > 0 && (
           <div className="flex items-center gap-2 lg:hidden">
@@ -113,7 +144,7 @@ export function KanbanToolbar({
         )}
       </div>
 
-      <div className="mb-6 flex flex-nowrap items-center gap-2 overflow-hidden lg:hidden">
+      <div className="mb-6 flex flex-nowrap items-center gap-2 overflow-hidden rounded-xl border border-gray-200 bg-white/70 p-2 dark:border-gray-800 dark:bg-gray-900/40 lg:hidden">
         <div className="relative w-[38%] min-w-[112px] shrink-0">
           <Calendar size={12} className="absolute left-3 top-1/2 -translate-y-1/2 transform text-gray-400" />
           <input
@@ -143,7 +174,7 @@ export function KanbanToolbar({
         </div>
       </div>
 
-      <div className="mb-6 hidden flex-wrap items-center gap-4 lg:flex">
+      <div className="mb-6 hidden flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-900/40 lg:flex">
         {isCompactKanban ? (
           <>
             <div className="relative">

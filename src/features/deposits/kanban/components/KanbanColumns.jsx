@@ -11,6 +11,20 @@ import { useRealtimeHighlights } from "../hooks/useRealtimeHighlights.js";
 import AnimatedCount from "./AnimatedCount.jsx";
 import KanbanColumnContent from "./KanbanColumnContent.jsx";
 
+// Antes el contador de cada columna (4, 9, 190, 19...) usaba un pill gris
+// genérico, igual para las 4 columnas -- se perdía entre el resto de la
+// cabecera en vez de reforzar de un vistazo "esto es Pendiente/Confirmado/
+// etc.". Acá se tiñe con el mismo tono que el puntito de color de la
+// columna, mismo criterio que ya usan las secciones internas (tones, más
+// abajo en este archivo).
+const COLUMN_COUNT_TONE = {
+  procesado: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  en_validacion: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  confirmado: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  rechazado: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+};
+const DEFAULT_COUNT_TONE = "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+
 // Variantes para la entrada escalonada de las columnas al montar el tablero.
 const boardContainer = {
   hidden: {},
@@ -382,7 +396,7 @@ export function KanbanColumns(props) {
                   {column.title}
                 </h3>
                 <div className="flex items-center gap-4">
-                  <span className="rounded-full bg-gray-200 px-2 py-1 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                  <span className={`rounded-full px-2 py-1 text-sm font-semibold ${COLUMN_COUNT_TONE[column.id] || DEFAULT_COUNT_TONE}`}>
                     <AnimatedCount value={groupedDeposits[column.id]?.length || 0} />
                   </span>
                   <ChevronRight className="text-gray-500 transition-transform duration-200 group-open:rotate-90 dark:text-gray-400" size={14} />
@@ -415,7 +429,7 @@ export function KanbanColumns(props) {
                     <span className={`h-2.5 w-2.5 rounded-full ${column.color}`} />
                     {column.title}
                   </h3>
-                  <span className="rounded-full bg-gray-200 px-2 py-1 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                  <span className={`rounded-full px-2 py-1 text-sm font-semibold ${COLUMN_COUNT_TONE[column.id] || DEFAULT_COUNT_TONE}`}>
                     <AnimatedCount value={groupedDeposits[column.id]?.length || 0} />
                   </span>
                 </div>

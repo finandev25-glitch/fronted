@@ -924,6 +924,32 @@ export function getRegularizacionImagenNuevaUrl(regularizacionId) {
   return buildRegularizacionImagenUrl(regularizacionId, "nueva");
 }
 
+// GET /v1/deposits/{id}/rechazos-historial — Solo finanzas/admin. A diferencia
+// de fetchRegularizacionesHistorial (agregado entre TODOS los depositos, y
+// solo del flujo de marcar/resolver de finanzas), esto trae el timeline de
+// rechazos-regularizados de UN depósito puntual, capturado automaticamente
+// cada vez que el vendedor regulariza un depósito rechazado desde la app
+// (PUT /{id}/regularize) -- antes ese voucher/motivo se perdía sin dejar
+// rastro. Ver DepositDetailModal.jsx, bloque "Historial de rechazos".
+export async function fetchRechazosHistorial(depositId) {
+  if (!depositId) return [];
+  const data = await apiJson(`${DEPOSITS_BASE}/${depositId}/rechazos-historial`);
+  return Array.isArray(data) ? data : [];
+}
+
+// URL firmada (redirect a GCS) del voucher que causó un rechazo, guardado en
+// deposito_rechazos_historial. Mismo patron de access_token por query param
+// que buildRegularizacionImagenUrl (un <img src>/<a href> no puede mandar
+// header Authorization).
+export function getRechazoHistorialImagenUrl(rechazoId) {
+  if (!rechazoId) return null;
+  const token = getStoredAccessToken();
+  if (!token) return null;
+  return buildApiUrl(
+    `${API_BASE}${DEPOSITS_BASE}/rechazos-historial/${rechazoId}/imagen?access_token=${encodeURIComponent(token)}`
+  );
+}
+
 export async function updateDeposit(id, payload) {
   if (payload?.estado === "confirmado") {
     return confirmDeposit(id, { observaciones: payload.observaciones, anexo: payload.anexo });

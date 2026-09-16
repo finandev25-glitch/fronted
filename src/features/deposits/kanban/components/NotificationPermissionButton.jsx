@@ -59,7 +59,11 @@ export function NotificationPermissionButton() {
       className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
         denied
           ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
-          : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"
+          : // Antes usaba tonos rojos (border-red-200/bg-red-50/text-red-700):
+            // esto es un toggle de configuración, no una alerta -- el rojo al
+            // lado del título competía con el rojo real de la columna
+            // "Rechazado" y el parpadeo de riesgo, dando falsa urgencia.
+            "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
       }`}
     >
       {denied ? <BellOff size={14} /> : <Bell size={14} />}

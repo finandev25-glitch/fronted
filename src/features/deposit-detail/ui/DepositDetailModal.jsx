@@ -17,6 +17,8 @@ import {
   financeRegularizeImage,
   markDepositAntiguo,
   unmarkDepositAntiguo,
+  fetchRechazosHistorial,
+  getRechazoHistorialImagenUrl,
 } from "../../deposits/api/depositsApi.js";
 import RegularizeImageModal from "../../deposits/components/RegularizeImageModal.jsx";
 import { useEscapeClose } from "../../../hooks/useEscapeClose.js";
@@ -107,6 +109,20 @@ function getTodayDateInputValue() {
  *   useDepositActions.js → confirmar / rechazar
  *   useDepositSql.js    → SQL movements / cortado
  */
+
+// Ícono acorde a la acción de verificación OCR, usado junto a
+// motivoVisible() en el panel compacto (mismo criterio que
+// DepositFormPanel.jsx en el modo default, ver VerificacionIcon ahí).
+const CompactVerificacionIcon = ({ accion }) => {
+  if (accion === "ninguna")
+    return <CheckCircle className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />;
+  if (accion === "revision_manual")
+    return <AlertTriangle className="h-3 w-3 shrink-0 text-red-600 dark:text-red-400" />;
+  if (accion === "auto_corregido")
+    return <Info className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />;
+  return null;
+};
+
 const DepositDetailModal = ({
   deposit,
   onClose,
@@ -314,6 +330,17 @@ const DepositDetailModal = ({
   };
   const closeCompactToast = () => setCompactActionToast(null);
 
+  // Lleva el foco (y hace scroll) al campo real cuando el usuario hace click
+  // en un ítem del aviso "Campos requeridos faltantes" -- antes había que
+  // buscar el campo a ojo en el panel de arriba. Los ids field-* se definen
+  // en DepositFormPanel.jsx.
+  const focusMissingField = (fieldId) => {
+    const el = document.getElementById(fieldId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.focus({ preventScroll: true });
+  };
+
   // Wrapper compartido por los 3 botones de "Confirmar" (panel compacto,
   // popup "Sin duplicados" del modal completo, y el botón directo del modal
   // completo): todos dependen de este mismo toast en vez de window.alert().
@@ -405,6 +432,37 @@ const DepositDetailModal = ({
     onUpdateDeposit({ ...deposit, pendiente_regularizar: false }, { skipPersist: true });
     setShowRegularizeUpload(false);
   };
+
+  // Historial de rechazos-regularizados (solo finanzas/admin): cada vez que
+  // el vendedor regulariza un depósito rechazado desde la app (PUT
+  // /{id}/regularize), api-bridge guarda una fila con el voucher/motivo que
+  // causó el rechazo, ANTES de que se pisen con los datos nuevos. Esto es
+  // distinto del flujo de "Regularizar" de más arriba (ese es manual, vía
+  // pendiente_regularizar). Se carga una sola vez por depósito abierto.
+  const [rechazosHistorial, setRechazosHistorial] = useState([]);
+  const [isLoadingRechazosHistorial, setIsLoadingRechazosHistorial] = useState(false);
+
+  useEffect(() => {
+    if (!canRegularize || !deposit?.id) {
+      setRechazosHistorial([]);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingRechazosHistorial(true);
+    fetchRechazosHistorial(deposit.id)
+      .then((data) => {
+        if (!cancelled) setRechazosHistorial(data);
+      })
+      .catch(() => {
+        if (!cancelled) setRechazosHistorial([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingRechazosHistorial(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canRegularize, deposit?.id]);
 
   // Marcar/desmarcar "antiguo" a mano (solo finanzas/admin). Normalmente
   // Condicion la calcula el backend solo (FechaDeposito < hoy), esto la
@@ -532,6 +590,7 @@ const DepositDetailModal = ({
   const [rejectedObservationText, setRejectedObservationText] = useState("");
   
   const [elapsedTime, setElapsedTime] = useState("");
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [receivedTime, setReceivedTime] = useState("");
   const [receivedDate, setReceivedDate] = useState("");
   const [resolvedTime, setResolvedTime] = useState("");
@@ -570,6 +629,7 @@ const DepositDetailModal = ({
       const diffSecs = Math.floor((diffMs % 60000) / 1000);
 
       setElapsedTime(`${diffMins}:${diffSecs.toString().padStart(2, "0")}`);
+      setElapsedMinutes(diffMins);
     };
 
     // Calcular inmediatamente
@@ -1505,6 +1565,21 @@ const DepositDetailModal = ({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {!isResolved && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tabular-nums ${
+                      elapsedMinutes >= 30
+                        ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                        : elapsedMinutes >= 15
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                    }`}
+                    title="Tiempo en espera desde que se recibió el depósito"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    {elapsedTime}
+                  </span>
+                )}
                 {lockRemainingMs !== null && (
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold tabular-nums ${
@@ -1567,9 +1642,10 @@ const DepositDetailModal = ({
                     <div className="grid grid-cols-2 gap-1.5">
                       <div className="space-y-0.5">
                         <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Empresa
+                          Empresa <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <select
+                          id="field-empresa_id-compact"
                           name="empresa_id"
                           value={editableData.empresa_id}
                           onChange={handleChange}
@@ -1634,9 +1710,10 @@ const DepositDetailModal = ({
                     <div className="grid grid-cols-3 gap-1.5">
                       <div className="space-y-0.5">
                         <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Banco
+                          Banco <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <select
+                          id="field-banco_id-compact"
                           name="banco_id"
                           value={editableData.banco_id}
                           onChange={handleChange}
@@ -1658,9 +1735,10 @@ const DepositDetailModal = ({
 
                       <div className="space-y-0.5">
                         <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Moneda
+                          Moneda <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <select
+                          id="field-moneda-compact"
                           name="moneda"
                           value={selectedMoneda}
                           onChange={handleChange}
@@ -1677,7 +1755,8 @@ const DepositDetailModal = ({
                           <option value="USD">Dólares (USD)</option>
                         </select>
                         {motivoVisible(campoVerificacion(verificacionOcr, "moneda")) && (
-                          <p className="truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                            <CompactVerificacionIcon accion={campoVerificacion(verificacionOcr, "moneda")?.accion} />
                             {motivoVisible(campoVerificacion(verificacionOcr, "moneda"))}
                           </p>
                         )}
@@ -1685,9 +1764,10 @@ const DepositDetailModal = ({
 
                       <div className="space-y-0.5">
                         <label className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Anexo
+                          Anexo <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <select
+                          id="field-anexo-compact"
                           name="anexo"
                           value={editableData.anexo}
                           onChange={handleChange}
@@ -1735,7 +1815,8 @@ const DepositDetailModal = ({
                           step="0.01"
                         />
                         {motivoVisible(campoVerificacion(verificacionOcr, "monto")) && (
-                          <p className="truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                            <CompactVerificacionIcon accion={campoVerificacion(verificacionOcr, "monto")?.accion} />
                             {motivoVisible(campoVerificacion(verificacionOcr, "monto"))}
                           </p>
                         )}
@@ -1793,14 +1874,15 @@ const DepositDetailModal = ({
                           className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                         />
                         {motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) && (
-                          <p className="truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                            <CompactVerificacionIcon accion={campoVerificacion(verificacionOcr, "fecha_deposito")?.accion} />
                             {motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito"))}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
                       <button
                         type="button"
                         onClick={handleCheckDuplicatesWithFeedback}
@@ -1810,18 +1892,92 @@ const DepositDetailModal = ({
                         <AlertCircle className="h-4 w-4" />
                         Duplicados
                       </button>
-                      {isDepositAntiguo(deposit) && (
-                        <button
-                          type="button"
-                          onClick={openSqlMovementsModal}
-                          disabled={isProcessing}
-                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                          title="Ver movimientos SQL por identificar"
-                        >
-                          <Search className="h-4 w-4" />
-                          SQL
-                        </button>
+
+                      {/* Cluster administrativo: SQL, Regularizar y Marcar
+                          antiguo agrupados en un fondo tenue para que no
+                          compitan en peso visual con Duplicados/Rechazar,
+                          que son las acciones críticas de esta barra. */}
+                      {(isDepositAntiguo(deposit) || canRegularize) && (
+                        <div className="flex shrink-0 flex-nowrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-2 py-1 dark:border-gray-700 dark:bg-gray-800/40">
+                          {isDepositAntiguo(deposit) && (
+                            <button
+                              type="button"
+                              onClick={openSqlMovementsModal}
+                              disabled={isProcessing}
+                              className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                              title="Ver movimientos SQL por identificar"
+                            >
+                              <Search className="h-4 w-4" />
+                              SQL
+                            </button>
+                          )}
+                          {/* Regularizar/Marcar antiguo: mismas condiciones que el
+                              modal completo (solo finanzas/admin) -- ver esas
+                              mismas reglas más abajo en el return no-compacto. */}
+                          {canRegularize &&
+                            deposit.estado === "confirmado" &&
+                            !deposit.pendiente_regularizar && (
+                              <button
+                                type="button"
+                                onClick={handleMarkRegularize}
+                                disabled={isMarkingRegularize}
+                                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                                title="Marcar para regularizar el voucher"
+                              >
+                                <AlertTriangle className="h-4 w-4" />
+                                Regularizar
+                              </button>
+                            )}
+                          {canRegularize && deposit.pendiente_regularizar && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setShowRegularizeUpload(true)}
+                                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-purple-100 px-3 py-2 text-xs font-semibold text-purple-800 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                                title="Subir la nueva imagen/pdf del voucher"
+                              >
+                                <UploadCloud className="h-4 w-4" />
+                                Subir imagen
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleUnmarkRegularize}
+                                disabled={isMarkingRegularize}
+                                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                title="Quitar la marca de regularizar"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Quitar marca
+                              </button>
+                            </>
+                          )}
+                          {canRegularize && !depositIsAntiguo && (
+                            <button
+                              type="button"
+                              onClick={handleMarkAntiguo}
+                              disabled={isMarkingAntiguo}
+                              className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                              title="Marcar este depósito como antiguo manualmente"
+                            >
+                              <Clock className="h-4 w-4" />
+                              Marcar antiguo
+                            </button>
+                          )}
+                          {canRegularize && depositIsAntiguo && (
+                            <button
+                              type="button"
+                              onClick={handleUnmarkAntiguo}
+                              disabled={isMarkingAntiguo}
+                              className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500"
+                              title="Quitar la marca de antiguo"
+                            >
+                              <RotateCw className="h-4 w-4" />
+                              Quitar antiguo
+                            </button>
+                          )}
+                        </div>
                       )}
+
                       <button
                         type="button"
                         onClick={() => setIsRejectionModalOpen(true)}
@@ -1831,70 +1987,6 @@ const DepositDetailModal = ({
                         <Ban className="h-4 w-4" />
                         Rechazar
                       </button>
-                      {/* Regularizar/Marcar antiguo: mismas condiciones que el
-                          modal completo (solo finanzas/admin) -- ver esas
-                          mismas reglas más abajo en el return no-compacto. */}
-                      {canRegularize &&
-                        deposit.estado === "confirmado" &&
-                        !deposit.pendiente_regularizar && (
-                          <button
-                            type="button"
-                            onClick={handleMarkRegularize}
-                            disabled={isMarkingRegularize}
-                            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
-                            title="Marcar para regularizar el voucher"
-                          >
-                            <AlertTriangle className="h-4 w-4" />
-                            Regularizar
-                          </button>
-                        )}
-                      {canRegularize && deposit.pendiente_regularizar && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setShowRegularizeUpload(true)}
-                            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-purple-100 px-3 py-2 text-xs font-semibold text-purple-800 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
-                            title="Subir la nueva imagen/pdf del voucher"
-                          >
-                            <UploadCloud className="h-4 w-4" />
-                            Subir imagen
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleUnmarkRegularize}
-                            disabled={isMarkingRegularize}
-                            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                            title="Quitar la marca de regularizar"
-                          >
-                            <XCircle className="h-4 w-4" />
-                            Quitar marca
-                          </button>
-                        </>
-                      )}
-                      {canRegularize && !depositIsAntiguo && (
-                        <button
-                          type="button"
-                          onClick={handleMarkAntiguo}
-                          disabled={isMarkingAntiguo}
-                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-                          title="Marcar este depósito como antiguo manualmente"
-                        >
-                          <Clock className="h-4 w-4" />
-                          Marcar antiguo
-                        </button>
-                      )}
-                      {canRegularize && depositIsAntiguo && (
-                        <button
-                          type="button"
-                          onClick={handleUnmarkAntiguo}
-                          disabled={isMarkingAntiguo}
-                          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500"
-                          title="Quitar la marca de antiguo"
-                        >
-                          <RotateCw className="h-4 w-4" />
-                          Quitar antiguo
-                        </button>
-                      )}
                     </div>
 
                     <div
@@ -1916,6 +2008,32 @@ const DepositDetailModal = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* Historial de rechazos regularizados -- versión compacta
+                        del mismo bloque del modal completo, ver ahí el
+                        comentario largo. Solo un link por evento, sin
+                        motivo/observaciones (no hay espacio en este panel). */}
+                    {canRegularize && rechazosHistorial.length > 0 && (
+                      <div className="flex w-full flex-none flex-wrap items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] dark:border-amber-900/50 dark:bg-amber-900/20">
+                        <span className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-200">
+                          <AlertTriangle className="h-3 w-3" />
+                          Rechazado antes ({rechazosHistorial.length}):
+                        </span>
+                        {rechazosHistorial.map((r) => (
+                          <a
+                            key={r.id}
+                            href={getRechazoHistorialImagenUrl(r.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                            title={r.motivoRechazo || r.observaciones || "Ver voucher rechazado"}
+                          >
+                            <Eye className="h-3 w-3" />
+                            {new Date(r.fechaRechazo || r.createdAt).toLocaleDateString("es-ES")}
+                          </a>
+                        ))}
+                      </div>
+                    )}
 
                   </div>
                 </div>
@@ -2448,11 +2566,21 @@ const DepositDetailModal = ({
                       </span>
                     )
                   ) : (
-                    <span className="text-gray-600 dark:text-gray-400">
-                      ⏱️ Transcurrido:{" "}
-                      <strong className="text-orange-600 dark:text-orange-400">
+                    <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                      Transcurrido:{" "}
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
+                          elapsedMinutes >= 30
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                            : elapsedMinutes >= 15
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        }`}
+                        title="Tiempo en espera desde que se recibió el depósito"
+                      >
+                        <Clock className="h-3 w-3" />
                         {elapsedTime}
-                      </strong>
+                      </span>
                     </span>
                   )}
                 </div>
@@ -2856,6 +2984,63 @@ const DepositDetailModal = ({
                   )}
                 </div>
 
+                {/* Historial de rechazos regularizados: solo aparece si este
+                    depósito fue rechazado y luego regularizado por el
+                    vendedor desde la app al menos una vez (PUT /regularize
+                    guarda una fila por cada ciclo, ver fetchRechazosHistorial
+                    más arriba). Se oculta si no hay nada que mostrar -- no
+                    tiene sentido una tarjeta vacía para el caso común. */}
+                {canRegularize && rechazosHistorial.length > 0 && (
+                  <div className="w-full bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 border-l-4 border-l-amber-500 dark:border-l-amber-400 rounded-lg p-2 shadow-md dark:shadow-black/30">
+                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      Historial de Rechazos
+                    </h4>
+                    <div className="space-y-2">
+                      {rechazosHistorial.map((r) => (
+                        <div
+                          key={r.id}
+                          className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs dark:border-amber-900/50 dark:bg-amber-900/20"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-amber-900 dark:text-amber-200">
+                              {r.fechaRechazo
+                                ? new Date(r.fechaRechazo).toLocaleString("es-ES")
+                                : new Date(r.createdAt).toLocaleString("es-ES")}
+                            </span>
+                            {r.imagenVoucherRechazada && (
+                              <a
+                                href={getRechazoHistorialImagenUrl(r.id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-gray-800 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                              >
+                                <Eye className="h-3 w-3" />
+                                Ver voucher rechazado
+                              </a>
+                            )}
+                          </div>
+                          {(r.motivoRechazo || r.observaciones) && (
+                            <p className="mt-1 text-amber-800 dark:text-amber-300">
+                              {r.motivoRechazo || r.observaciones}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[10px] text-amber-700/80 dark:text-amber-400/80">
+                            {r.rechazadoPorNombre && `Rechazado por ${r.rechazadoPorNombre}`}
+                            {r.rechazadoPorNombre && r.regularizadoPorNombre && " · "}
+                            {r.regularizadoPorNombre && `Regularizado por ${r.regularizadoPorNombre}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {canRegularize && isLoadingRechazosHistorial && rechazosHistorial.length === 0 && (
+                  <div className="w-full text-center text-xs text-gray-400 dark:text-gray-500">
+                    Cargando historial de rechazos...
+                  </div>
+                )}
+
                 {/* Mensaje de campos requeridos debajo del card Datos del Solicitante.
                     Se oculta mientras isDetailLoaded es false: recien sabemos
                     si de verdad faltan datos (o si solo no llego el detalle
@@ -2870,11 +3055,51 @@ const DepositDetailModal = ({
                     <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
                       ⚠️ Campos requeridos faltantes:
                     </p>
-                    <ul className="text-xs text-yellow-700 dark:text-yellow-300 mt-1 ml-4">
-                      {!editableData.empresa_id && <li>• Empresa</li>}
-                      {!editableData.banco_id && <li>• Banco</li>}
-                      {!editableData.anexo && <li>• Anexo</li>}
-                      {!selectedMoneda && <li>• Moneda</li>}
+                    <ul className="text-xs text-yellow-700 dark:text-yellow-300 mt-1 ml-4 space-y-0.5">
+                      {!editableData.empresa_id && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => focusMissingField("field-empresa_id")}
+                            className="underline decoration-dotted underline-offset-2 hover:text-yellow-900 dark:hover:text-yellow-100"
+                          >
+                            • Empresa
+                          </button>
+                        </li>
+                      )}
+                      {!editableData.banco_id && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => focusMissingField("field-banco_id")}
+                            className="underline decoration-dotted underline-offset-2 hover:text-yellow-900 dark:hover:text-yellow-100"
+                          >
+                            • Banco
+                          </button>
+                        </li>
+                      )}
+                      {!editableData.anexo && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => focusMissingField("field-anexo")}
+                            className="underline decoration-dotted underline-offset-2 hover:text-yellow-900 dark:hover:text-yellow-100"
+                          >
+                            • Anexo
+                          </button>
+                        </li>
+                      )}
+                      {!selectedMoneda && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => focusMissingField("field-moneda")}
+                            className="underline decoration-dotted underline-offset-2 hover:text-yellow-900 dark:hover:text-yellow-100"
+                          >
+                            • Moneda
+                          </button>
+                        </li>
+                      )}
                     </ul>
                   </div>
                 )}
@@ -3023,6 +3248,98 @@ const DepositDetailModal = ({
                   </button>
                 )}
 
+                {/* Cluster de acciones administrativas: agrupadas en un
+                    fondo tenue para que no compitan en peso visual con la
+                    decisión crítica (Rechazar / Confirmar). canRegularize
+                    ya garantiza que "Marcar/Quitar antiguo" siempre se
+                    renderiza, así que alcanza con esas dos condiciones. */}
+                {(deposit.estado === "rechazado" || canRegularize) && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800/40">
+                    {deposit.estado === "rechazado" && (
+                      <button
+                        onClick={handleRestoreToPending}
+                        disabled={isProcessing}
+                        className="px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Restaurar depósito a pendiente"
+                      >
+                        <Clock size={12} />
+                        <span>Volver a pendiente</span>
+                      </button>
+                    )}
+
+                    {/* Regularizar voucher: solo finanzas/admin y SOLO cuando el
+                        depósito ya está confirmado (validado). */}
+                    {canRegularize &&
+                      deposit.estado === "confirmado" &&
+                      !deposit.pendiente_regularizar && (
+                      <button
+                        onClick={handleMarkRegularize}
+                        disabled={isMarkingRegularize}
+                        className="px-3 py-1.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Marcar para regularizar el voucher (independiente del estado)"
+                      >
+                        <AlertTriangle size={12} />
+                        <span>Regularizar</span>
+                      </button>
+                    )}
+                    {canRegularize && deposit.pendiente_regularizar && (
+                      <>
+                        <button
+                          onClick={() => setShowRegularizeUpload(true)}
+                          className="px-3 py-1.5 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium flex items-center justify-center space-x-2 text-sm"
+                          title="Subir la nueva imagen/pdf del voucher"
+                        >
+                          <UploadCloud size={12} />
+                          <span>Subir imagen</span>
+                        </button>
+                        <button
+                          onClick={handleUnmarkRegularize}
+                          disabled={isMarkingRegularize}
+                          className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Quitar la marca de regularizar"
+                        >
+                          <XCircle size={12} />
+                          <span>Quitar marca</span>
+                        </button>
+                      </>
+                    )}
+
+                    {/* Marcar/desmarcar como antiguo a mano: solo finanzas/admin.
+                        Independiente del Estado y de Regularizar -- es otro campo
+                        (Condicion), normalmente calculado solo por el backend
+                        segun la fecha del voucher. */}
+                    {canRegularize && !depositIsAntiguo && (
+                      <button
+                        onClick={handleMarkAntiguo}
+                        disabled={isMarkingAntiguo}
+                        className="px-3 py-1.5 bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Marcar este depósito como antiguo manualmente"
+                      >
+                        <Clock size={12} />
+                        <span>Marcar antiguo</span>
+                      </button>
+                    )}
+                    {canRegularize && depositIsAntiguo && (
+                      <button
+                        onClick={handleUnmarkAntiguo}
+                        disabled={isMarkingAntiguo}
+                        className="px-3 py-1.5 bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100 rounded-md hover:bg-slate-400 dark:hover:bg-slate-500 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Quitar la marca de antiguo"
+                      >
+                        <RotateCw size={12} />
+                        <span>Quitar antiguo</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Separador antes del par de decisión crítica (Rechazar /
+                    Confirmar), para que queden agrupados y no se confundan
+                    con las acciones administrativas de arriba. */}
+                {(deposit.estado === "rechazado" || canRegularize) && (
+                  <div className="hidden sm:block h-6 w-px self-stretch bg-gray-300 dark:bg-gray-600" />
+                )}
+
                 <button
                   onClick={() => {
                     setIsRejectionModalOpen(true);
@@ -3033,82 +3350,6 @@ const DepositDetailModal = ({
                   <Ban size={12} />
                   <span>Rechazar</span>
                 </button>
-
-                {deposit.estado === "rechazado" && (
-                  <button
-                    onClick={handleRestoreToPending}
-                    disabled={isProcessing}
-                    className="px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Restaurar depósito a pendiente"
-                  >
-                    <Clock size={12} />
-                    <span>Volver a pendiente</span>
-                  </button>
-                )}
-
-                {/* Regularizar voucher: solo finanzas/admin y SOLO cuando el
-                    depósito ya está confirmado (validado). */}
-                {canRegularize &&
-                  deposit.estado === "confirmado" &&
-                  !deposit.pendiente_regularizar && (
-                  <button
-                    onClick={handleMarkRegularize}
-                    disabled={isMarkingRegularize}
-                    className="px-3 py-1.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Marcar para regularizar el voucher (independiente del estado)"
-                  >
-                    <AlertTriangle size={12} />
-                    <span>Regularizar</span>
-                  </button>
-                )}
-                {canRegularize && deposit.pendiente_regularizar && (
-                  <>
-                    <button
-                      onClick={() => setShowRegularizeUpload(true)}
-                      className="px-3 py-1.5 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium flex items-center justify-center space-x-2 text-sm"
-                      title="Subir la nueva imagen/pdf del voucher"
-                    >
-                      <UploadCloud size={12} />
-                      <span>Subir imagen</span>
-                    </button>
-                    <button
-                      onClick={handleUnmarkRegularize}
-                      disabled={isMarkingRegularize}
-                      className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Quitar la marca de regularizar"
-                    >
-                      <XCircle size={12} />
-                      <span>Quitar marca</span>
-                    </button>
-                  </>
-                )}
-
-                {/* Marcar/desmarcar como antiguo a mano: solo finanzas/admin.
-                    Independiente del Estado y de Regularizar -- es otro campo
-                    (Condicion), normalmente calculado solo por el backend
-                    segun la fecha del voucher. */}
-                {canRegularize && !depositIsAntiguo && (
-                  <button
-                    onClick={handleMarkAntiguo}
-                    disabled={isMarkingAntiguo}
-                    className="px-3 py-1.5 bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Marcar este depósito como antiguo manualmente"
-                  >
-                    <Clock size={12} />
-                    <span>Marcar antiguo</span>
-                  </button>
-                )}
-                {canRegularize && depositIsAntiguo && (
-                  <button
-                    onClick={handleUnmarkAntiguo}
-                    disabled={isMarkingAntiguo}
-                    className="px-3 py-1.5 bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100 rounded-md hover:bg-slate-400 dark:hover:bg-slate-500 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Quitar la marca de antiguo"
-                  >
-                    <RotateCw size={12} />
-                    <span>Quitar antiguo</span>
-                  </button>
-                )}
 
                 {/* Grupo de confirmación */}
                 <div className="flex flex-wrap gap-2">

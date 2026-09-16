@@ -46,11 +46,16 @@ export const getStatusInfo = (estado) => {
   }
 };
 
-export const FormRow = ({ icon: Icon, label, children }) => (
+export const FormRow = ({ icon: Icon, label, required = false, children }) => (
   <div>
     <label className="mb-0.5 flex items-center text-xs font-medium text-gray-700 dark:text-gray-300">
       <Icon className="mr-1.5 h-3 w-3 text-gray-500 dark:text-gray-400" />
       {label}
+      {required && (
+        <span className="ml-0.5 text-red-500 dark:text-red-400" title="Campo requerido">
+          *
+        </span>
+      )}
     </label>
     {children}
   </div>
