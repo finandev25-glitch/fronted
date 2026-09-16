@@ -1,6 +1,6 @@
 import React from "react";
 import { Building, CreditCard, Hash, Calendar, DollarSign, User, Fingerprint, Info, MessageSquare } from "lucide-react";
-import { FormRow } from "../../deposits/components/depositDetailModalHelpers.jsx";
+import { FormRow, isNiubizBanco } from "../../deposits/components/depositDetailModalHelpers.jsx";
 import { campoVerificacion, claseSegunAccion, motivoVisible } from "../../deposits/utils/verificacionOcrHelpers.js";
 
 export const DepositFormPanel = ({
@@ -14,6 +14,8 @@ export const DepositFormPanel = ({
   selectedMoneda,
   nroOperacionClasses,
   verificacionOcr,
+  selectedBanco,
+  deposit,
 }) => {
   const vMonto = campoVerificacion(verificacionOcr, "monto");
   const vMoneda = campoVerificacion(verificacionOcr, "moneda");
@@ -213,6 +215,33 @@ export const DepositFormPanel = ({
                         />
                       </FormRow>
                     </div>
+
+                    {/* Fila 7: Número de Tarjeta -- solo depósitos Niubiz "Pago
+                        con Link", y solo en la etapa de confirmación (mismo
+                        criterio que el bloque equivalente del modo compacto
+                        mas arriba en este archivo padre). */}
+                    {isNiubizBanco(selectedBanco) &&
+                      (deposit?.estado === "procesado" || deposit?.estado === "confirmado") && (
+                        <div className="col-span-6">
+                          <FormRow icon={CreditCard} label="Últimos 4 Dígitos de la Tarjeta">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={4}
+                              name="numero_tarjeta"
+                              value={editableData.numero_tarjeta}
+                              onChange={handleChange}
+                              disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                                !editableData.numero_tarjeta
+                                  ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
+                                  : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                              }`}
+                              placeholder="Ej: 7801"
+                            />
+                          </FormRow>
+                        </div>
+                      )}
 
                     {/* Campo Observaciones ocultado por petición del usuario
                     <div className="col-span-6">

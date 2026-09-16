@@ -384,6 +384,7 @@ function mapDeposit(item) {
       validado_por: item.validadoPor || null,
       referencia_cliente: item.referenciaCliente || null,
       ruc_cliente: item.rucCliente || null,
+      numero_tarjeta: item.numeroTarjeta || null,
       trabajador_id: (item.trabajadorId || item.vendedorId) ? String(item.trabajadorId || item.vendedorId).toLowerCase() : null,
       empresa: item.empresa ? mapEmpresa(item.empresa) : null,
       banco: item.banco ? mapBanco(item.banco) : null,
@@ -783,6 +784,7 @@ function buildEditableFieldsBody({
   cliente,
   rucCliente,
   referenciaCliente,
+  numeroTarjeta,
 } = {}) {
   const body = {};
   if (anexo) body.anexo = anexo;
@@ -797,6 +799,7 @@ function buildEditableFieldsBody({
   if (cliente) body.cliente = cliente;
   if (rucCliente) body.rucCliente = rucCliente;
   if (referenciaCliente) body.referenciaCliente = referenciaCliente;
+  if (numeroTarjeta) body.numeroTarjeta = numeroTarjeta;
   return body;
 }
 

@@ -2605,6 +2605,8 @@ const DepositDetailModal = ({
                     filteredAnexos={filteredAnexos}
                     selectedMoneda={selectedMoneda}
                     nroOperacionClasses={nroOperacionClasses}
+                    selectedBanco={selectedBanco}
+                    deposit={deposit}
                   />
                   {!isFieldsOnlyEdit && (
                     <div className="mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
