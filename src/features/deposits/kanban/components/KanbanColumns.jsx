@@ -23,7 +23,7 @@ const COLUMN_COUNT_TONE = {
   confirmado: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
   rechazado: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };
-const DEFAULT_COUNT_TONE = "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+const DEFAULT_COUNT_TONE = "bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:text-zinc-300";
 
 // Variantes para la entrada escalonada de las columnas al montar el tablero.
 const boardContainer = {
@@ -143,18 +143,39 @@ function KanbanColumnBody({
   const queueProps = { onAddToQueue, queuedIds, attendedIds };
 
   if (columnId === "en_validacion") {
+    const { normales, antiguos } = validacionSeparated;
+    // Si solo hay un subgrupo con depósitos, su cabecera "▾ NORMALES (N)"
+    // repite exactamente lo que ya dice el contador de la columna
+    // ("En Validación · N") -- se muestra el contenido directo, sin
+    // encabezado, y solo se arma la sección con línea+contador cuando de
+    // verdad hay más de un subgrupo en juego.
+    const onlyNormales = normales.length > 0 && antiguos.length === 0;
+    const onlyAntiguos = antiguos.length > 0 && normales.length === 0;
+
+    if (onlyNormales || onlyAntiguos) {
+      return (
+        <KanbanColumnContent
+          deposits={onlyNormales ? normales : antiguos}
+          onCardClick={handleCardClick}
+          selectedDepositId={selectedDepositId}
+          highlights={highlights}
+          {...queueProps}
+        />
+      );
+    }
+
     return (
       <>
-        {validacionSeparated.normales.length > 0 && (
+        {normales.length > 0 && (
           <KanbanSection
             tone="blue"
             title="Normales"
-            count={validacionSeparated.normales.length}
+            count={normales.length}
             isOpen={showNormales}
             onToggle={() => setShowNormales(!showNormales)}
           >
             <KanbanColumnContent
-              deposits={validacionSeparated.normales}
+              deposits={normales}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -163,16 +184,16 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {validacionSeparated.antiguos.length > 0 && (
+        {antiguos.length > 0 && (
           <KanbanSection
             tone="orange"
             title="Antiguos"
-            count={validacionSeparated.antiguos.length}
+            count={antiguos.length}
             isOpen={showAntiguos}
             onToggle={() => setShowAntiguos(!showAntiguos)}
           >
             <KanbanColumnContent
-              deposits={validacionSeparated.antiguos}
+              deposits={antiguos}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -181,7 +202,7 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {validacionSeparated.antiguos.length === 0 && validacionSeparated.normales.length === 0 && (
+        {antiguos.length === 0 && normales.length === 0 && (
           <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
         )}
       </>
@@ -189,18 +210,35 @@ function KanbanColumnBody({
   }
 
   if (columnId === "procesado") {
+    const { especiales, pagosConLink, otros } = pendientesSeparated;
+    const nonEmptyGroups = [especiales, pagosConLink, otros].filter((g) => g.length > 0);
+
+    // Mismo criterio que en_validacion: con un solo subgrupo activo, su
+    // cabecera es redundante con el contador de la columna "Pendiente · N".
+    if (nonEmptyGroups.length === 1) {
+      return (
+        <KanbanColumnContent
+          deposits={nonEmptyGroups[0]}
+          onCardClick={handleCardClick}
+          selectedDepositId={selectedDepositId}
+          highlights={highlights}
+          {...queueProps}
+        />
+      );
+    }
+
     return (
       <>
-        {pendientesSeparated.especiales.length > 0 && (
+        {especiales.length > 0 && (
           <KanbanSection
             tone="purple"
             title="981199322"
-            count={pendientesSeparated.especiales.length}
+            count={especiales.length}
             isOpen={showPendientesEspeciales}
             onToggle={() => setShowPendientesEspeciales(!showPendientesEspeciales)}
           >
             <KanbanColumnContent
-              deposits={pendientesSeparated.especiales}
+              deposits={especiales}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -209,17 +247,17 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {pendientesSeparated.pagosConLink.length > 0 && (
+        {pagosConLink.length > 0 && (
           <KanbanSection
             tone="teal"
             title="Pagos con link"
             icon={Link2}
-            count={pendientesSeparated.pagosConLink.length}
+            count={pagosConLink.length}
             isOpen={showPagosConLink}
             onToggle={() => setShowPagosConLink(!showPagosConLink)}
           >
             <KanbanColumnContent
-              deposits={pendientesSeparated.pagosConLink}
+              deposits={pagosConLink}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -228,16 +266,16 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {pendientesSeparated.otros.length > 0 && (
+        {otros.length > 0 && (
           <KanbanSection
             tone="blue"
             title="Pendientes"
-            count={pendientesSeparated.otros.length}
+            count={otros.length}
             isOpen={showPendientesOtros}
             onToggle={() => setShowPendientesOtros(!showPendientesOtros)}
           >
             <KanbanColumnContent
-              deposits={pendientesSeparated.otros}
+              deposits={otros}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -246,28 +284,46 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {pendientesSeparated.especiales.length === 0 &&
-          pendientesSeparated.pagosConLink.length === 0 &&
-          pendientesSeparated.otros.length === 0 && (
-            <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
-          )}
+        {especiales.length === 0 && pagosConLink.length === 0 && otros.length === 0 && (
+          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
+        )}
       </>
     );
   }
 
   if (columnId === "confirmado") {
+    const { regularizar, otros } = confirmadoSeparated;
+    // "Confirmado" normalmente sí tiene los dos subgrupos con depósitos a la
+    // vez (por regularizar + validados) -- ahí las dos cabeceras aportan
+    // información real y se mantienen. Solo se colapsa a vista plana cuando,
+    // en un momento dado, uno de los dos queda vacío.
+    const onlyRegularizar = regularizar.length > 0 && otros.length === 0;
+    const onlyValidados = otros.length > 0 && regularizar.length === 0;
+
+    if (onlyRegularizar || onlyValidados) {
+      return (
+        <KanbanColumnContent
+          deposits={onlyRegularizar ? regularizar : otros}
+          onCardClick={handleCardClick}
+          selectedDepositId={selectedDepositId}
+          highlights={highlights}
+          {...queueProps}
+        />
+      );
+    }
+
     return (
       <>
-        {confirmadoSeparated.regularizar.length > 0 && (
+        {regularizar.length > 0 && (
           <KanbanSection
             tone="purple"
             title="Por regularizar"
-            count={confirmadoSeparated.regularizar.length}
+            count={regularizar.length}
             isOpen={showConfirmadoRegularizar}
             onToggle={() => setShowConfirmadoRegularizar(!showConfirmadoRegularizar)}
           >
             <KanbanColumnContent
-              deposits={confirmadoSeparated.regularizar}
+              deposits={regularizar}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -276,16 +332,16 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {confirmadoSeparated.otros.length > 0 && (
+        {otros.length > 0 && (
           <KanbanSection
             tone="green"
             title="Validados"
-            count={confirmadoSeparated.otros.length}
+            count={otros.length}
             isOpen={showConfirmadoValidados}
             onToggle={() => setShowConfirmadoValidados(!showConfirmadoValidados)}
           >
             <KanbanColumnContent
-              deposits={confirmadoSeparated.otros}
+              deposits={otros}
               onCardClick={handleCardClick}
               selectedDepositId={selectedDepositId}
               highlights={highlights}
@@ -294,10 +350,9 @@ function KanbanColumnBody({
           </KanbanSection>
         )}
 
-        {confirmadoSeparated.regularizar.length === 0 &&
-          confirmadoSeparated.otros.length === 0 && (
-            <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
-          )}
+        {regularizar.length === 0 && otros.length === 0 && (
+          <KanbanColumnContent deposits={[]} onCardClick={handleCardClick} selectedDepositId={selectedDepositId} highlights={highlights} {...queueProps} />
+        )}
       </>
     );
   }
@@ -387,11 +442,11 @@ export function KanbanColumns(props) {
           {KANBAN_COLUMNS.map((column) => (
             <details
               key={column.id}
-              className="group overflow-hidden rounded-xl border border-gray-200/80 bg-gray-100/70 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700/80 dark:bg-gray-900/70"
+              className="group overflow-hidden rounded-xl border border-gray-200/80 bg-gray-100/70 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700/80 dark:bg-zinc-900/70"
               open
             >
               <summary className="flex cursor-pointer list-none items-center justify-between p-4">
-                <h3 className="flex items-center gap-2 font-semibold text-gray-800 dark:text-gray-200">
+                <h3 className="flex items-center gap-2 font-semibold text-gray-800 dark:text-zinc-200">
                   <span className={`h-2.5 w-2.5 rounded-full ${column.color}`} />
                   {column.title}
                 </h3>
@@ -399,10 +454,10 @@ export function KanbanColumns(props) {
                   <span className={`rounded-full px-2 py-1 text-sm font-semibold ${COLUMN_COUNT_TONE[column.id] || DEFAULT_COUNT_TONE}`}>
                     <AnimatedCount value={groupedDeposits[column.id]?.length || 0} />
                   </span>
-                  <ChevronRight className="text-gray-500 transition-transform duration-200 group-open:rotate-90 dark:text-gray-400" size={14} />
+                  <ChevronRight className="text-gray-500 transition-transform duration-200 group-open:rotate-90 dark:text-zinc-400" size={14} />
                 </div>
               </summary>
-              <div className="space-y-2 border-t border-gray-200 p-3 dark:border-gray-800">
+              <div className="space-y-2 border-t border-gray-200 p-3 dark:border-zinc-800">
                 <KanbanColumnBody columnId={column.id} {...bodyProps} />
               </div>
             </details>
@@ -421,11 +476,11 @@ export function KanbanColumns(props) {
             <motion.div
               key={column.id}
               variants={reduce ? undefined : columnItem}
-              className="flex flex-col overflow-hidden rounded-xl border border-gray-200/80 bg-gray-100/70 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700/80 dark:bg-gray-900"
+              className="flex flex-col overflow-hidden rounded-xl border border-gray-200/80 bg-gray-100/70 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700/80 dark:bg-zinc-900"
             >
-              <div className="flex-shrink-0 border-b border-gray-200/80 p-4 dark:border-gray-700/80">
+              <div className="flex-shrink-0 border-b border-gray-200/80 p-4 dark:border-zinc-700/80">
                 <div className="flex items-center justify-between">
-                  <h3 className="flex items-center gap-2 font-semibold text-gray-800 dark:text-gray-200">
+                  <h3 className="flex items-center gap-2 font-semibold text-gray-800 dark:text-zinc-200">
                     <span className={`h-2.5 w-2.5 rounded-full ${column.color}`} />
                     {column.title}
                   </h3>

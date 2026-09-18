@@ -27,7 +27,7 @@ export const DepositVoucherPanel = ({
 
   return (
     <div className="lg:col-span-6 flex flex-col h-full space-y-4">
-                <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-2 border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex flex-col relative overflow-hidden lg:overflow-auto">
+                <div className="bg-gray-100 dark:bg-zinc-900 rounded-lg p-2 border border-gray-200 dark:border-zinc-700 flex-1 min-h-0 flex flex-col relative overflow-hidden lg:overflow-auto">
                   <div
                     className="flex-1 min-h-0 flex items-center justify-center overflow-hidden lg:overflow-auto pointer-events-none lg:pointer-events-auto"
                     style={{ minHeight: "607px" }}
@@ -38,8 +38,8 @@ export const DepositVoucherPanel = ({
                       // explicito que el recuadro gris vacio de antes, que se veia
                       // como si el voucher hubiera fallado en cargar.
                       <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500" />
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-zinc-500" />
+                        <span className="text-xs text-gray-500 dark:text-zinc-400">
                           Cargando comprobante...
                         </span>
                       </div>
@@ -51,9 +51,9 @@ export const DepositVoucherPanel = ({
                           height: "calc(93vh - 150px)",
                         }}
                       >
-                        <div className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 rounded-t pointer-events-auto">
+                        <div className="flex items-center justify-between p-2 bg-gray-100 dark:bg-zinc-800 rounded-t pointer-events-auto">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <span className="text-sm font-medium text-gray-700 dark:text-zinc-300">
                               📄 PDF:
                             </span>
 

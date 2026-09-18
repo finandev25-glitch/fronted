@@ -33,10 +33,10 @@ export function ContactDetailsPortal({
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.96, opacity: 0 }}
-            className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+            className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                   Datos del contacto
@@ -48,7 +48,7 @@ export function ContactDetailsPortal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-zinc-700 dark:hover:text-white"
                 title="Cerrar"
               >
                 <X className="h-5 w-5" />
@@ -60,7 +60,7 @@ export function ContactDetailsPortal({
                 {contactRows.map((row) => (
                   <div
                     key={row.label}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/60"
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/60"
                   >
                     <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                       {row.label}
@@ -73,11 +73,11 @@ export function ContactDetailsPortal({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
                 Cerrar
               </button>
@@ -175,7 +175,7 @@ export function NoDuplicatePortal({
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.96, opacity: 0 }}
-            className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+            className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-900/20">
@@ -206,12 +206,12 @@ export function NoDuplicatePortal({
                 <div className="mb-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                   Datos de la tienda
                 </div>
-                <div className="whitespace-pre-line rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm leading-6 text-slate-900 dark:border-slate-700 dark:bg-gray-950/30 dark:text-slate-100">
+                <div className="whitespace-pre-line rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm leading-6 text-slate-900 dark:border-slate-700 dark:bg-zinc-950/30 dark:text-slate-100">
                   {snapshotText}
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+              <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
                 <button
                   type="button"
                   onClick={onConfirm}
@@ -229,7 +229,7 @@ export function NoDuplicatePortal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
                   Cerrar
                 </button>
@@ -291,10 +291,10 @@ export function DuplicateDepositsPortal({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-            className="relative flex h-full w-full max-w-[420px] flex-col bg-white shadow-2xl dark:bg-gray-800"
+            className="relative flex h-full w-full max-w-[420px] flex-col bg-white shadow-2xl dark:bg-zinc-800"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-gray-200 bg-red-50 px-4 py-2.5 dark:border-gray-700 dark:bg-red-900/20">
+            <div className="flex items-center justify-between border-b border-gray-200 bg-red-50 px-4 py-2.5 dark:border-zinc-700 dark:bg-red-900/20">
               <div className="flex items-center space-x-2.5">
                 <div className="rounded-md bg-red-500 p-1.5">
                   <AlertCircle className="h-4 w-4 text-white" />
@@ -325,7 +325,7 @@ export function DuplicateDepositsPortal({
                   return (
                     <div
                       key={dup.id || `${dup.numero_operacion_banco || dup.numero_operacion || "dup"}-${index}`}
-                      className="flex w-full flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                      className="flex w-full flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -367,7 +367,7 @@ export function DuplicateDepositsPortal({
                             <iframe
                               src={dup.imagen_voucher}
                               title={`Voucher duplicado ${index + 1}`}
-                              className="min-h-[320px] w-full flex-1 rounded-lg border border-slate-200 dark:border-gray-700"
+                              className="min-h-[320px] w-full flex-1 rounded-lg border border-slate-200 dark:border-zinc-700"
                               style={{ border: "none" }}
                             />
                           ) : (
@@ -375,7 +375,7 @@ export function DuplicateDepositsPortal({
                               href={dup.imagen_voucher}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-black/5 dark:border-gray-700 dark:bg-black/20"
+                              className="flex flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-black/5 dark:border-zinc-700 dark:bg-black/20"
                               title="Abrir comprobante en nueva pestaña"
                             >
                               <img
@@ -386,7 +386,7 @@ export function DuplicateDepositsPortal({
                             </a>
                           )
                         ) : (
-                          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400 dark:border-gray-700 dark:bg-gray-800/50">
+                          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400 dark:border-zinc-700 dark:bg-zinc-800/50">
                             Sin comprobante
                           </div>
                         )}
@@ -397,7 +397,7 @@ export function DuplicateDepositsPortal({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+            <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
               <button
                 onClick={onReject}
                 className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700"
@@ -421,7 +421,7 @@ export function DuplicateDepositsPortal({
 
 function Field({ label, value, mono = false, className = "" }) {
   return (
-    <div className={`rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70 ${className}`}>
+    <div className={`rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70 ${className}`}>
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
         {label}
       </div>

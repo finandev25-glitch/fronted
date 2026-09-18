@@ -901,7 +901,7 @@ const DepositDetailModal = ({
           ? "border-emerald-200 bg-emerald-50/95 dark:border-emerald-900/40 dark:bg-emerald-950/35"
           : deposit.estado === "recibido"
             ? "border-orange-200 bg-orange-50/95 dark:border-orange-900/40 dark:bg-orange-950/35"
-            : "border-gray-200 bg-white/95 dark:border-gray-800 dark:bg-gray-900/95";
+            : "border-gray-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/95";
 
   const compactModalHeaderTitleClass =
     deposit.estado === "rechazado"
@@ -973,10 +973,10 @@ const DepositDetailModal = ({
       ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/30 dark:text-emerald-200"
       : compactSearchTone === "error"
         ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/30 dark:text-rose-200"
-        : "border-slate-200 bg-slate-50 text-slate-600 dark:border-gray-700 dark:bg-gray-950/60 dark:text-slate-300";
+        : "border-slate-200 bg-slate-50 text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-slate-300";
 
 
-  const nroOperacionClasses = "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400";
+  const nroOperacionClasses = "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400";
   const getCardBorderColor = (type) => "border-gray-200";
 
   const sqlMovementsModalPortal =
@@ -995,10 +995,10 @@ const DepositDetailModal = ({
                   initial={{ scale: 0.96, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.96, opacity: 0 }}
-                  className="flex h-[90vh] w-[98vw] max-w-[98vw] min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+                  className="flex h-[90vh] w-[98vw] max-w-[98vw] min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
                     <div className="min-w-0">
                       <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                         {sqlMovementsMeta?.empresaNombre ||
@@ -1014,7 +1014,7 @@ const DepositDetailModal = ({
                     <button
                       type="button"
                       onClick={closeSqlMovementsModal}
-                      className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                      className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-zinc-700 dark:hover:text-white"
                       title="Cerrar"
                     >
                       <X className="h-5 w-5" />
@@ -1022,17 +1022,17 @@ const DepositDetailModal = ({
                   </div>
 
                   <div className="flex flex-1 gap-4 overflow-hidden p-4">
-                    <div className="flex h-full min-h-[34rem] w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
-                      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-gray-700 dark:bg-gray-800/70 dark:text-slate-400">
+                    <div className="flex h-full min-h-[34rem] w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900/40">
+                      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-slate-400">
                         Voucher
                       </div>
                       <div className="min-h-0 flex-1 p-3">
                         <div className="flex h-full min-h-0 items-stretch">
                           {displayVoucherUrl ? (
                             displayVoucherUrl.includes(".pdf") || displayVoucherUrl.includes("/preview") || voucherImgFailed ? (
-                              <iframe src={displayVoucherUrl} title="Voucher PDF" className="h-full w-full rounded-xl border border-slate-200 bg-white dark:border-gray-700" />
+                              <iframe src={displayVoucherUrl} title="Voucher PDF" className="h-full w-full rounded-xl border border-slate-200 bg-white dark:border-zinc-700" />
                             ) : (
-                              <div className="h-full w-full rounded-xl border border-slate-200 dark:border-gray-700">
+                              <div className="h-full w-full rounded-xl border border-slate-200 dark:border-zinc-700">
                                 <ZoomableVoucherImage
                                   src={displayVoucherUrl}
                                   alt={"Voucher " + (deposit.numero_voucher || deposit.numero_operacion)}
@@ -1043,7 +1043,7 @@ const DepositDetailModal = ({
                               </div>
                             )
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm text-slate-500 dark:border-gray-700 dark:bg-gray-950 dark:text-slate-400">
+                            <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm text-slate-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-slate-400">
                               No hay voucher disponible.
                             </div>
                           )}
@@ -1051,8 +1051,8 @@ const DepositDetailModal = ({
                       </div>
                     </div>
 
-                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
-                      <div className="border-b border-slate-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900/40">
+                      <div className="border-b border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
                         <div className="mb-3 flex flex-wrap gap-2">
                           <button
                             type="button"
@@ -1096,7 +1096,7 @@ const DepositDetailModal = ({
                                     }
                                   }}
                                   placeholder="Ej. 202606"
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                 />
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -1115,7 +1115,7 @@ const DepositDetailModal = ({
                                       }
                                     }}
                                     placeholder="Ej. 123456"
-                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   />
                                 </div>
                                 <div className="w-[150px] flex-none">
@@ -1133,7 +1133,7 @@ const DepositDetailModal = ({
                                       }
                                     }}
                                     placeholder="Ej. BCP"
-                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   />
                                 </div>
                                 <div className="w-[150px] flex-none">
@@ -1150,7 +1150,7 @@ const DepositDetailModal = ({
                                         void loadSqlCortado(1);
                                       }
                                     }}
-                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   />
                                 </div>
                                 <div className="w-[150px] flex-none">
@@ -1170,7 +1170,7 @@ const DepositDetailModal = ({
                                     }}
                                     placeholder="Ej. 1500.00"
                                     step="0.01"
-                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   />
                                 </div>
                               </div>
@@ -1184,7 +1184,7 @@ const DepositDetailModal = ({
                                 <select
                                   value={sqlMovementsEmpresa}
                                   onChange={(e) => setSqlMovementsEmpresa(e.target.value)}
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                 >
                                   <option value="">Seleccionar</option>
                                   <option value="JCH">JCH</option>
@@ -1199,7 +1199,7 @@ const DepositDetailModal = ({
                                   type="date"
                                   value={sqlMovementsFechaDesde}
                                   onChange={(e) => setSqlMovementsFechaDesde(e.target.value)}
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                 />
                               </div>
                               <div className="w-[150px] flex-none">
@@ -1210,7 +1210,7 @@ const DepositDetailModal = ({
                                   type="date"
                                   value={sqlMovementsFechaHasta}
                                   onChange={(e) => setSqlMovementsFechaHasta(e.target.value)}
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                 />
                               </div>
                               <div className="w-[36ch] max-w-full flex-none">
@@ -1229,7 +1229,7 @@ const DepositDetailModal = ({
                                     }
                                   }}
                                   placeholder="Nro. operacion, banco, sucursal, contacto, RUC, observacion..."
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                 />
                               </div>
                             </>
@@ -1274,7 +1274,7 @@ const DepositDetailModal = ({
                                 setSqlCortadoTotalCount(0);
                               }}
                               disabled={sqlMovementsLoading || sqlCortadoLoading}
-                              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                             >
                               Limpiar
                             </button>
@@ -1319,13 +1319,13 @@ const DepositDetailModal = ({
                           ) : (
                             <div className="h-full overflow-x-auto overflow-y-auto">
                               <table className="w-max min-w-max table-auto border-separate border-spacing-0 whitespace-nowrap">
-                                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-gray-800">
+                                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-zinc-800">
                                   <tr className="text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     {SQL_MOVEMENTS_COLUMNS.map((col) => (
                                       <th
                                         key={col.key}
                                         className={
-                                          "border-b border-slate-200 px-4 py-3 dark:border-gray-700" +
+                                          "border-b border-slate-200 px-4 py-3 dark:border-zinc-700" +
                                           (["ABONO", "REG"].includes(col.key) ? " text-right" : "") +
                                           (col.key === "BANCO" ? " w-[15ch] max-w-[15ch]" : "")
                                         }
@@ -1333,10 +1333,10 @@ const DepositDetailModal = ({
                                         {col.label}
                                       </th>
                                     ))}
-                                    <th className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">Accion</th>
+                                    <th className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">Accion</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
+                                <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
                                   {sqlMovementsRows.map((row, index) => {
                                     // Coloreado: verde = ya hay match con deposito Y algun registro
                                     // en Concar (reg>0); ambar = hay match con deposito pero todavia
@@ -1347,12 +1347,12 @@ const DepositDetailModal = ({
                                       ? tieneRegistro
                                         ? "bg-emerald-100/80 text-emerald-950 hover:bg-emerald-200/80 dark:bg-emerald-900/35 dark:text-emerald-50 dark:hover:bg-emerald-800/45"
                                         : "bg-amber-200/90 text-amber-950 hover:bg-amber-300/90 dark:bg-amber-900/40 dark:text-amber-50 dark:hover:bg-amber-800/50"
-                                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-gray-800/60";
+                                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-zinc-800/60";
 
                                     return (
                                       <tr
                                         key={String(row.CUO || row.NRO_OPER || index)}
-                                        className={"align-top text-sm transition-colors border-b-2 border-slate-300 dark:border-gray-600 " + rowTone}
+                                        className={"align-top text-sm transition-colors border-b-2 border-slate-300 dark:border-zinc-600 " + rowTone}
                                       >
                                         {SQL_MOVEMENTS_COLUMNS.map((col) => {
                                           if (col.key === "Contacto") {
@@ -1380,7 +1380,7 @@ const DepositDetailModal = ({
                                             </td>
                                           );
                                         })}
-                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-gray-700 dark:bg-inherit">
+                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-zinc-700 dark:bg-inherit">
                                           <button type="button" onClick={() => void executeSqlMovementSelection(row)} className="inline-flex items-center rounded-lg border border-amber-400 bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600">Seleccionar</button>
                                         </td>
                                       </tr>
@@ -1406,33 +1406,33 @@ const DepositDetailModal = ({
                             ) : (
                               <div className="h-full overflow-x-auto overflow-y-auto">
                                 <table className="w-max min-w-max table-auto border-separate border-spacing-0 whitespace-nowrap">
-                                  <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-gray-800">
+                                  <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-zinc-800">
                                     <tr className="text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Fecha</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Banco</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Nro. op.</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Descripcion</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Cargo</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Abono</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Reg</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700 text-right">Dif</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">Registro</th>
-                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-gray-700">GLOSA</th>
-                                      <th className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700">Fecha</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700">Banco</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700">Nro. op.</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700">Descripcion</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700 text-right">Cargo</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700 text-right">Abono</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700 text-right">Reg</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700 text-right">Dif</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700">Registro</th>
+                                      <th className="border-b border-slate-200 px-4 py-3 dark:border-zinc-700">GLOSA</th>
+                                      <th className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
                                         Accion
                                       </th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
+                                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
                                     {sqlCortadoRows.map((row, index) => (
                                       <tr
                                         key={String(row.CUO || row.ID || index)}
-                                        className={"align-top text-sm transition-colors border-b-2 border-slate-300 dark:border-gray-600 " +
+                                        className={"align-top text-sm transition-colors border-b-2 border-slate-300 dark:border-zinc-600 " +
                                           (String(row.REGISTRO || "").trim()
                                             ? "bg-emerald-100/80 text-emerald-950 hover:bg-emerald-200/80 dark:bg-emerald-900/35 dark:text-emerald-50 dark:hover:bg-emerald-800/45"
                                             : Number(row.DIF || 0) !== 0
                                               ? "bg-amber-200/90 text-amber-950 hover:bg-amber-300/90 dark:bg-amber-900/40 dark:text-amber-50 dark:hover:bg-amber-800/50"
-                                              : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-gray-800/60")}
+                                              : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-zinc-800/60")}
                                       >
                                       <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{formatSqlMovementDate(row.FECHA)}</td>
                                       <td className="whitespace-nowrap px-4 py-3">{row.BANCO || "-"}</td>
@@ -1444,7 +1444,7 @@ const DepositDetailModal = ({
                                         <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{formatCompactMoney(row.DIF, "PEN")}</td>
                                         <td className="whitespace-nowrap px-4 py-3">{row.REGISTRO || "-"}</td>
                                         <td className="whitespace-nowrap px-4 py-3">{row.GLOSA || "-"}</td>
-                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-gray-700 dark:bg-inherit">
+                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-inherit px-4 py-3 dark:border-zinc-700 dark:bg-inherit">
                                           <button
                                             type="button"
                                             onClick={() => void handleSelectSqlCortado(row)}
@@ -1460,16 +1460,16 @@ const DepositDetailModal = ({
                               </div>
                             )}
 
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-slate-300">
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-slate-300">
                               <div>
                                 {sqlCortadoTotalCount
                                   ? "Mostrando " + Math.min((sqlCortadoPage - 1) * sqlCortadoPageSize + 1, sqlCortadoTotalCount) + "-" + Math.min(sqlCortadoPage * sqlCortadoPageSize, sqlCortadoTotalCount) + " de " + sqlCortadoTotalCount
                                   : "Sin resultados"}
                               </div>
                               <div className="flex items-center gap-2">
-                                <button type="button" onClick={() => void loadSqlCortado(Math.max(1, sqlCortadoPage - 1))} disabled={sqlCortadoLoading || sqlCortadoPage <= 1} className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">Anterior</button>
+                                <button type="button" onClick={() => void loadSqlCortado(Math.max(1, sqlCortadoPage - 1))} disabled={sqlCortadoLoading || sqlCortadoPage <= 1} className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Anterior</button>
                                 <span className="min-w-[7rem] text-center font-semibold">Página {sqlCortadoPage} / {Math.max(1, Math.ceil((sqlCortadoTotalCount || 0) / sqlCortadoPageSize))}</span>
-                                <button type="button" onClick={() => void loadSqlCortado(sqlCortadoPage + 1)} disabled={sqlCortadoLoading || sqlCortadoPage >= Math.max(1, Math.ceil((sqlCortadoTotalCount || 0) / sqlCortadoPageSize))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">Siguiente</button>
+                                <button type="button" onClick={() => void loadSqlCortado(sqlCortadoPage + 1)} disabled={sqlCortadoLoading || sqlCortadoPage >= Math.max(1, Math.ceil((sqlCortadoTotalCount || 0) / sqlCortadoPageSize))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Siguiente</button>
                               </div>
                             </div>
                           </div>
@@ -1479,7 +1479,7 @@ const DepositDetailModal = ({
 
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-slate-300">
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-slate-300">
                     <div>
                       {sqlActiveTab === "cortado"
                         ? sqlCortadoTotalCount
@@ -1499,7 +1499,7 @@ const DepositDetailModal = ({
                         <Save className="h-4 w-4" />
                         Exportar Excel
                       </button>
-                      <button type="button" onClick={closeSqlMovementsModal} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+                      <button type="button" onClick={closeSqlMovementsModal} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
                         Cerrar
                       </button>
                     </div>
@@ -1523,7 +1523,7 @@ const DepositDetailModal = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 16 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className={`relative flex h-[99vh] w-full min-w-0 max-w-none flex-col overflow-hidden rounded-xl border bg-[#f8fafc] shadow-2xl dark:bg-gray-950 ${compactModalBorderClass}`}
+            className={`relative flex h-[99vh] w-full min-w-0 max-w-none flex-col overflow-hidden rounded-xl border bg-[#f8fafc] shadow-2xl dark:bg-zinc-950 ${compactModalBorderClass}`}
           >
             <div
               className={`flex items-center justify-between gap-2 border-b px-2 py-1.5 ${compactModalHeaderClass}`}
@@ -1602,7 +1602,7 @@ const DepositDetailModal = ({
                 <button
                   type="button"
                   onClick={() => setIsContactModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
                   <Phone className="h-3.5 w-3.5" />
                   Contacto
@@ -1621,7 +1621,7 @@ const DepositDetailModal = ({
                 )}
                 <button
                   onClick={onClose}
-                  className="rounded-full p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                  className="rounded-full p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                   title="Cerrar ventana"
                   aria-label="Cerrar ventana"
                 >
@@ -1632,7 +1632,7 @@ const DepositDetailModal = ({
 
             <div className="flex-1 overflow-hidden px-2 py-2">
               <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-                <div className="shrink-0 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/70 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/85 dark:shadow-black/20">
+                <div className="shrink-0 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/70 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/85 dark:shadow-black/20">
                   <div className="space-y-2">
                     {/* Empresa + Cliente, después Banco/Moneda/Anexo y
                         Importe/Nro.op/Fecha en tríos -- mismo agrupamiento
@@ -1653,7 +1653,7 @@ const DepositDetailModal = ({
                           className={`w-full rounded-xl border px-2.5 py-1 text-lg outline-none transition-colors focus:ring-2 ${
                             !editableData.empresa_id
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-                              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                              : "border-slate-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
                           }`}
                         >
                           <option value="">Seleccionar</option>
@@ -1675,7 +1675,7 @@ const DepositDetailModal = ({
                           value={editableData.cliente}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                           placeholder="Nombre del cliente"
                         />
                       </div>
@@ -1699,7 +1699,7 @@ const DepositDetailModal = ({
                             className={`w-full rounded-xl border px-2.5 py-1 text-lg outline-none transition-colors focus:ring-2 ${
                               !editableData.numero_tarjeta
                                 ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-                                : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                                : "border-slate-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
                             }`}
                             placeholder="Ej: 7801"
                           />
@@ -1721,7 +1721,7 @@ const DepositDetailModal = ({
                           className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${
                             !editableData.banco_id
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-                              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                              : "border-slate-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
                           }`}
                         >
                           <option value="">Seleccionar</option>
@@ -1755,7 +1755,7 @@ const DepositDetailModal = ({
                           <option value="USD">Dólares (USD)</option>
                         </select>
                         {motivoVisible(campoVerificacion(verificacionOcr, "moneda")) && (
-                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-zinc-400">
                             <CompactVerificacionIcon accion={campoVerificacion(verificacionOcr, "moneda")?.accion} />
                             {motivoVisible(campoVerificacion(verificacionOcr, "moneda"))}
                           </p>
@@ -1775,7 +1775,7 @@ const DepositDetailModal = ({
                           className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${
                             !editableData.anexo
                               ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
-                              : "border-slate-300 bg-white dark:border-gray-700 dark:bg-gray-950"
+                              : "border-slate-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
                           }`}
                         >
                           <option value="">{filteredAnexos.length === 0 ? "N/A" : "Seleccionar"}</option>
@@ -1810,12 +1810,12 @@ const DepositDetailModal = ({
                           value={editableData.monto}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg font-mono text-right outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                           placeholder="0.00"
                           step="0.01"
                         />
                         {motivoVisible(campoVerificacion(verificacionOcr, "monto")) && (
-                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-zinc-400">
                             <CompactVerificacionIcon accion={campoVerificacion(verificacionOcr, "monto")?.accion} />
                             {motivoVisible(campoVerificacion(verificacionOcr, "monto"))}
                           </p>
@@ -1871,10 +1871,10 @@ const DepositDetailModal = ({
                           value={editableData.fecha_deposito}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? true : isFullEditDisabled}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-lg text-slate-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                         />
                         {motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito")) && (
-                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 truncate text-[8px] leading-tight text-gray-500 dark:text-zinc-400">
                             <CompactVerificacionIcon accion={campoVerificacion(verificacionOcr, "fecha_deposito")?.accion} />
                             {motivoVisible(campoVerificacion(verificacionOcr, "fecha_deposito"))}
                           </p>
@@ -1898,7 +1898,7 @@ const DepositDetailModal = ({
                           compitan en peso visual con Duplicados/Rechazar,
                           que son las acciones críticas de esta barra. */}
                       {(isDepositAntiguo(deposit) || canRegularize) && (
-                        <div className="flex shrink-0 flex-nowrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-2 py-1 dark:border-gray-700 dark:bg-gray-800/40">
+                        <div className="flex shrink-0 flex-nowrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-800/40">
                           {isDepositAntiguo(deposit) && (
                             <button
                               type="button"
@@ -1943,7 +1943,7 @@ const DepositDetailModal = ({
                                 type="button"
                                 onClick={handleUnmarkRegularize}
                                 disabled={isMarkingRegularize}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
                                 title="Quitar la marca de regularizar"
                               >
                                 <XCircle className="h-4 w-4" />
@@ -2025,7 +2025,7 @@ const DepositDetailModal = ({
                             href={getRechazoHistorialImagenUrl(r.id)}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-zinc-900 dark:text-amber-200 dark:hover:bg-amber-900/40"
                             title={r.motivoRechazo || r.observaciones || "Ver voucher rechazado"}
                           >
                             <Eye className="h-3 w-3" />
@@ -2037,7 +2037,7 @@ const DepositDetailModal = ({
 
                   </div>
                 </div>
-              <div className="flex min-h-0 flex-1 self-stretch flex-col rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/70 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/85 dark:shadow-black/20">
+              <div className="flex min-h-0 flex-1 self-stretch flex-col rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/70 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/85 dark:shadow-black/20">
                 <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/80">
                   {/* Rotar/Abrir flotan sobre la imagen (esquina superior
                       derecha) en vez de una fila aparte arriba -- el nombre
@@ -2120,10 +2120,10 @@ const DepositDetailModal = ({
                   onClick={() => setIsContactModalOpen(false)}
                 >
                   <div
-                    className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+                    className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
                       <div>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                           Datos del contacto
@@ -2135,7 +2135,7 @@ const DepositDetailModal = ({
                       <button
                         type="button"
                         onClick={() => setIsContactModalOpen(false)}
-                        className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                        className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-zinc-700 dark:hover:text-white"
                         title="Cerrar"
                       >
                         <X className="h-5 w-5" />
@@ -2147,7 +2147,7 @@ const DepositDetailModal = ({
                         {compactContactRows.map((row) => (
                           <div
                             key={row.label}
-                            className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/60"
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/60"
                           >
                             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                               {row.label}
@@ -2160,11 +2160,11 @@ const DepositDetailModal = ({
                       </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+                    <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
                       <button
                         type="button"
                         onClick={() => setIsContactModalOpen(false)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                       >
                         Cerrar
                       </button>
@@ -2182,7 +2182,7 @@ const DepositDetailModal = ({
                   }}
                 >
                   <div
-                    className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+                    className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-start justify-between gap-3 border-b border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-900/20">
@@ -2217,13 +2217,13 @@ const DepositDetailModal = ({
                         <div className="mb-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                           Datos de la tienda
                         </div>
-                        <div className="whitespace-pre-line rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm leading-6 text-slate-900 dark:border-slate-700 dark:bg-gray-950/30 dark:text-slate-100">
+                        <div className="whitespace-pre-line rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm leading-6 text-slate-900 dark:border-slate-700 dark:bg-zinc-950/30 dark:text-slate-100">
                           {compactStoreDataSnapshot}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+                    <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
                       <button
                         type="button"
                         onClick={() => handleConfirmDepositWithFeedback(closeDuplicateModal)}
@@ -2248,10 +2248,10 @@ const DepositDetailModal = ({
                   }}
                 >
                   <div
-                    className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
+                    className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-zinc-800"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-center justify-between border-b border-gray-200 bg-red-50 p-4 dark:border-gray-700 dark:bg-red-900/20">
+                    <div className="flex items-center justify-between border-b border-gray-200 bg-red-50 p-4 dark:border-zinc-700 dark:bg-red-900/20">
                       <div className="flex items-center space-x-3">
                         <div className="rounded-lg bg-red-500 p-2">
                           <AlertCircle className="h-5 w-5 text-white" />
@@ -2294,7 +2294,7 @@ const DepositDetailModal = ({
                           return (
                             <div
                               key={dup.id || `${dup.numero_operacion_banco || dup.numero_operacion || "dup"}-${index}`}
-                              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
@@ -2312,7 +2312,7 @@ const DepositDetailModal = ({
                               </div>
 
                               <div className="mt-4 grid gap-2 text-sm">
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Empresa
                                   </div>
@@ -2320,7 +2320,7 @@ const DepositDetailModal = ({
                                     {dup.empresa?.nombre || "-"}
                                   </div>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Banco
                                   </div>
@@ -2328,7 +2328,7 @@ const DepositDetailModal = ({
                                     {dup.banco?.abreviatura || dup.banco?.nombre || "-"}
                                   </div>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Nro. operación
                                   </div>
@@ -2336,7 +2336,7 @@ const DepositDetailModal = ({
                                     {dup.numero_operacion_banco || dup.numero_operacion || "-"}
                                   </div>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Importe
                                   </div>
@@ -2344,7 +2344,7 @@ const DepositDetailModal = ({
                                     {formatCompactMoney(dup.monto, dup.moneda)}
                                   </div>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Fecha depósito
                                   </div>
@@ -2352,7 +2352,7 @@ const DepositDetailModal = ({
                                     {dup.fecha_deposito || "-"}
                                   </div>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Fecha registro
                                   </div>
@@ -2360,7 +2360,7 @@ const DepositDetailModal = ({
                                     {formatDepositDateTime(dup.fecha_registro)}
                                   </div>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/70 md:col-span-2">
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/70 md:col-span-2">
                                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Personal
                                   </div>
@@ -2375,7 +2375,7 @@ const DepositDetailModal = ({
                       </div>
                     </div>
 
-                    <div className="flex justify-end border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                    <div className="flex justify-end border-t border-gray-200 bg-gray-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
                       <button
                         onClick={() => {
                           setDuplicateModalMode("none");
@@ -2398,7 +2398,7 @@ const DepositDetailModal = ({
               onClick={closeCompactToast}
             >
               <div
-                className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-gray-900"
+                className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-zinc-900"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div
@@ -2479,7 +2479,7 @@ const DepositDetailModal = ({
           onClick={closeCompactToast}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-gray-900"
+            className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-zinc-900"
             onClick={(event) => event.stopPropagation()}
           >
             <div
@@ -2528,23 +2528,23 @@ const DepositDetailModal = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className={`bg-white dark:bg-gray-800 w-full flex flex-col shadow-2xl ${
+          className={`bg-white dark:bg-zinc-800 w-full flex flex-col shadow-2xl ${
             isCompactPresentation
               ? "w-full max-w-[1400px] min-w-0 max-h-[96vh] h-[96vh] rounded-2xl"
               : "max-w-7xl max-h-[85vh] h-[85vh] md:max-h-[93vh] md:h-[93vh] rounded-xl"
           }`}
         >
-          <div className="flex items-center justify-between p-2 md:p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-center justify-between p-2 md:p-4 border-b border-gray-200 dark:border-zinc-700 flex-shrink-0">
             <div className="flex items-center space-x-2 md:space-x-3">
               <div className="p-1.5 md:p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
                 <FileText className="h-4 w-4 md:h-5 md:w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100">
+                <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-zinc-100">
                   Detalle del Depósito
                 </h2>
                 <div className="hidden sm:flex items-center gap-4 mt-1.5 text-sm md:text-base">
-                  <span className="text-gray-600 dark:text-gray-400">
+                  <span className="text-gray-600 dark:text-zinc-400">
                     📅 Recibido:{" "}
                     <strong className="text-blue-600 dark:text-blue-400">
                       {receivedDate} {receivedTime}
@@ -2552,7 +2552,7 @@ const DepositDetailModal = ({
                   </span>
                   {isResolved ? (
                     resolvedDate && (
-                      <span className="text-gray-600 dark:text-gray-400">
+                      <span className="text-gray-600 dark:text-zinc-400">
                         {deposit.estado === "confirmado" ? "✅" : "🚫"} {resolvedLabel}:{" "}
                         <strong
                           className={
@@ -2566,7 +2566,7 @@ const DepositDetailModal = ({
                       </span>
                     )
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                    <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-zinc-400">
                       Transcurrido:{" "}
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
@@ -2657,9 +2657,9 @@ const DepositDetailModal = ({
 
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700"
               >
-                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                <X className="h-5 w-5 text-gray-500 dark:text-zinc-400" />
               </button>
             </div>
           </div>
@@ -2699,12 +2699,12 @@ const DepositDetailModal = ({
           <div
             className={`flex-1 min-h-0 overflow-y-auto lg:overflow-hidden ${
               isCompactPresentation ? "p-2.5 md:p-3" : "p-4"
-            } bg-gray-50/50 dark:bg-gray-900/50`}
+            } bg-gray-50/50 dark:bg-zinc-900/50`}
           >
             <div className={`grid h-full grid-cols-1 ${isCompactPresentation ? "gap-4 items-stretch lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]" : "gap-6 lg:grid-cols-9"}`}>
               <div className="space-y-3 lg:col-span-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-2">
                 <div
-                  className={`relative w-full bg-slate-50 dark:bg-slate-800/50 border border-gray-200 dark:border-gray-700 border-l-4 ${getCardBorderColor(
+                  className={`relative w-full bg-slate-50 dark:bg-slate-800/50 border border-gray-200 dark:border-zinc-700 border-l-4 ${getCardBorderColor(
                     "form",
                   )} rounded-lg p-2 shadow-md dark:shadow-black/30 hover:shadow-lg hover:shadow-slate-500/50 dark:hover:shadow-slate-400/40 transition-shadow duration-300`}
                 >
@@ -2716,8 +2716,8 @@ const DepositDetailModal = ({
                       loader hasta que editableData ya refleje el deposito real. */}
                   {!isDetailLoaded && (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-[1px]">
-                      <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-500" />
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-zinc-500" />
+                      <span className="text-xs text-gray-500 dark:text-zinc-400">
                         Cargando detalle del depósito...
                       </span>
                     </div>
@@ -2737,10 +2737,10 @@ const DepositDetailModal = ({
                     deposit={deposit}
                   />
                   {!isFieldsOnlyEdit && (
-                    <div className="mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
+                    <div className="mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-zinc-700">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
-                          <h4 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+                          <h4 className="text-base font-semibold text-gray-800 dark:text-zinc-200">
                             Verificación de Duplicados
                           </h4>
                         </div>
@@ -2805,14 +2805,14 @@ const DepositDetailModal = ({
                 </div>
 
                 <div
-                  className={`w-full bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 border-l-4 ${
+                  className={`w-full bg-white dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 border-l-4 ${
                     editingSolicitante
                       ? "border-l-blue-500 dark:border-l-blue-400"
                       : getCardBorderColor("solicitante")
                   } rounded-lg p-2 shadow-md dark:shadow-black/30 hover:shadow-lg hover:shadow-indigo-500/50 dark:hover:shadow-indigo-400/40 transition-shadow duration-300`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-800 dark:text-zinc-200">
                       Datos del Solicitante
                     </h4>
                   </div>
@@ -2821,7 +2821,7 @@ const DepositDetailModal = ({
                     <div className="space-y-3">
                       {/* Campo de búsqueda de trabajador */}
                       <div className="relative">
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">
                           Buscar Vendedor (nombre o teléfono)
                         </label>
                         <div className="relative">
@@ -2832,7 +2832,7 @@ const DepositDetailModal = ({
                               setSearchTrabajador(e.target.value)
                             }
                             placeholder="Escribe para buscar..."
-                            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100"
                             autoComplete="off"
                           />
                           {buscandoTrabajador && (
@@ -2844,19 +2844,19 @@ const DepositDetailModal = ({
 
                         {/* Lista de trabajadores encontrados */}
                         {trabajadoresEncontrados.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                             {trabajadoresEncontrados.map((trabajador) => (
                               <button
                                 key={trabajador.id}
                                 onClick={() =>
                                   seleccionarTrabajador(trabajador)
                                 }
-                                className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-600 last:border-b-0 text-sm"
+                                className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-zinc-700 border-b border-gray-100 dark:border-zinc-600 last:border-b-0 text-sm"
                               >
-                                <div className="font-medium text-gray-900 dark:text-gray-100">
+                                <div className="font-medium text-gray-900 dark:text-zinc-100">
                                   {trabajador.nombre}
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">
                                   📱 {trabajador.telefono_origen} • 🏢{" "}
                                   {trabajador.sucursal?.nombre ||
                                     "Sin sucursal"}
@@ -2875,7 +2875,7 @@ const DepositDetailModal = ({
                               <span className="font-medium text-blue-800 dark:text-blue-200">
                                 Vendedor:
                               </span>
-                              <span className="ml-2 text-gray-900 dark:text-gray-100">
+                              <span className="ml-2 text-gray-900 dark:text-zinc-100">
                                 {solicitanteData.trabajador_nombre}
                               </span>
                             </div>
@@ -2883,7 +2883,7 @@ const DepositDetailModal = ({
                               <span className="font-medium text-blue-800 dark:text-blue-200">
                                 Sucursal:
                               </span>
-                              <span className="ml-2 text-gray-900 dark:text-gray-100">
+                              <span className="ml-2 text-gray-900 dark:text-zinc-100">
                                 {solicitanteData.sucursal_nombre ||
                                   "Sin sucursal"}
                               </span>
@@ -2892,7 +2892,7 @@ const DepositDetailModal = ({
                               <span className="font-medium text-blue-800 dark:text-blue-200">
                                 Teléfono:
                               </span>
-                              <span className="ml-2 text-gray-900 dark:text-gray-100">
+                              <span className="ml-2 text-gray-900 dark:text-zinc-100">
                                 {solicitanteData.telefono_origen}
                               </span>
                             </div>
@@ -2901,11 +2901,11 @@ const DepositDetailModal = ({
                       )}
 
                       {/* Botones de acción */}
-                      <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-200 dark:border-zinc-600">
                         <button
                           onClick={cancelarEdicionSolicitante}
                           disabled={isProcessing}
-                          className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                          className="px-3 py-1 text-xs bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors disabled:opacity-50"
                         >
                           Cancelar
                         </button>
@@ -2931,26 +2931,26 @@ const DepositDetailModal = ({
                     <div className="space-y-2">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2 truncate">
-                          <Building2 className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                          <Building2 className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-zinc-500" />
                           <span
-                            className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate"
+                            className="font-semibold text-gray-900 dark:text-zinc-100 text-base truncate"
                             title={deposit.sucursal?.nombre}
                           >
                             {deposit.sucursal?.nombre || "-"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 truncate">
-                          <User className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                          <User className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-zinc-500" />
                           <span
-                            className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate"
+                            className="font-semibold text-gray-900 dark:text-zinc-100 text-base truncate"
                             title={deposit.trabajador?.nombre}
                           >
                             {deposit.trabajador?.nombre || "-"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 truncate">
-                          <Phone className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate">
+                          <Phone className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-zinc-500" />
+                          <span className="font-semibold text-gray-900 dark:text-zinc-100 text-base truncate">
                             {deposit.trabajador?.telefono_origen || "-"}
                           </span>
                         </div>
@@ -2958,7 +2958,7 @@ const DepositDetailModal = ({
 
                       {/* Chat flotante con el trabajador (solicitante) */}
                       {deposit.trabajador && (
-                        <div className="pt-3 border-t border-gray-200 dark:border-gray-600 space-y-2">
+                        <div className="pt-3 border-t border-gray-200 dark:border-zinc-600 space-y-2">
                           <button
                             type="button"
                             onClick={() =>
@@ -2991,8 +2991,8 @@ const DepositDetailModal = ({
                     más arriba). Se oculta si no hay nada que mostrar -- no
                     tiene sentido una tarjeta vacía para el caso común. */}
                 {canRegularize && rechazosHistorial.length > 0 && (
-                  <div className="w-full bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 border-l-4 border-l-amber-500 dark:border-l-amber-400 rounded-lg p-2 shadow-md dark:shadow-black/30">
-                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  <div className="w-full bg-white dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 border-l-4 border-l-amber-500 dark:border-l-amber-400 rounded-lg p-2 shadow-md dark:shadow-black/30">
+                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-zinc-200">
                       <AlertTriangle className="h-4 w-4 text-amber-500" />
                       Historial de Rechazos
                     </h4>
@@ -3013,7 +3013,7 @@ const DepositDetailModal = ({
                                 href={getRechazoHistorialImagenUrl(r.id)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-gray-800 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-zinc-800 dark:text-amber-200 dark:hover:bg-amber-900/40"
                               >
                                 <Eye className="h-3 w-3" />
                                 Ver voucher rechazado
@@ -3036,7 +3036,7 @@ const DepositDetailModal = ({
                   </div>
                 )}
                 {canRegularize && isLoadingRechazosHistorial && rechazosHistorial.length === 0 && (
-                  <div className="w-full text-center text-xs text-gray-400 dark:text-gray-500">
+                  <div className="w-full text-center text-xs text-gray-400 dark:text-zinc-500">
                     Cargando historial de rechazos...
                   </div>
                 )}
@@ -3115,18 +3115,18 @@ const DepositDetailModal = ({
           </div>
 
           <div
-            className={`flex flex-shrink-0 items-center justify-end gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 ${
+            className={`flex flex-shrink-0 items-center justify-end gap-2 border-t border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800/50 ${
               isCompactPresentation ? "rounded-b-2xl p-3" : "rounded-b-xl p-4"
             }`}
           >
-            <div className="mr-auto hidden md:block text-xs text-gray-500 dark:text-gray-400">
+            <div className="mr-auto hidden md:block text-xs text-gray-500 dark:text-zinc-400">
               Esc: cerrar
             </div>
             {isFieldsOnlyEdit ? (
               <>
                 <button
                   onClick={onClose}
-                  className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 font-medium text-sm"
+                  className="px-3 py-1.5 bg-gray-200 dark:bg-zinc-700 text-gray-800 dark:text-zinc-200 rounded-md hover:bg-gray-300 dark:hover:bg-zinc-600 font-medium text-sm"
                 >
                   Cancelar
                 </button>
@@ -3193,7 +3193,7 @@ const DepositDetailModal = ({
               <>
                 <button
                   onClick={onClose}
-                  className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 font-medium text-sm"
+                  className="px-3 py-1.5 bg-gray-200 dark:bg-zinc-700 text-gray-800 dark:text-zinc-200 rounded-md hover:bg-gray-300 dark:hover:bg-zinc-600 font-medium text-sm"
                 >
                   Cancelar
                 </button>
@@ -3254,7 +3254,7 @@ const DepositDetailModal = ({
                     ya garantiza que "Marcar/Quitar antiguo" siempre se
                     renderiza, así que alcanza con esas dos condiciones. */}
                 {(deposit.estado === "rechazado" || canRegularize) && (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800/40">
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/70 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-800/40">
                     {deposit.estado === "rechazado" && (
                       <button
                         onClick={handleRestoreToPending}
@@ -3295,7 +3295,7 @@ const DepositDetailModal = ({
                         <button
                           onClick={handleUnmarkRegularize}
                           disabled={isMarkingRegularize}
-                          className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          className="px-3 py-1.5 bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-zinc-200 rounded-md hover:bg-gray-300 dark:hover:bg-zinc-600 font-medium flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                           title="Quitar la marca de regularizar"
                         >
                           <XCircle size={12} />
@@ -3337,7 +3337,7 @@ const DepositDetailModal = ({
                     Confirmar), para que queden agrupados y no se confundan
                     con las acciones administrativas de arriba. */}
                 {(deposit.estado === "rechazado" || canRegularize) && (
-                  <div className="hidden sm:block h-6 w-px self-stretch bg-gray-300 dark:bg-gray-600" />
+                  <div className="hidden sm:block h-6 w-px self-stretch bg-gray-300 dark:bg-zinc-600" />
                 )}
 
                 <button
@@ -3356,7 +3356,7 @@ const DepositDetailModal = ({
                   <button
                     onClick={() => handleConfirmDepositWithFeedback()}
                     disabled={!canConfirm || isSending || isProcessing}
-                    className="px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm flex items-center justify-center space-x-2"
+                    className="px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:bg-gray-400 dark:disabled:bg-zinc-600 disabled:cursor-not-allowed text-sm flex items-center justify-center space-x-2"
                     title="Confirmar depósito"
                   >
                     {isSending ? (
@@ -3385,12 +3385,12 @@ const DepositDetailModal = ({
             className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center"
             style={{ pointerEvents: "all" }}
           >
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl flex flex-col items-center space-y-4">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 shadow-xl flex flex-col items-center space-y-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="text-gray-700 dark:text-gray-300 font-medium">
+              <p className="text-gray-700 dark:text-zinc-300 font-medium">
                 Procesando...
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+              <p className="text-sm text-gray-500 dark:text-zinc-400 text-center">
                 Por favor espere mientras se completa la operación
               </p>
             </div>

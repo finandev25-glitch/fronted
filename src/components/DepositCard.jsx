@@ -133,7 +133,7 @@ const DepositCard = ({
         ? "warning"
         : "ok";
   const urgencyBadgeClasses = {
-    neutral: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+    neutral: "bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-zinc-400",
     ok: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
     warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
     danger: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
@@ -146,7 +146,7 @@ const DepositCard = ({
   return (
     <div
       onClick={() => onClick?.(deposit)}
-      className={`relative rounded-xl border border-gray-200 dark:border-gray-700/80 border-l-4 ${
+      className={`relative rounded-xl border border-gray-200 dark:border-zinc-700/80 border-l-4 ${
         isRiesgo
           ? "border-l-red-600 bg-gradient-to-br from-red-100 to-rose-50 dark:from-red-950/50 dark:to-rose-950/30 shadow-red-300/60 dark:shadow-red-900/50"
           : isPagoConLink
@@ -160,7 +160,7 @@ const DepositCard = ({
         isRiesgo
           ? "danger-blink ring-2 ring-red-400 dark:ring-red-600"
           : isOldDeposit
-            ? "ring-2 ring-orange-300 dark:ring-orange-600"
+            ? "ring-1 ring-orange-300 dark:ring-orange-500/40"
             : ""
       } ${
         isSelected
@@ -179,7 +179,7 @@ const DepositCard = ({
                 alt={deposit.empresa.nombre}
                 title={`Empresa: ${deposit.empresa.nombre}`}
                 loading="lazy"
-                className="h-12 w-12 flex-shrink-0 rounded-full border border-gray-200 bg-white object-contain p-0.5 shadow-sm dark:border-gray-600 dark:bg-white"
+                className="h-12 w-12 flex-shrink-0 rounded-full border border-gray-200 bg-white object-contain p-0.5 shadow-sm dark:border-zinc-600 dark:bg-white"
               />
             ) : (
               <span
@@ -223,13 +223,13 @@ const DepositCard = ({
                   ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
                   : isQueued
                     ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300"
-                    : "bg-gray-100 text-gray-400 hover:bg-indigo-100 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-500 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300"
+                    : "bg-gray-100 text-gray-400 hover:bg-indigo-100 hover:text-indigo-600 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300"
               }`}
             >
               {isAttended ? <CheckCircle2 size={14} /> : <ListPlus size={14} />}
             </button>
           )}
-          <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-zinc-400">
             <Clock size={13} className={statusStyles.iconColor} />
             <span className="font-medium">
               {formatShortDateFromDateOnly(deposit.fecha_solo_date)}{" "}
@@ -258,15 +258,15 @@ const DepositCard = ({
       {/* Main Content */}
       <div className="flex-grow">
         {/* Operación/Fecha & Monto */}
-        <div className="mb-2 flex items-center justify-between border-t border-gray-100 dark:border-gray-700 pt-2">
-          <div className="flex flex-col text-sm text-gray-600 dark:text-gray-300 gap-0.5 min-w-0">
+        <div className="mb-2 flex items-center justify-between border-t border-gray-100 dark:border-zinc-700 pt-2">
+          <div className="flex flex-col text-sm text-gray-600 dark:text-zinc-300 gap-0.5 min-w-0">
             <span className="truncate">Op&nbsp;&nbsp;&nbsp;: {deposit.numero_operacion || "N/A"}</span>
             <span className="truncate">
               Fecha: {formatDate(deposit.fecha_deposito)}
             </span>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+            <p className="text-2xl font-bold text-gray-900 dark:text-zinc-100 truncate">
               {(deposit.monto || 0).toLocaleString("es-ES", {
                 minimumFractionDigits: 2,
               })}
@@ -280,12 +280,12 @@ const DepositCard = ({
         </div>
 
         {/* Sucursal + Trabajador (izquierda) | Validador (abajo derecha) */}
-        <div className="flex items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-300 border-t border-gray-100 dark:border-gray-700 pt-2">
+        <div className="flex items-center justify-between gap-3 text-sm text-gray-600 dark:text-zinc-300 border-t border-gray-100 dark:border-zinc-700 pt-2">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
             <div className="flex items-center space-x-2 overflow-hidden min-w-0">
               <Building2
                 size={13}
-                className="text-gray-400 dark:text-gray-500 flex-shrink-0"
+                className="text-gray-400 dark:text-zinc-500 flex-shrink-0"
               />
               <span className="truncate font-semibold" title={deposit.sucursal?.nombre}>
                 {deposit.sucursal?.nombre || "N/A"}
@@ -294,13 +294,13 @@ const DepositCard = ({
             <div className="flex items-center space-x-2 overflow-hidden min-w-0">
               <User
                 size={13}
-                className="text-gray-400 dark:text-gray-500 flex-shrink-0"
+                className="text-gray-400 dark:text-zinc-500 flex-shrink-0"
               />
               <span className="truncate" title={deposit.trabajador?.nombre}>
                 {deposit.trabajador?.nombre || "N/A"}
               </span>
               {deposit.trabajador?.telefono_origen && (
-                <span className="flex items-center text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                <span className="flex items-center text-xs text-gray-500 dark:text-zinc-400 flex-shrink-0">
                   <Phone size={11} className="mr-1" />
                   <span className="font-mono">
                     {deposit.trabajador.telefono_origen.startsWith('51')
@@ -320,7 +320,7 @@ const DepositCard = ({
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
               {deposit.validado_por_usuario?.nombre && (
                 <div
-                  className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs ring-1 ring-white shadow-sm dark:ring-gray-800"
+                  className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs ring-1 ring-white shadow-sm dark:ring-zinc-800"
                   title={`Por: ${deposit.validado_por_usuario.nombre}`}
                 >
                   {getUserInitials(deposit.validado_por_usuario.nombre)}
@@ -343,7 +343,7 @@ const DepositCard = ({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+        <div className="grid grid-cols-1 gap-y-1.5 text-sm text-gray-600 dark:text-zinc-300">
           {/* Quién rechazó ya lo muestra el avatar de iniciales de arriba
               (validado_por_usuario) -- alcanza con eso, sin repetirlo acá
               como texto. Esta sección queda solo para el motivo. */}
@@ -364,7 +364,7 @@ const DepositCard = ({
       {/* Indicador de peligro (riesgo): ícono + "Revisar" abajo a la derecha */}
       {isRiesgo && (
         <div
-          className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1 rounded-full bg-red-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-white dark:ring-gray-900"
+          className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1 rounded-full bg-red-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-white dark:ring-zinc-900"
           title="Depósito con riesgo: revisar"
         >
           <AlertTriangle size={12} />

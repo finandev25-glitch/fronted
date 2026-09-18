@@ -35,6 +35,20 @@ function formatDateTime(isoString) {
   });
 }
 
+// Fecha del depósito (DateOnly del backend, "yyyy-MM-dd") -- sin componente
+// de hora, se formatea a mano en vez de con new Date() para no arrastrar
+// problemas de huso horario (new Date("2026-09-18") se interpreta en UTC y
+// puede mostrar el día anterior según la zona del navegador).
+function formatDateOnly(isoString) {
+  if (!isoString) return "-";
+  try {
+    const [year, month, day] = isoString.split("T")[0].split("-");
+    return `${day}/${month}/${year}`;
+  } catch {
+    return "-";
+  }
+}
+
 function formatMonto(monto) {
   const value = Number(monto);
   if (!Number.isFinite(value)) return "-";
@@ -113,6 +127,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
   const handleExportExcel = () => {
     const dataToExport = filteredRows.map((row) => ({
       Fecha: formatDateTime(row.createdAt),
+      "Fecha Depósito": formatDateOnly(row.fechaDeposito),
       "Nro. Operación": row.numeroOperacion || "",
       Cliente: row.cliente || "",
       Empresa: row.empresaNombre || "",
@@ -231,6 +246,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Fecha</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Fecha Depósito</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Nro. Operación</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Cliente</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Empresa</th>
@@ -246,6 +262,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
               {filteredRows.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateTime(row.createdAt)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(row.fechaDeposito)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.numeroOperacion || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.cliente || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.empresaNombre || "-"}</td>
@@ -312,14 +329,14 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
               ))}
               {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     No hay registros para los filtros seleccionados.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     Cargando...
                   </td>
                 </tr>

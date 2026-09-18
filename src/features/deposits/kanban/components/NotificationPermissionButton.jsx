@@ -58,7 +58,7 @@ export function NotificationPermissionButton() {
       }
       className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
         denied
-          ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
+          ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500"
           : // Antes usaba tonos rojos (border-red-200/bg-red-50/text-red-700):
             // esto es un toggle de configuración, no una alerta -- el rojo al
             // lado del título competía con el rojo real de la columna

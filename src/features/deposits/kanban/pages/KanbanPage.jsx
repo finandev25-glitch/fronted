@@ -38,7 +38,7 @@ import {
 const ColumnContent = ({ deposits, onCardClick, selectedDepositId }) => {
   if (!deposits || deposits.length === 0) {
     return (
-      <div className="text-center text-gray-500 dark:text-gray-400 py-8 px-4">
+      <div className="text-center text-gray-500 dark:text-zinc-400 py-8 px-4">
         <p className="text-sm">No hay depósitos en este estado.</p>
       </div>
     );
@@ -853,7 +853,7 @@ const KanbanPage = ({
 
   return (
     <>
-      <div className="min-h-full p-6 flex flex-col bg-gray-50 dark:bg-gray-950 lg:h-full">
+      <div className="min-h-full p-6 flex flex-col bg-gray-50 dark:bg-zinc-950 lg:h-full">
         <KanbanToolbar
           isCompactKanban={isCompactKanban}
           showConnectionStatus={showConnectionStatus}

@@ -52,14 +52,18 @@ const SidebarContent = ({
   // su flujo normal. El resto de los "masters" (usuarios, empresas, bancos,
   // cuentas bancarias) no tienen ese gating interno ni un uso conocido desde
   // finanzas, asi que pasan a vivir solo dentro de la categoria admin.
+  // Colores suaves por ícono -- nada saturado, solo lo justo para que cada
+  // sección se distinga de un vistazo en la barra lateral. Se aplican solo
+  // al ícono (no al texto) y se apagan automáticamente en el item activo,
+  // que ya usa fondo azul sólido + ícono blanco.
   const menuSections = [
     {
       key: "main",
       items: [
-        { view: "kanban", icon: LayoutDashboard, label: "Kanban" },
-        { view: "table", icon: Table, label: "Depósitos" },
-        { view: "vouchers-preview", icon: Images, label: "Vista Previa Vouchers" },
-        { view: "sucursales", icon: Building2, label: "Sucursales" },
+        { view: "kanban", icon: LayoutDashboard, label: "Kanban", iconColor: "text-blue-500 dark:text-blue-400" },
+        { view: "table", icon: Table, label: "Depósitos", iconColor: "text-indigo-500 dark:text-indigo-400" },
+        { view: "vouchers-preview", icon: Images, label: "Vista Previa Vouchers", iconColor: "text-violet-500 dark:text-violet-400" },
+        { view: "sucursales", icon: Building2, label: "Sucursales", iconColor: "text-amber-500 dark:text-amber-400" },
       ],
     },
     {
@@ -67,24 +71,24 @@ const SidebarContent = ({
       title: "Administrador",
       adminOnly: true,
       items: [
-        { view: "usuarios", icon: Users, label: "Usuarios" },
-        { view: "trabajadores", icon: UserCog, label: "Trabajadores" },
-        { view: "avisos", icon: Bell, label: "Avisos" },
-        { view: "gestion-empresas", icon: Building, label: "Empresas" },
-        { view: "gestion-bancos", icon: Landmark, label: "Bancos" },
-        { view: "bancos", icon: CreditCard, label: "Cuentas Bancarias" },
+        { view: "usuarios", icon: Users, label: "Usuarios", iconColor: "text-sky-500 dark:text-sky-400" },
+        { view: "trabajadores", icon: UserCog, label: "Trabajadores", iconColor: "text-cyan-500 dark:text-cyan-400" },
+        { view: "avisos", icon: Bell, label: "Avisos", iconColor: "text-rose-500 dark:text-rose-400" },
+        { view: "gestion-empresas", icon: Building, label: "Empresas", iconColor: "text-orange-500 dark:text-orange-400" },
+        { view: "gestion-bancos", icon: Landmark, label: "Bancos", iconColor: "text-emerald-500 dark:text-emerald-400" },
+        { view: "bancos", icon: CreditCard, label: "Cuentas Bancarias", iconColor: "text-teal-500 dark:text-teal-400" },
       ],
     },
     {
       key: "other",
       items: [
-        { view: "reportes", icon: PieChart, label: "Reportes" },
-        { view: "confirmados", icon: Clock3, label: "Confirmados" },
-        { view: "regularizar-depositos", icon: FolderCheck, label: "Regularizar Depósitos" },
+        { view: "reportes", icon: PieChart, label: "Reportes", iconColor: "text-purple-500 dark:text-purple-400" },
+        { view: "confirmados", icon: Clock3, label: "Confirmados", iconColor: "text-green-500 dark:text-green-400" },
+        { view: "regularizar-depositos", icon: FolderCheck, label: "Regularizar Depósitos", iconColor: "text-lime-600 dark:text-lime-400" },
         ...(isFinanceOrAdmin
-          ? [{ view: "regularizaciones-historial", icon: History, label: "Historial Regularizaciones" }]
+          ? [{ view: "regularizaciones-historial", icon: History, label: "Historial Regularizaciones", iconColor: "text-slate-500 dark:text-slate-400" }]
           : []),
-        { view: "cambiar-contrasena", icon: KeyRound, label: "Cambiar Contraseña" },
+        { view: "cambiar-contrasena", icon: KeyRound, label: "Cambiar Contraseña", iconColor: "text-fuchsia-500 dark:text-fuchsia-400" },
       ],
     },
   ];
@@ -181,7 +185,7 @@ const SidebarContent = ({
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <Icon size={14} />
+                      <Icon size={14} className={isActive ? "text-white" : item.iconColor} />
                       {!isCollapsed && (
                         <span
                           className={`font-medium ${

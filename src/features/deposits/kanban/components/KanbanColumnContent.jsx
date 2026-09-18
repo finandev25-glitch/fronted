@@ -20,7 +20,7 @@ export function KanbanColumnContent({
 
   if (!deposits || deposits.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+      <div className="px-4 py-8 text-center text-gray-500 dark:text-zinc-400">
         <p className="text-sm">No hay depósitos en este estado.</p>
       </div>
     );

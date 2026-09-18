@@ -36,7 +36,7 @@ export const DepositFormPanel = ({
   const vFecha = campoVerificacion(verificacionOcr, "fecha_deposito");
   return (
     <>
-                  <h4 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                  <h4 className="text-base font-semibold text-gray-800 dark:text-zinc-200 mb-2">
                     Datos Editables del Depósito
                   </h4>
 
@@ -52,10 +52,10 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? false : isFullEditDisabled
                           }
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-base disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${
                             !editableData.empresa_id
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
-                              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                              : "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400"
                           }`}
                         >
                           <option value="">Seleccionar</option>
@@ -79,10 +79,10 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? false : isFullEditDisabled
                           }
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${
                             !editableData.banco_id
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
-                              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                              : "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400"
                           }`}
                         >
                           <option value="">Seleccionar</option>
@@ -102,10 +102,10 @@ export const DepositFormPanel = ({
                           value={editableData.anexo}
                           onChange={handleChange}
                           disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${
                             !editableData.anexo
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
-                              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                              : "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400"
                           }`}
                         >
                           <option value="">
@@ -134,10 +134,10 @@ export const DepositFormPanel = ({
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
                           title={motivoVisible(vFecha) || undefined}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${claseSegunAccion(vFecha?.accion)}`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${claseSegunAccion(vFecha?.accion)}`}
                         />
                         {motivoVisible(vFecha) && (
-                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">
+                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-zinc-400">
                             <VerificacionIcon accion={vFecha?.accion} />
                             {motivoVisible(vFecha)}
                           </p>
@@ -166,7 +166,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono transition-colors duration-200 text-lg disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${nroOperacionClasses}`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono transition-colors duration-200 text-lg disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${nroOperacionClasses}`}
                           placeholder="pega la operacion segun la web del banco"
                         />
                       </FormRow>
@@ -184,12 +184,12 @@ export const DepositFormPanel = ({
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
                           title={motivoVisible(vMonto) || undefined}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-lg font-bold text-right disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${claseSegunAccion(vMonto?.accion)}`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-lg font-bold text-right disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${claseSegunAccion(vMonto?.accion)}`}
                           placeholder="0.00"
                           step="0.01"
                         />
                         {motivoVisible(vMonto) && (
-                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">
+                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-zinc-400">
                             <VerificacionIcon accion={vMonto?.accion} />
                             {motivoVisible(vMonto)}
                           </p>
@@ -207,7 +207,7 @@ export const DepositFormPanel = ({
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
                           title={motivoVisible(vMoneda) || undefined}
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-lg disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 text-lg disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${
                             !selectedMoneda
                               ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
                               : claseSegunAccion(vMoneda?.accion)
@@ -218,7 +218,7 @@ export const DepositFormPanel = ({
                           <option value="USD">Dólares (USD)</option>
                         </select>
                         {motivoVisible(vMoneda) && (
-                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-gray-400">
+                          <p className="mt-1 flex items-center gap-1 text-[9px] leading-tight text-gray-600 dark:text-zinc-400">
                             <VerificacionIcon accion={vMoneda?.accion} />
                             {motivoVisible(vMoneda)}
                           </p>
@@ -237,7 +237,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-base disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400"
                           placeholder="Nombre del cliente"
                         />
                       </FormRow>
@@ -259,10 +259,10 @@ export const DepositFormPanel = ({
                               value={editableData.numero_tarjeta}
                               onChange={handleChange}
                               disabled={isFieldsOnlyEdit ? false : isFullEditDisabled}
-                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 ${
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono text-base disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${
                                 !editableData.numero_tarjeta
                                   ? "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700"
-                                  : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                                  : "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400"
                               }`}
                               placeholder="Ej: 7801"
                             />
@@ -284,7 +284,7 @@ export const DepositFormPanel = ({
                           disabled={
                             isFieldsOnlyEdit ? true : isFullEditDisabled
                           }
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400"
+                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400"
                           placeholder="Añadir notas o comentarios sobre la validación..."
                         />
                       </FormRow>

@@ -48,7 +48,7 @@ const DailyAttendanceSummary = ({
   return (
     <div className={`min-w-0 ${className}`}>
       {showLabel && (
-        <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-400">
           <Users size={11} className="shrink-0" />
           <span className="truncate">
             Atendidos {formattedDate ? `- ${formattedDate}` : ""}
@@ -86,17 +86,17 @@ const DailyAttendanceSummary = ({
                 className={`relative flex items-center justify-center rounded-full bg-gradient-to-br ${color} ${
                   compact ? "h-8 w-8" : "h-11 w-11"
                 } ${
-                  isSelected ? "ring-2 ring-red-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-900" : ""
-                } text-[10px] font-extrabold text-white shadow-sm ring-2 ring-white dark:ring-gray-900`}
+                  isSelected ? "ring-2 ring-red-500 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900" : ""
+                } text-[10px] font-extrabold text-white shadow-sm ring-2 ring-white dark:ring-zinc-900`}
               >
                 <span>{initials}</span>
-                <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-gray-900 px-1 text-[9px] font-bold leading-none text-white dark:border-gray-900">
+                <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-gray-900 px-1 text-[9px] font-bold leading-none text-white dark:border-zinc-900">
                   {count}
                 </span>
               </div>
 
               {!compact && (
-                <span className="mt-1 max-w-14 truncate text-[10px] text-gray-600 dark:text-gray-400">
+                <span className="mt-1 max-w-14 truncate text-[10px] text-gray-600 dark:text-zinc-400">
                   {item?.name || "Sin asignar"}
                 </span>
               )}
@@ -105,7 +105,7 @@ const DailyAttendanceSummary = ({
         })}
 
         {hiddenCount > 0 && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-gray-300 bg-white text-[10px] font-bold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-gray-300 bg-white text-[10px] font-bold text-gray-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
             +{hiddenCount}
           </div>
         )}

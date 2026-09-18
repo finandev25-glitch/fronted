@@ -41,15 +41,15 @@ export const getStatusInfo = (estado) => {
       return {
         Icon: Clock,
         label: "Desconocido",
-        color: "text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700",
+        color: "text-gray-600 bg-gray-100 dark:text-zinc-400 dark:bg-zinc-700",
       };
   }
 };
 
 export const FormRow = ({ icon: Icon, label, required = false, children }) => (
   <div>
-    <label className="mb-0.5 flex items-center text-xs font-medium text-gray-700 dark:text-gray-300">
-      <Icon className="mr-1.5 h-3 w-3 text-gray-500 dark:text-gray-400" />
+    <label className="mb-0.5 flex items-center text-xs font-medium text-gray-700 dark:text-zinc-300">
+      <Icon className="mr-1.5 h-3 w-3 text-gray-500 dark:text-zinc-400" />
       {label}
       {required && (
         <span className="ml-0.5 text-red-500 dark:text-red-400" title="Campo requerido">
@@ -62,12 +62,12 @@ export const FormRow = ({ icon: Icon, label, required = false, children }) => (
 );
 
 export const CompactFieldCard = ({ icon: Icon, label, value }) => (
-  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/80">
-    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/80">
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-400">
       <Icon className="h-3.5 w-3.5" />
       <span>{label}</span>
     </div>
-    <div className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{value || "-"}</div>
+    <div className="mt-2 text-sm font-medium text-gray-900 dark:text-zinc-100">{value || "-"}</div>
   </div>
 );
 
