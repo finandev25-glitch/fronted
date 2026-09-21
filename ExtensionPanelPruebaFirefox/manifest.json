@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Confirmo - Control de Depósitos",
+  "version": "1.0.0",
+  "description": "Panel de la aplicación Confirmo (control y validación de depósitos) como extensión de Firefox.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "confirmo-panel@jch-comercial.com",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "authenticationInfo",
+          "financialAndPaymentInfo",
+          "personallyIdentifyingInfo"
+        ]
+      }
+    }
+  },
+  "permissions": ["storage", "scripting", "activeTab", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "scripts": ["background.js"], "type": "module" },
+  "action": { "default_title": "Confirmo - Control de Depósitos" },
+  "sidebar_action": {
+    "default_panel": "extension.html",
+    "default_title": "Confirmo - Control de Depósitos"
+  }
+}

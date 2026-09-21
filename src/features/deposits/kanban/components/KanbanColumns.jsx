@@ -144,18 +144,18 @@ function KanbanColumnBody({
 
   if (columnId === "en_validacion") {
     const { normales, antiguos } = validacionSeparated;
-    // Si solo hay un subgrupo con depósitos, su cabecera "▾ NORMALES (N)"
-    // repite exactamente lo que ya dice el contador de la columna
-    // ("En Validación · N") -- se muestra el contenido directo, sin
-    // encabezado, y solo se arma la sección con línea+contador cuando de
-    // verdad hay más de un subgrupo en juego.
+    // Si el único subgrupo con depósitos es "Normales", su cabecera repite
+    // exactamente lo que ya dice el contador de la columna ("En Validación ·
+    // N") -- se muestra el contenido directo, sin encabezado. "Antiguos" es
+    // distinto: no es solo agrupación, es una señal de urgencia (depósitos
+    // viejos esperando validación) -- esa cabecera se mantiene SIEMPRE que
+    // haya al menos uno, aunque sea el único subgrupo con contenido.
     const onlyNormales = normales.length > 0 && antiguos.length === 0;
-    const onlyAntiguos = antiguos.length > 0 && normales.length === 0;
 
-    if (onlyNormales || onlyAntiguos) {
+    if (onlyNormales) {
       return (
         <KanbanColumnContent
-          deposits={onlyNormales ? normales : antiguos}
+          deposits={normales}
           onCardClick={handleCardClick}
           selectedDepositId={selectedDepositId}
           highlights={highlights}
