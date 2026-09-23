@@ -350,6 +350,12 @@ function mapDeposit(item) {
       // (Kanban, Tabla, tarjetas) lo escondían del día en que realmente se
       // recibió. toLocalISOString ya convierte a huso America/Lima.
       fecha_solo_date: item.fechaRegistro ? toLocalISOString(item.fechaRegistro) : null,
+      // Fecha ORIGINAL de registro, inmutable -- a diferencia de fecha_registro,
+      // esta nunca se pisa (ni siquiera al "traer rezagados a hoy"). Sirve como
+      // respaldo/auditoría cuando se necesita defender la hora real en que el
+      // vendedor subió el depósito. Puede venir null en depósitos creados antes
+      // de este cambio si no se hizo backfill.
+      fecha_registro_original: item.fechaRegistroOriginal || null,
       estado: item.estado,
       numero_operacion_banco: item.numeroOperacionBanco,
       fecha_deposito: item.fechaDeposito,

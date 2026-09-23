@@ -25,6 +25,7 @@ import {
   UserCog,
   History,
   Bell,
+  MessageCircle,
 } from "lucide-react";
 
 const SidebarContent = ({
@@ -74,6 +75,7 @@ const SidebarContent = ({
         { view: "usuarios", icon: Users, label: "Usuarios", iconColor: "text-sky-500 dark:text-sky-400" },
         { view: "trabajadores", icon: UserCog, label: "Trabajadores", iconColor: "text-cyan-500 dark:text-cyan-400" },
         { view: "avisos", icon: Bell, label: "Avisos", iconColor: "text-rose-500 dark:text-rose-400" },
+        { view: "mensajes", icon: MessageCircle, label: "Mensajes WhatsApp", iconColor: "text-green-600 dark:text-green-400" },
         { view: "gestion-empresas", icon: Building, label: "Empresas", iconColor: "text-orange-500 dark:text-orange-400" },
         { view: "gestion-bancos", icon: Landmark, label: "Bancos", iconColor: "text-emerald-500 dark:text-emerald-400" },
         { view: "bancos", icon: CreditCard, label: "Cuentas Bancarias", iconColor: "text-teal-500 dark:text-teal-400" },

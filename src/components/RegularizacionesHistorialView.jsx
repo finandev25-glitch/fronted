@@ -24,14 +24,15 @@ const ACCION_STYLES = {
   desmarcado: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
 };
 
+// "Fecha" (createdAt) es un timestamp completo con offset -- toLocaleString
+// ya convierte al huso del navegador correctamente, solo se le quitan las
+// opciones de hora/minuto para mostrar nada más el día.
 function formatDateTime(isoString) {
   if (!isoString) return "-";
   return new Date(isoString).toLocaleString("es-PE", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -131,6 +132,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
       "Nro. Operación": row.numeroOperacion || "",
       Cliente: row.cliente || "",
       Empresa: row.empresaNombre || "",
+      Sucursal: row.sucursalNombre || "",
       Monto: formatMonto(row.monto),
       Moneda: row.moneda || "",
       Anexo: row.anexo || "",
@@ -250,6 +252,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Nro. Operación</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Cliente</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Empresa</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Sucursal</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Monto</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Anexo</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Estado</th>
@@ -266,6 +269,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.numeroOperacion || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.cliente || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.empresaNombre || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.sucursalNombre || "-"}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
                     {row.moneda === "USD" ? "$" : "S/"} {formatMonto(row.monto)}
                   </td>
@@ -329,14 +333,14 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
               ))}
               {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={12} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     No hay registros para los filtros seleccionados.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={12} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     Cargando...
                   </td>
                 </tr>

@@ -9,6 +9,7 @@ import KanbanView from "../pages/deposits-kanban/ui/KanbanPage.jsx";
 import RegularizarDepositos from "../components/RegularizarDepositos";
 import RegularizacionesHistorialView from "../components/RegularizacionesHistorialView";
 import AvisosView from "../components/AvisosView";
+import MensajesWhatsappView from "../components/MensajesWhatsappView";
 import ReportesView from "../components/ReportesView";
 import SucursalesView from "../components/SucursalesView";
 import TableView from "../pages/deposits-table/ui/TablePage.jsx";
@@ -180,6 +181,16 @@ export function AppRoutes({
         element={
           currentUser?.user_rol === "admin" ? (
             <AvisosView />
+          ) : (
+            <Navigate to="/kanban" replace />
+          )
+        }
+      />
+      <Route
+        path="/mensajes"
+        element={
+          currentUser?.user_rol === "admin" ? (
+            <MensajesWhatsappView sucursales={dashboard.sucursales} personal={dashboard.personal} />
           ) : (
             <Navigate to="/kanban" replace />
           )

@@ -595,6 +595,11 @@ const DepositDetailModal = ({
   const [receivedDate, setReceivedDate] = useState("");
   const [resolvedTime, setResolvedTime] = useState("");
   const [resolvedDate, setResolvedDate] = useState("");
+  // "Recibido" (fecha_registro) se pisa cuando el depósito se trae de
+  // rezagados a hoy -- fecha_registro_original nunca se toca, así que si
+  // difieren significa que este depósito fue "traído a hoy" y su hora real
+  // de llegada es otra. Se muestra solo en ese caso, como respaldo/auditoría.
+  const [originalReceivedText, setOriginalReceivedText] = useState("");
 
   useEffect(() => {
     if (!deposit.fecha_registro) return;
@@ -615,6 +620,29 @@ const DepositDetailModal = ({
         year: "numeric",
       }),
     );
+
+    if (
+      deposit.fecha_registro_original &&
+      deposit.fecha_registro_original !== deposit.fecha_registro
+    ) {
+      const originalAt = new Date(deposit.fecha_registro_original);
+      if (originalAt.getTime() !== registeredAt.getTime()) {
+        setOriginalReceivedText(
+          `${originalAt.toLocaleDateString("es-ES", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })} ${originalAt.toLocaleTimeString("es-ES", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`,
+        );
+      } else {
+        setOriginalReceivedText("");
+      }
+    } else {
+      setOriginalReceivedText("");
+    }
 
     // Ya resuelto: no hace falta un timer de "transcurrido" corriendo cada
     // segundo -- ver el segundo useEffect de más abajo, que en su lugar
@@ -639,7 +667,7 @@ const DepositDetailModal = ({
     const timer = setInterval(calculateElapsed, 1000);
 
     return () => clearInterval(timer);
-  }, [deposit.fecha_registro, isResolved]);
+  }, [deposit.fecha_registro, deposit.fecha_registro_original, isResolved]);
 
   // fecha_validacion se pisa tanto al tomar el candado (POST /lock) como al
   // confirmar/rechazar -- pero solo en el estado terminal (confirmado/
@@ -2550,6 +2578,14 @@ const DepositDetailModal = ({
                       {receivedDate} {receivedTime}
                     </strong>
                   </span>
+                  {originalReceivedText && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:border-amber-700/60 dark:bg-amber-900/30 dark:text-amber-300"
+                      title="Este depósito fue traído de rezagados a hoy: 'Recibido' ya no refleja la fecha/hora real en que el vendedor lo subió."
+                    >
+                      🕓 Registrado originalmente: {originalReceivedText}
+                    </span>
+                  )}
                   {isResolved ? (
                     resolvedDate && (
                       <span className="text-gray-600 dark:text-zinc-400">
