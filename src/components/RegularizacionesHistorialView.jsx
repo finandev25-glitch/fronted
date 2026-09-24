@@ -79,8 +79,14 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
     setError(null);
     try {
       const params = {};
-      if (desde) params.desde = `${desde}T00:00:00.000Z`;
-      if (hasta) params.hasta = `${hasta}T23:59:59.999Z`;
+      // FIX: antes se armaba acá `${desde}T00:00:00.000Z` / `${hasta}T23:59:59.999Z`,
+      // tratando las 00:00/23:59 de Lima como si ya fueran UTC -- "hasta"
+      // terminaba cortando a las 18:59:59 hora Lima, no 23:59:59, y se
+      // perdían regularizaciones de la noche. fetchRegularizacionesHistorial
+      // ahora hace la conversión correcta (huso America/Lima) internamente,
+      // así que acá solo se manda la fecha plana "YYYY-MM-DD".
+      if (desde) params.desde = desde;
+      if (hasta) params.hasta = hasta;
       if (filterAccion !== "all") params.accion = filterAccion;
       if (filterEmpresa !== "all") params.empresaId = filterEmpresa;
       const data = await fetchRegularizacionesHistorial(params);
@@ -117,11 +123,24 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
   const filteredRows = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return rows;
+    // Búsqueda del monto sin la coma de millar: el usuario escribe "1639" y
+    // debe encontrar "S/ 1,639.00" -- se comparan solo dígitos (y el punto
+    // decimal) de ambos lados, así "1639" matchea aunque el monto real tenga
+    // decimales (1639.00) o el usuario también escriba el punto.
+    const termDigits = term.replace(/[^0-9.]/g, "");
     return rows.filter((row) => {
       const numero = String(row.numeroOperacion || "").toLowerCase();
       const cliente = String(row.cliente || "").toLowerCase();
       const usuario = String(row.usuarioNombre || "").toLowerCase();
-      return numero.includes(term) || cliente.includes(term) || usuario.includes(term);
+      const sucursal = String(row.sucursalNombre || "").toLowerCase();
+      const montoDigits = String(row.monto ?? "").replace(/[^0-9.]/g, "");
+      return (
+        numero.includes(term) ||
+        cliente.includes(term) ||
+        usuario.includes(term) ||
+        sucursal.includes(term) ||
+        (termDigits && montoDigits.includes(termDigits))
+      );
     });
   }, [rows, searchTerm]);
 
@@ -191,7 +210,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
           <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por Nro. operación, cliente o usuario..."
+            placeholder="Buscar por Nro. operación, cliente, sucursal, usuario o monto..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200"

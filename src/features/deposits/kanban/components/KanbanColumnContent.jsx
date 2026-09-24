@@ -12,9 +12,6 @@ export function KanbanColumnContent({
   onCardClick,
   selectedDepositId,
   highlights = {},
-  onAddToQueue,
-  queuedIds,
-  attendedIds,
 }) {
   const reduce = useReducedMotion();
 
@@ -53,9 +50,6 @@ export function KanbanColumnContent({
               deposit={deposit}
               onClick={() => onCardClick(deposit)}
               isSelected={selectedDepositId === deposit.id}
-              onAddToQueue={onAddToQueue}
-              isQueued={queuedIds?.has(deposit.id) || false}
-              isAttended={attendedIds?.has(deposit.id) || false}
             />
           </motion.div>
         );

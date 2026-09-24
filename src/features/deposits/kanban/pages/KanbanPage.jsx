@@ -24,7 +24,6 @@ import { KanbanColumns } from "../../../../widgets/deposits-kanban-board/ui/Kanb
 import { fetchDepositById, pullRezagadosAHoy } from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
-import { ListChecks, ChevronRight } from "lucide-react";
 import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
 import {
   getKanbanBucket,
@@ -148,10 +147,6 @@ const KanbanPage = ({
     removeFromQueue: depositQueue.removeFromQueue,
     onDepositUnlocked: handleDepositAutoUnlocked,
   });
-  // Marca si el depósito actualmente abierto se abrió desde el flujo de "cola
-  // de atendidos" (botón "Confirmar siguiente marcado"), para saber si
-  // corresponde saltar automáticamente al próximo tras confirmarlo.
-  const queueFlowActiveRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [amountSearch, setAmountSearch] = useState("");
@@ -720,25 +715,6 @@ const KanbanPage = ({
     [currentUser, onTakeDeposit, depositQueue],
   );
 
-  // Abre el modal del primer depósito marcado como "atendido" en la cola
-  // (extensión) que todavía esté presente en el listado -- botón "Confirmar
-  // siguiente marcado" del banner de la cola.
-  const handleOpenNextQueued = useCallback(() => {
-    const nextId = depositQueue.attendedQueueIds[0];
-    if (!nextId) return;
-
-    const found = (deposits || []).find((d) => d.id === nextId);
-    if (!found) {
-      // El depósito ya no está en el listado local (p. ej. se filtró o ya no
-      // existe) -- se quita de la cola para no dejar un marcado fantasma.
-      depositQueue.removeFromQueue(nextId);
-      return;
-    }
-
-    queueFlowActiveRef.current = true;
-    void handleCardClick(found);
-  }, [depositQueue, deposits, handleCardClick]);
-
   // Trae a "hoy" los depósitos que quedaron "procesado" (pendientes) de días
   // anteriores -- típicamente rezagados que llegaron después del horario de
   // oficina y nadie llegó a revisar. El backend les actualiza fecha_registro
@@ -763,13 +739,11 @@ const KanbanPage = ({
     }
   }, [hoyKanban, isPullingRezagados, onFetchDepositsByDate, toast]);
 
-  // Envuelve onUpdateDeposit: cuando un depósito que estaba en la cola llega
-  // a un estado final (confirmado O rechazado), lo saca de la cola y, si el
-  // modal se abrió desde el flujo de "Confirmar siguiente marcado", salta
-  // automáticamente al próximo atendido -- así el usuario no tiene que
-  // volver a buscarlo manualmente cada vez. Antes solo se sacaba de la cola
-  // al confirmar; un rechazo dejaba el item fantasma en el panel lateral
-  // aunque el depósito ya hubiera cambiado de estado.
+  // Envuelve onUpdateDeposit: cuando el depósito que estaba en el panel
+  // lateral llega a un estado final (confirmado O rechazado), lo saca del
+  // panel. Antes solo se sacaba al confirmar; un rechazo dejaba el item
+  // fantasma en el panel lateral aunque el depósito ya hubiera cambiado de
+  // estado.
   const handleUpdateDepositFromModal = useCallback(
     (updatedDeposit, options) => {
       onUpdateDeposit(updatedDeposit, options);
@@ -780,25 +754,8 @@ const KanbanPage = ({
       if (!depositQueue.queuedIds.has(updatedDeposit.id)) return;
 
       depositQueue.removeFromQueue(updatedDeposit.id);
-
-      if (updatedDeposit.estado === "confirmado" && queueFlowActiveRef.current) {
-        queueFlowActiveRef.current = false;
-        // El alert() de "Depósito confirmado" (useDepositActions.js) bloquea
-        // el hilo hasta que el usuario lo cierra -- este setTimeout igual
-        // corre recién después de eso, no hace falta esperar más que un
-        // tick para que la UI ya haya asentado el cambio de estado.
-        setTimeout(() => {
-          const nextId = depositQueue.attendedQueueIds.find((id) => id !== updatedDeposit.id);
-          if (!nextId) return;
-          const found = (deposits || []).find((d) => d.id === nextId);
-          if (found) {
-            queueFlowActiveRef.current = true;
-            void handleCardClick(found);
-          }
-        }, 250);
-      }
     },
-    [onUpdateDeposit, depositQueue, deposits, handleCardClick],
+    [onUpdateDeposit, depositQueue],
   );
 
   const handleCloseModal = useCallback(() => {
@@ -881,25 +838,6 @@ const KanbanPage = ({
           onPullRezagados={handlePullRezagados}
         />
 
-        {depositQueue.attendedQueueIds.length > 0 && (
-          <button
-            type="button"
-            onClick={handleOpenNextQueued}
-            className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-              <ListChecks size={16} />
-              <span>
-                {depositQueue.attendedQueueIds.length} depósito(s) marcado(s) como atendido(s) en la cola, listos para confirmar
-              </span>
-            </div>
-            <span className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">
-              Confirmar siguiente
-              <ChevronRight size={16} />
-            </span>
-          </button>
-        )}
-
         <KanbanColumns
           columns={KANBAN_COLUMN_DEFS}
           groupedDeposits={groupedDeposits}
@@ -918,9 +856,6 @@ const KanbanPage = ({
           handleCardClick={handleCardClick}
           selectedDepositId={selectedDeposit?.id}
           realtimeActivity={realtimeActivity}
-          onAddToQueue={depositQueue.addToQueue}
-          queuedIds={depositQueue.queuedIds}
-          attendedIds={depositQueue.attendedIds}
         />
       </div>
       <AnimatePresence>

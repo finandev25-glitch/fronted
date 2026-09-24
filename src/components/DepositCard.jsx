@@ -7,8 +7,6 @@ import {
   Clock,
   Hourglass,
   AlertTriangle,
-  ListPlus,
-  CheckCircle2,
 } from "lucide-react";
 import {
   getStatusInfo,
@@ -26,9 +24,6 @@ const DepositCard = ({
   deposit,
   onClick,
   isSelected = false,
-  onAddToQueue,
-  isQueued = false,
-  isAttended = false,
 }) => {
   const [elapsedTime, setElapsedTime] = useState("");
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
@@ -204,31 +199,6 @@ const DepositCard = ({
           </span>
         </div>
         <div className="flex items-center space-x-2.5 flex-shrink-0">
-          {onAddToQueue && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddToQueue(deposit);
-              }}
-              title={
-                isAttended
-                  ? "Atendido en la cola (extensión)"
-                  : isQueued
-                    ? "Ya está en la cola"
-                    : "Agregar a la cola"
-              }
-              className={`flex items-center justify-center rounded-full p-1.5 transition-colors ${
-                isAttended
-                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
-                  : isQueued
-                    ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300"
-                    : "bg-gray-100 text-gray-400 hover:bg-indigo-100 hover:text-indigo-600 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300"
-              }`}
-            >
-              {isAttended ? <CheckCircle2 size={14} /> : <ListPlus size={14} />}
-            </button>
-          )}
           <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-zinc-400">
             <Clock size={13} className={statusStyles.iconColor} />
             <span className="font-medium">

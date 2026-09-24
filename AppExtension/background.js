@@ -11,15 +11,18 @@ const QUEUE_STORAGE_KEY = "voucher_queue_state";
 // exactamente igual); solo se agregan ramas "else" para Firefox.
 const isFirefox = typeof browser !== "undefined" && !!browser.sidebarAction;
 
-// ── Cola de depósitos: ÚNICO mecanismo del side panel ───────────────────────
+// ── Depósito actual: ÚNICO mecanismo del side panel ─────────────────────────
 //
-// Tanto agregar varios depósitos desde el Kanban como abrir uno solo con el
-// botón "Panel Lateral" del detalle usan el mismo camino (ADD_TO_QUEUE) -- la
-// única diferencia es que "Panel Lateral" pide abrir el side panel de una
-// (openPanel: true), mientras que agregar desde el Kanban no (el usuario
-// puede seguir triando depósitos sin que el panel se abra solo cada vez).
+// Antes esto era una cola de varios depósitos (se podían ir agregando desde
+// el Kanban sin abrir el panel). ¿Ya no hace falta? Ahora solo existe un
+// camino para mostrar algo acá: el botón "Panel Lateral" del detalle de UN
+// depósito, que además pide abrir el side panel de una (openPanel: true).
+// Por simplicidad se guarda como el mismo shape de antes -- { items: [...] },
+// pero con como máximo UN elemento -- así sidepanel.js y el hook
+// useDepositQueue.js del lado de la app no necesitan cambiar su forma de leer
+// el estado ni su lógica de "detectar que un id salió y liberar su candado".
 //
-// Modelo: { items: [{ id, depositData, addedAt, atendido, atendidoAt }] }
+// Modelo: { items: [{ id, depositData, addedAt }] } (0 o 1 elemento),
 // guardado en chrome.storage.local bajo QUEUE_STORAGE_KEY, leído de forma
 // reactiva por sidepanel.js vía chrome.storage.onChanged.
 
@@ -33,53 +36,18 @@ async function setQueueState(state) {
   return state;
 }
 
+// Reemplaza lo que hubiera antes -- ya no se acumula, un depósito nuevo
+// desplaza al que estaba mostrando el panel.
 async function addToQueue({ id, depositData }) {
   if (!id) return getQueueState();
-  const state = await getQueueState();
-  const items = Array.isArray(state.items) ? state.items.slice() : [];
-  const existingIndex = items.findIndex((item) => item.id === id);
   const nowIso = new Date().toISOString();
-
-  if (existingIndex >= 0) {
-    // Ya estaba en la cola: se actualiza la info del depósito pero se
-    // conserva el estado "atendido" que ya tuviera (no se pisa el progreso
-    // del usuario si vuelve a agregar el mismo depósito por error).
-    items[existingIndex] = {
-      ...items[existingIndex],
-      depositData: depositData || items[existingIndex].depositData,
-    };
-  } else {
-    items.push({
-      id,
-      depositData: depositData || null,
-      addedAt: nowIso,
-      atendido: false,
-      atendidoAt: null,
-    });
-  }
-
-  return setQueueState({ items });
+  return setQueueState({ items: [{ id, depositData: depositData || null, addedAt: nowIso }] });
 }
 
 async function removeFromQueue({ id }) {
   if (!id) return getQueueState();
   const state = await getQueueState();
   const items = (state.items || []).filter((item) => item.id !== id);
-  return setQueueState({ items });
-}
-
-async function markQueueItemAttended({ id, atendido }) {
-  if (!id) return getQueueState();
-  const state = await getQueueState();
-  const items = (state.items || []).map((item) =>
-    item.id === id
-      ? {
-          ...item,
-          atendido: !!atendido,
-          atendidoAt: atendido ? new Date().toISOString() : null,
-        }
-      : item,
-  );
   return setQueueState({ items });
 }
 
@@ -218,12 +186,12 @@ async function searchInActiveTab(payload, searchType = "both") {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   if (!tab?.id) {
-    return { ok: false, message: "No hay una pestaÃƒÂ±a activa para buscar." };
+    return { ok: false, message: "No hay una pestaña activa para buscar." };
   }
 
   const searchTerms = buildSearchVariants(payload, searchType);
   if (searchTerms.length === 0) {
-    return { ok: false, message: "No hay nro. operaciÃƒÂ³n ni importe para buscar." };
+    return { ok: false, message: "No hay nro. operación ni importe para buscar." };
   }
 
   const frameResults = await chrome.scripting.executeScript({
@@ -558,13 +526,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "REMOVE_FROM_QUEUE") {
     removeFromQueue({ id: message.id })
-      .then((state) => sendResponse({ ok: true, state }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message.type === "MARK_QUEUE_ITEM_ATTENDED") {
-    markQueueItemAttended({ id: message.id, atendido: message.atendido })
       .then((state) => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;

@@ -167,9 +167,13 @@ body {
   display: block;
 }
 
-/* ── Cola de depósitos ──────────────────────────────────────────────────── */
+/* ── Voucher del depósito ──────────────────────────────────────────────── */
+/* Antes esto era una cola con varios depósitos (tarjeta + lista + modal por
+   item, ver git history). Ya no hace falta: solo existe "Panel Lateral"
+   desde el detalle de UN depósito, así que el panel entero es un solo
+   contenedor con el contenido del depósito actual, sin lista ni overlay. */
 
-.queue-card {
+.voucher-card {
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
@@ -181,38 +185,29 @@ body {
   min-height: 0;
 }
 
-.queue-header {
+.voucher-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
-.queue-title {
-  font-size: 11px;
+.voucher-title {
+  min-width: 0;
+  font-size: 13px;
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #334155;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.queue-count {
-  min-width: 20px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #4338ca;
-  font-size: 11px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.queue-list {
+.voucher-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px;
+  display: flex;
+  flex-direction: column;
 }
 
 .queue-empty {
@@ -223,123 +218,24 @@ body {
   line-height: 1.5;
 }
 
-.queue-item {
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 12px;
-  margin-bottom: 6px;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.queue-item.is-attended {
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(209, 250, 229, 0.35);
-}
-
-/* Resalta el depósito que el usuario tiene expandido/seleccionado, para que
-   quede claro cuál está editando (sobre todo con varios en la cola). Se
-   combina con is-attended (verde) sin pisarlo -- el anillo azul manda. */
-.queue-item.is-open {
-  border-color: #2563eb;
-  background: rgba(37, 99, 235, 0.06);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
-}
-
-.queue-item-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.queue-item-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 999px;
-  background: #cbd5e1;
-}
-
-.queue-item.is-attended .queue-item-dot {
-  background: #10b981;
-}
-
-.queue-item-main {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.queue-item-bank {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.queue-item-sub {
-  font-size: 11px;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.queue-item-amount {
-  flex: none;
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-/* Cuenta regresiva del candado de 4 min (ver getLockRemainingMs/
-   updateLockBadges en sidepanel.js). Vacío/ausente si el depósito no está
-   "procesado" o no tiene fechaBloqueo -- solo informativo, el que libera de
-   verdad es el backend (o el panel principal si la pestaña sigue abierta). */
-.queue-item-lock-badge {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  background: rgba(217, 119, 6, 0.12);
-  color: #b45309;
-}
-
-.queue-item-lock-badge:empty {
-  display: none;
-}
-
-.queue-item-lock-badge.is-low {
-  background: rgba(220, 38, 38, 0.14);
-  color: #b91c1c;
-}
-
-.queue-item-chevron {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  color: #94a3b8;
-}
-
-/* Contenido de detalle de un item: se arma una sola vez (buildQueueItemDetailContent)
-   y se monta en el modal de vista completa (ver sección "Modal" más abajo) --
-   ya no se expande inline dentro de la fila de la cola. */
+/* Contenido de detalle del depósito actual -- ocupa todo el voucher-body. */
 .queue-item-detail-inner {
+  flex: 1;
+  min-height: 0;
   padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+/* El preview crece para ocupar todo el espacio que quede libre debajo de los
+   campos/acciones (en vez de una altura fija) -- como el panel usa casi todo
+   el alto disponible, esto es lo que hace que el voucher se vea grande de
+   verdad en vez de dejar aire vacío abajo. min-height es el piso para cuando
+   hay poco espacio (pantallas chicas / muchos campos). */
+.queue-item-preview {
+  flex: 1;
+  min-height: 180px;
 }
 
 /* Campos editables: sin caja/borde propio (eso era espacio interno
@@ -505,10 +401,9 @@ body {
   white-space: normal;
 }
 
-/* Toast "Datos grabados" tras marcar Atender -- el modal ya se cerró en ese
-   momento, así que no hay dónde mostrar un status inline dentro de él.
-   Centrado en el panel (no pegado abajo) y con una entrada tipo "pop" (ver
-   @keyframes toast-pop) para que se note más que un simple fade. */
+/* Toast "Datos grabados" tras "Guardar cambios" -- confirmación breve y
+   flotante, centrada en el panel (no pegado abajo) y con una entrada tipo
+   "pop" (ver @keyframes toast-pop) para que se note más que un simple fade. */
 .toast {
   position: fixed;
   left: 50%;
@@ -633,10 +528,6 @@ select.queue-edit-input {
   cursor: pointer;
 }
 
-.queue-item-preview {
-  height: 220px;
-}
-
 .queue-item-actions {
   display: flex;
   gap: 6px;
@@ -653,104 +544,8 @@ select.queue-edit-input {
   background: linear-gradient(135deg, #10b981, #059669);
 }
 
-.queue-item.is-attended .queue-item-attend-btn {
-  background: linear-gradient(135deg, #64748b, #475569);
-}
-
 .queue-item-remove-btn {
   background: linear-gradient(135deg, #ef4444, #dc2626);
-}
-
-/* ── Modal de vista completa de un depósito de la cola ──────────────────── */
-/* Al hacer click en un item de la cola se abre este modal en vez de expandir
-   el item inline -- el side panel es angosto, así que meter campos + preview
-   del voucher ahí adentro obligaba a comprimir todo demasiado. El modal usa
-   casi todo el panel (ancho y alto) y puede scrollear su propio contenido
-   sin pelear por espacio con la lista de la cola. */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  padding: 10px;
-  z-index: 50;
-}
-
-.modal-overlay[hidden] {
-  display: none;
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 480px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 8px 10px 14px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-}
-
-.modal-title {
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 800;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.modal-close-btn {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.16);
-  color: #334155;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.modal-close-btn:hover {
-  background: rgba(148, 163, 184, 0.28);
-}
-
-.modal-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-body .queue-item-detail-inner {
-  flex: 1;
-  min-height: 0;
-  border-top: none;
-}
-
-/* El preview crece para ocupar todo el espacio que quede libre debajo de los
-   campos/acciones (en vez de una altura fija) -- como el modal ya usa casi
-   todo el alto del panel, esto es lo que hace que el voucher se vea grande
-   de verdad en vez de dejar aire vacío abajo. min-height es el piso para
-   cuando hay poco espacio (pantallas chicas / muchos campos). */
-.modal-body .queue-item-preview {
-  flex: 1;
-  min-height: 180px;
 }
 
 @media (max-width: 420px) {
@@ -760,6 +555,6 @@ select.queue-edit-input {
   }
 
   .queue-item-preview {
-    height: 180px;
+    min-height: 140px;
   }
 }

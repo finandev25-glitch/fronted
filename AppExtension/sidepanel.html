@@ -3,33 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cola de depósitos</title>
+    <title>Voucher del depósito</title>
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>
     <div class="panel">
-      <section class="queue-card">
-        <div class="queue-header">
-          <span class="queue-title">Cola de depósitos</span>
-          <span id="queueCount" class="queue-count">0</span>
+      <section class="voucher-card">
+        <div class="voucher-header">
+          <span id="voucherTitle" class="voucher-title">Voucher del depósito</span>
         </div>
-        <div id="queueList" class="queue-list">
+        <div id="voucherBody" class="voucher-body">
           <div class="queue-empty">
-            Agrega depósitos a la cola desde el botón de la tarjeta en el Kanban, o con
-            "Panel Lateral" dentro del detalle de un depósito.
+            Abre un depósito y usa el botón "Panel Lateral" en su detalle para mostrarlo acá.
           </div>
         </div>
       </section>
-    </div>
-
-    <div id="itemModalOverlay" class="modal-overlay" hidden>
-      <div class="modal-card">
-        <div class="modal-header">
-          <span id="modalTitle" class="modal-title"></span>
-          <button type="button" id="modalCloseBtn" class="modal-close-btn" aria-label="Cerrar">✕</button>
-        </div>
-        <div id="modalBody" class="modal-body"></div>
-      </div>
     </div>
 
     <div id="toast" class="toast" hidden></div>

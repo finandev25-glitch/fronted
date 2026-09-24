@@ -21,18 +21,14 @@ function getTodayDateInputValue() {
 }
 
 const elements = {
-  queueList: document.getElementById("queueList"),
-  queueCount: document.getElementById("queueCount"),
-  modalOverlay: document.getElementById("itemModalOverlay"),
-  modalTitle: document.getElementById("modalTitle"),
-  modalBody: document.getElementById("modalBody"),
-  modalCloseBtn: document.getElementById("modalCloseBtn"),
+  voucherTitle: document.getElementById("voucherTitle"),
+  voucherBody: document.getElementById("voucherBody"),
   toast: document.getElementById("toast"),
 };
 
-// Mensaje flotante y breve tras marcar "Atender" (ver .queue-item-attend-btn
-// más abajo) -- el modal ya se cerró en ese momento, así que no hay dónde
-// mostrar un status inline; esto confirma que la acción se guardó.
+// Mensaje flotante y breve tras "Guardar cambios" (ver .queue-item-attend-btn
+// más abajo) -- confirma que la validación pasó y los datos ya estaban
+// guardados (se guardan solos en cada blur/change, ver wireEditInput).
 let toastHideTimer = null;
 
 const TOAST_CHECK_ICON_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10.5L8 14.5L16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -180,7 +176,6 @@ function findAnexoValidationRule(empresaNombre, anexo) {
 }
 
 let queueItems = [];
-let openQueueItemId = null;
 
 function normalizeVoucherUrl(url) {
   if (!url) return "";
@@ -284,155 +279,59 @@ function getSearchPayloadFromDepositData(data) {
   };
 }
 
-// ── Cola de depósitos ────────────────────────────────────────────────────
-// Es el ÚNICO contenido del side panel: no hay un "voucher actual" aparte --
-// tanto agregar un depósito desde el Kanban (varios a la vez) como abrir
-// "Panel Lateral" desde el detalle (uno solo) usan el mismo mecanismo de
-// cola, así que acá solo hace falta pintar la lista y, al expandir un item,
-// sus datos + comprobante.
+// ── Depósito actual ──────────────────────────────────────────────────────
+// Antes esto era una lista con un modal por item (se podían ir agregando
+// varios depósitos desde el Kanban). Ya no hace falta: solo existe "Panel
+// Lateral" desde el detalle de UN depósito, así que acá alcanza con pintar
+// directo los datos + comprobante del item actual (o un estado vacío si no
+// hay ninguno), sin lista ni overlay de por medio.
 
-// El side panel se registra por pestaña (chrome.sidePanel.setOptions con
-// tabId, ver background.js) -- al cambiar a una pestaña sin su propio
-// registro, Chrome puede mostrar una instancia nueva del documento
-// sidepanel.html en vez de reutilizar la que ya estaba abierta, perdiendo
-// cualquier estado en memoria (incluido qué item tenía el modal abierto).
-// Para que el modal "sobreviva" a ese cambio de pestaña, qué item está
-// abierto se guarda en chrome.storage.session (no sobrevive a reiniciar el
-// navegador, pero sí a esto) y se relee al cargar. chrome.storage.session no
-// existe en Firefox, así que cae a .local (si tampoco existiera, quedaría
-// undefined y el guardado se ignora en persistOpenItemId).
-const OPEN_ITEM_STORAGE_KEY = "voucher_queue_open_item_id";
-const openItemStorageArea = chrome.storage.session || chrome.storage.local;
-
-async function persistOpenItemId(id) {
-  try {
-    if (id) {
-      await openItemStorageArea.set({ [OPEN_ITEM_STORAGE_KEY]: id });
-    } else {
-      await openItemStorageArea.remove(OPEN_ITEM_STORAGE_KEY);
-    }
-  } catch (error) {
-    console.warn("No se pudo guardar qué depósito tenía el modal abierto:", error);
-  }
-}
+let currentItem = null;
 
 async function loadQueueFromStorage() {
-  try {
-    const openResult = await openItemStorageArea.get(OPEN_ITEM_STORAGE_KEY);
-    openQueueItemId = openResult[OPEN_ITEM_STORAGE_KEY] || null;
-  } catch (error) {
-    console.warn("No se pudo leer qué depósito tenía el modal abierto:", error);
-  }
   const result = await chrome.storage.local.get(QUEUE_STORAGE_KEY);
-  renderQueue(result[QUEUE_STORAGE_KEY]?.items || []);
+  renderCurrentItem(result[QUEUE_STORAGE_KEY]?.items || []);
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "local" || !changes[QUEUE_STORAGE_KEY]) return;
-  renderQueue(changes[QUEUE_STORAGE_KEY].newValue?.items || []);
+  renderCurrentItem(changes[QUEUE_STORAGE_KEY].newValue?.items || []);
 });
 
-function renderQueue(items) {
+function renderCurrentItem(items) {
   queueItems = Array.isArray(items) ? items : [];
-  elements.queueCount.textContent = String(queueItems.length);
+  currentItem = queueItems[0] || null;
 
-  // Si el item que estaba abierto en el modal ya no existe (se quitó de la
-  // cola), se cierra.
-  if (openQueueItemId && !queueItems.some((item) => item.id === openQueueItemId)) {
-    openQueueItemId = null;
-    void persistOpenItemId(null);
-  }
-
-  if (queueItems.length === 0) {
-    elements.queueList.innerHTML =
-      '<div class="queue-empty">Agrega depósitos a la cola desde el botón de la tarjeta en el Kanban, o con "Panel Lateral" dentro del detalle de un depósito.</div>';
-  } else {
-    // Más nuevos primero.
-    const sorted = queueItems
-      .slice()
-      .sort((a, b) => new Date(b.addedAt || 0) - new Date(a.addedAt || 0));
-
-    elements.queueList.innerHTML = "";
-    sorted.forEach((item) => {
-      elements.queueList.appendChild(buildQueueItemNode(item));
-    });
-  }
-
-  // El modal (mostrar/ocultar + contenido) se deriva SIEMPRE de
-  // openQueueItemId acá, en vez de manejarse aparte en openItemModal/
-  // closeItemModal -- así cubre tanto la apertura/cierre manual como la
-  // restauración al recargar el documento (loadQueueFromStorage) y las
-  // ediciones que llegan por chrome.storage.onChanged mientras está abierto.
-  const openItem = openQueueItemId ? queueItems.find((item) => item.id === openQueueItemId) : null;
-  if (openItem) {
-    elements.modalOverlay.hidden = false;
-    renderModalBody(openItem);
-  } else {
-    elements.modalOverlay.hidden = true;
-    elements.modalBody.innerHTML = "";
+  if (!currentItem) {
+    elements.voucherTitle.textContent = "Voucher del depósito";
+    elements.voucherBody.innerHTML =
+      '<div class="queue-empty">Abre un depósito y usa el botón "Panel Lateral" en su detalle para mostrarlo acá.</div>';
     setZoomTarget(null);
+    return;
   }
+
+  renderVoucherBody(currentItem);
 }
 
-function buildQueueItemNode(item) {
+function renderVoucherBody(item) {
   const data = item.depositData || {};
-  const isOpen = item.id === openQueueItemId;
-
-  const wrapper = document.createElement("div");
-  wrapper.className = `queue-item${item.atendido ? " is-attended" : ""}${isOpen ? " is-open" : ""}`;
-
-  const row = document.createElement("div");
-  row.className = "queue-item-row";
-  row.innerHTML = `
-    <span class="queue-item-dot"></span>
-    <div class="queue-item-main">
-      <span class="queue-item-bank">${escapeHtml(data.banco || "-")} · ${escapeHtml(data.cliente || "Sin cliente")}</span>
-      <span class="queue-item-sub">${escapeHtml(data.sucursal || "-")}</span>
-    </div>
-    <span class="queue-item-amount">${formatAmount(data.monto || data.importe)}</span>
-    ${buildLockBadgeHtml(data)}
-    <svg class="queue-item-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
-  `;
-
-  row.addEventListener("click", () => openItemModal(item));
-
-  wrapper.appendChild(row);
-  return wrapper;
-}
-
-// ── Modal de vista completa ──────────────────────────────────────────────
-function openItemModal(item) {
-  openQueueItemId = item.id;
-  void persistOpenItemId(item.id);
-  renderQueue(queueItems);
-}
-
-function closeItemModal() {
-  if (!openQueueItemId) return;
-  openQueueItemId = null;
-  void persistOpenItemId(null);
-  renderQueue(queueItems);
-}
-
-function renderModalBody(item) {
-  const data = item.depositData || {};
-  elements.modalTitle.textContent = `${data.banco || "-"} · ${data.cliente || "Sin cliente"}`;
+  elements.voucherTitle.textContent = `${data.banco || "-"} · ${data.cliente || "Sin cliente"}`;
 
   // Cada guardado de un campo (blur/change de CUALQUIER input, incluso desde
-  // este mismo side panel) dispara chrome.storage.onChanged -> renderQueue()
+  // este mismo side panel) dispara chrome.storage.onChanged -> renderCurrentItem()
   // -> acá. Reconstruir todo el HTML en cada uno de esos casos tira abajo y
   // vuelve a crear la <img> del voucher, lo que se ve como que la imagen
   // "recarga" con cada tecla/campo guardado (además de resetear zoom/rotación
-  // y perder texto en tránsito de otros inputs). Si sigue abierto el MISMO
+  // y perder texto en tránsito de otros inputs). Si sigue siendo el MISMO
   // depósito, alcanza con actualizar los valores de los campos a mano; el
   // voucher y el resto del DOM quedan intactos.
-  const existingInner = elements.modalBody.querySelector(".queue-item-detail-inner");
+  const existingInner = elements.voucherBody.querySelector(".queue-item-detail-inner");
   if (existingInner && updateQueueItemDetailInPlace(existingInner, item, data)) {
     return;
   }
 
-  elements.modalBody.innerHTML = "";
-  elements.modalBody.appendChild(buildQueueItemDetailContent(item, data));
+  elements.voucherBody.innerHTML = "";
+  elements.voucherBody.appendChild(buildQueueItemDetailContent(item, data));
 }
 
 // Devuelve true si pudo actualizar in-place (mismo depósito, mismo banco --
@@ -480,21 +379,8 @@ function updateQueueItemDetailInPlace(inner, item, data) {
     }
   }
 
-  const attendBtn = inner.querySelector(".queue-item-attend-btn");
-  if (attendBtn && document.activeElement !== attendBtn) {
-    attendBtn.textContent = item.atendido ? "Desmarcar" : "Guardar cambios";
-  }
-
   return true;
 }
-
-elements.modalCloseBtn.addEventListener("click", closeItemModal);
-elements.modalOverlay.addEventListener("click", (event) => {
-  if (event.target === elements.modalOverlay) closeItemModal();
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !elements.modalOverlay.hidden) closeItemModal();
-});
 
 // Campos editables acá == los mismos que el usuario puede tocar en el
 // formulario del detalle del depósito (DepositFormPanel: monto,
@@ -782,7 +668,7 @@ function buildQueueItemDetailContent(item, data) {
     <div class="queue-item-search-status search-status">Busca por nro. operación o importe en la pestaña activa.</div>
 
     <div class="queue-item-actions">
-      <button type="button" class="link-button queue-item-attend-btn">${item.atendido ? "Desmarcar" : "Guardar cambios"}</button>
+      <button type="button" class="link-button queue-item-attend-btn">Guardar cambios</button>
       <button type="button" class="link-button queue-item-remove-btn">Quitar</button>
     </div>
 
@@ -894,79 +780,68 @@ function buildQueueItemDetailContent(item, data) {
   attendBtn.addEventListener("click", async (event) => {
     event.stopPropagation();
 
-    const willAttend = !item.atendido;
+    // Los campos ya se guardan solos en cada blur/change (ver wireEditInput);
+    // este botón solo valida que estén completos y que Anexo/Empresa
+    // coincidan con la página del banco antes de confirmar con un toast que
+    // "quedó todo bien". No hay ningún estado de "atendido" que guardar --
+    // eso era parte de la cola de varios depósitos que ya no existe.
+    const invalidEls = getInvalidRequiredFields(inner);
+    markRequiredFieldsValidity(inner, invalidEls);
+    if (invalidEls.length > 0) {
+      invalidEls[0].focus();
+      invalidEls[0].scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
 
-    // La validación solo aplica al marcar como atendido -- desmarcar (volver
-    // a "Atender") no tiene por qué exigir campos completos, es solo deshacer
-    // el estado anterior.
-    if (willAttend) {
-      const invalidEls = getInvalidRequiredFields(inner);
-      markRequiredFieldsValidity(inner, invalidEls);
-      if (invalidEls.length > 0) {
-        invalidEls[0].focus();
-        invalidEls[0].scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-
-      // Anexo/Empresa vs. la página del banco (mismo criterio que
-      // "Comprobar Duplicados" en la app web, ver useDepositActions.js
-      // handleCheckDuplicates): si la combinación Empresa+Anexo elegida
-      // tiene una fila en ANEXO_VALIDATION_RULES, hay que encontrar TANTO
-      // la empresa como el dato de cuenta en la pestaña activa antes de
-      // dejar guardar -- si falta alguno de los dos, se bloquea.
-      const empresaNombre = item.depositData?.empresa || "";
-      const anexoEl = inner.querySelector('[data-field="anexo"]');
-      const anexoValue = anexoEl?.value || item.depositData?.anexo || "";
-      const rule = findAnexoValidationRule(empresaNombre, anexoValue);
-      if (rule) {
-        const originalLabel = attendBtn.textContent;
-        attendBtn.disabled = true;
-        attendBtn.textContent = "Validando...";
-        try {
-          const result = await chrome.runtime.sendMessage({
-            type: "SEARCH_ANEXO_VALIDATION_IN_PAGE",
-            empresaValidar: rule.empresaValidar,
-            datoValidar: rule.datoValidar,
-          });
-          if (!result?.ok) {
-            showToast(`No se pudo validar anexo/empresa: ${result?.message || "error desconocido"}.`, "error");
-            attendBtn.disabled = false;
-            attendBtn.textContent = originalLabel;
-            return;
-          }
-          const faltantes = [];
-          if (!result.empresaFound) faltantes.push(`empresa "${rule.empresaValidar}"`);
-          if (!result.datoFound) faltantes.push(`dato "${rule.datoValidar}"`);
-          if (faltantes.length > 0) {
-            showToast(
-              `No se encontró en la pestaña activa: ${faltantes.join(" ni ")}. Revisá que el Anexo/Empresa elegidos coincidan con la cuenta del voucher.`,
-              "error",
-            );
-            attendBtn.disabled = false;
-            attendBtn.textContent = originalLabel;
-            return;
-          }
-        } catch (error) {
-          showToast(`Error al validar anexo/empresa: ${error.message}`, "error");
+    // Anexo/Empresa vs. la página del banco (mismo criterio que
+    // "Comprobar Duplicados" en la app web, ver useDepositActions.js
+    // handleCheckDuplicates): si la combinación Empresa+Anexo elegida
+    // tiene una fila en ANEXO_VALIDATION_RULES, hay que encontrar TANTO
+    // la empresa como el dato de cuenta en la pestaña activa antes de
+    // dejar guardar -- si falta alguno de los dos, se bloquea.
+    const empresaNombre = item.depositData?.empresa || "";
+    const anexoEl = inner.querySelector('[data-field="anexo"]');
+    const anexoValue = anexoEl?.value || item.depositData?.anexo || "";
+    const rule = findAnexoValidationRule(empresaNombre, anexoValue);
+    if (rule) {
+      const originalLabel = attendBtn.textContent;
+      attendBtn.disabled = true;
+      attendBtn.textContent = "Validando...";
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "SEARCH_ANEXO_VALIDATION_IN_PAGE",
+          empresaValidar: rule.empresaValidar,
+          datoValidar: rule.datoValidar,
+        });
+        if (!result?.ok) {
+          showToast(`No se pudo validar anexo/empresa: ${result?.message || "error desconocido"}.`, "error");
           attendBtn.disabled = false;
           attendBtn.textContent = originalLabel;
           return;
         }
+        const faltantes = [];
+        if (!result.empresaFound) faltantes.push(`empresa "${rule.empresaValidar}"`);
+        if (!result.datoFound) faltantes.push(`dato "${rule.datoValidar}"`);
+        if (faltantes.length > 0) {
+          showToast(
+            `No se encontró en la pestaña activa: ${faltantes.join(" ni ")}. Revisá que el Anexo/Empresa elegidos coincidan con la cuenta del voucher.`,
+            "error",
+          );
+          attendBtn.disabled = false;
+          attendBtn.textContent = originalLabel;
+          return;
+        }
+      } catch (error) {
+        showToast(`Error al validar anexo/empresa: ${error.message}`, "error");
         attendBtn.disabled = false;
         attendBtn.textContent = originalLabel;
+        return;
       }
+      attendBtn.disabled = false;
+      attendBtn.textContent = originalLabel;
     }
 
-    await chrome.runtime.sendMessage({
-      type: "MARK_QUEUE_ITEM_ATTENDED",
-      id: item.id,
-      atendido: willAttend,
-    });
-
-    if (willAttend) {
-      closeItemModal();
-      showToast("Datos grabados");
-    }
+    showToast("Datos grabados");
   });
   inner.querySelector(".queue-item-remove-btn").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -1123,6 +998,6 @@ function setupVoucherZoom(container) {
 }
 
 loadQueueFromStorage().catch((error) => {
-  console.error("No se pudo cargar la cola de depósitos:", error);
-  renderQueue([]);
+  console.error("No se pudo cargar el depósito del panel lateral:", error);
+  renderCurrentItem([]);
 });

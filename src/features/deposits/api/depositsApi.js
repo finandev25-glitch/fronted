@@ -898,10 +898,27 @@ export async function financeRegularizeImage(id, imagenBase64) {
 // el flag pendienteRegularizar, para auditoria/reporteria (no es el timeline
 // de un solo deposito, es el listado agregado entre todos). Filtros opcionales
 // por rango de fecha, accion y empresa.
+//
+// FIX: desde/hasta llegan como "YYYY-MM-DD" (del <input type="date"> de la
+// vista) y antes se armaban acá mismo como `${desde}T00:00:00.000Z` /
+// `${hasta}T23:59:59.999Z` -- igual que el bug ya corregido en
+// dateToDayRange (ver su comentario más arriba): esas horas son de pared en
+// Lima, no UTC. Con el "Z" literal, "hasta" terminaba equivaliendo a las
+// 18:59:59 hora Lima (no 23:59:59), así que cualquier evento de regularizar
+// ocurrido entre las 7pm y la medianoche quedaba afuera del rango
+// seleccionado -- el filtro por fecha "perdía" resultados de la noche.
+// dateToDayRange ya resuelve esto correctamente, igual que en
+// fetchDepositsByRange.
 export async function fetchRegularizacionesHistorial({ desde, hasta, accion, empresaId } = {}) {
   const params = new URLSearchParams();
-  if (desde) params.set("desde", desde);
-  if (hasta) params.set("hasta", hasta);
+  if (desde) {
+    const { desde: desdeUtc } = dateToDayRange(desde);
+    params.set("desde", desdeUtc);
+  }
+  if (hasta) {
+    const { hasta: hastaUtc } = dateToDayRange(hasta);
+    params.set("hasta", hastaUtc);
+  }
   if (accion) params.set("accion", accion);
   if (empresaId) params.set("empresaId", empresaId);
   const query = params.toString();

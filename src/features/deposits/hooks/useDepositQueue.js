@@ -1,37 +1,45 @@
 /**
  * useDepositQueue.js
  *
- * Cola de depósitos compartida con AppExtension (extensión de navegador).
- * No hay backend ni store propio involucrado: el estado real vive en
- * chrome.storage.local, del lado de la extensión (ver D:\fronted\AppExtension).
- * Este hook solo espeja ese estado en React y expone acciones para
- * agregar/quitar depósitos de la cola, usando el mismo patrón de comunicación
- * que ya usa useVoucherPanel.js (CustomEvent síncrono + postMessage de
- * respaldo hacia el content-script de la extensión).
+ * Espeja en React el depósito que está mostrando el side panel de
+ * AppExtension (extensión de navegador). No hay backend ni store propio
+ * involucrado: el estado real vive en chrome.storage.local, del lado de la
+ * extensión (ver D:\fronted\AppExtension). Este hook expone acciones para
+ * mostrar/quitar el depósito del panel, usando el mismo patrón de
+ * comunicación que ya usa useVoucherPanel.js (CustomEvent síncrono +
+ * postMessage de respaldo hacia el content-script de la extensión).
  *
- * Canal de vuelta (extensión -> app): cuando el usuario marca un depósito
- * como "atendido" desde el side panel, el content-script escucha
- * chrome.storage.onChanged y despacha un CustomEvent "confirmo:queue-updated"
- * hacia la página con la lista completa y actualizada de la cola. Este hook
- * escucha ese evento para mantenerse sincronizado.
+ * Antes esto era una cola de VARIOS depósitos (se podían ir agregando desde
+ * el Kanban sin abrir el panel, con un "atendido" por item para saber cuáles
+ * ya estaban listos para confirmar). Ya no hace falta -- ahora solo existe
+ * "Panel Lateral" desde el detalle de un depósito, y ese depósito reemplaza
+ * al que estuviera mostrando el panel. `queueItems` internamente sigue
+ * siendo un array (0 o 1 elementos) porque así lo modela también
+ * AppExtension/background.js -- eso mantiene igual el resto de este hook
+ * (los `.find()`/`.has()` de KanbanPage.jsx) sin tener que tocarlo.
+ *
+ * Canal de vuelta (extensión -> app): cuando el usuario edita un campo desde
+ * el side panel, el content-script escucha chrome.storage.onChanged y
+ * despacha un CustomEvent "confirmo:queue-updated" hacia la página con el
+ * estado actualizado. Este hook escucha ese evento para mantenerse
+ * sincronizado.
  *
  * Si la extensión no está instalada, addToQueue/removeFromQueue igual
  * actualizan el estado local (optimista) para que la UI responda, pero nunca
- * va a llegar un "confirmo:queue-updated" de vuelta -- inofensivo, solo
- * significa que el "atendido" nunca se marcará (no hay quien lo marque).
+ * va a llegar un "confirmo:queue-updated" de vuelta -- inofensivo.
  *
- * Candado (lock/unlock) al entrar/salir de la cola:
+ * Candado (lock/unlock) al mostrar/quitar del panel:
  * - addToQueue: si el depósito está "procesado" y libre, se toma el mismo
  *   candado que se tomaría al abrir el modal (onTakeDeposit / lockDeposit),
- *   ANTES de mandarlo a la cola -- así otro usuario no puede tomarlo mientras
- *   espera a ser atendido desde el panel lateral. Si ya está tomado por otro
- *   usuario, no se agrega.
- * - Cuando un depósito sale de la cola (por cualquier vía: "Quitar de la
- *   cola" en el side panel, o el propio removeFromQueue de la app) y sigue
- *   "procesado" y tomado por el usuario actual (no se confirmó ni rechazó),
- *   se libera el candado (onUnlockDeposit) para que otro usuario pueda
- *   tomarlo. onUnlockDeposit ya es un no-op seguro si el depósito cambió de
- *   estado (p. ej. se confirmó) o ya no es del usuario actual.
+ *   ANTES de mandarlo al panel -- así otro usuario no puede tomarlo mientras
+ *   se está viendo ahí. Si ya está tomado por otro usuario, no se muestra.
+ * - Cuando el depósito sale del panel (por cualquier vía: "Quitar" en el
+ *   side panel, o el propio removeFromQueue de la app, o reemplazado por
+ *   otro) y sigue "procesado" y tomado por el usuario actual (no se
+ *   confirmó ni rechazó), se libera el candado (onUnlockDeposit) para que
+ *   otro usuario pueda tomarlo. onUnlockDeposit ya es un no-op seguro si el
+ *   depósito cambió de estado (p. ej. se confirmó) o ya no es del usuario
+ *   actual.
  */
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
@@ -179,21 +187,23 @@ export function useDepositQueue({
 
       const depositData = buildQueueDepositData(depositForQueue, cuentas, bancos);
 
-      setQueueItems((prev) => {
-        if (prev.some((item) => item.id === depositForQueue.id)) return prev;
-        const next = [
-          ...prev,
-          {
-            id: depositForQueue.id,
-            depositData,
-            addedAt: new Date().toISOString(),
-            atendido: false,
-            atendidoAt: null,
-          },
-        ];
-        prevQueueItemsRef.current = next;
-        return next;
-      });
+      // Reemplaza lo que hubiera antes -- ya no se acumula (ver comentario
+      // del archivo). A propósito NO se toca prevQueueItemsRef acá (a
+      // diferencia de removeFromQueue más abajo): tiene que seguir apuntando
+      // al último estado CONFIRMADO por la extensión, para que cuando llegue
+      // el confirmo:queue-updated real de este reemplazo, el diff de más
+      // arriba compare contra el item anterior de verdad y detecte que
+      // "salió" de la cola -- así se libera su candado si correspondía. Si
+      // acá también se actualizara el ref de forma optimista, ese diff
+      // nunca vería la salida del item anterior y su candado quedaría sin
+      // liberar hasta que expire solo.
+      setQueueItems([
+        {
+          id: depositForQueue.id,
+          depositData,
+          addedAt: new Date().toISOString(),
+        },
+      ]);
 
       // 1) CustomEvent síncrono (mismo patrón que useVoucherPanel.js).
       try {
@@ -240,27 +250,9 @@ export function useDepositQueue({
     [queueItems],
   );
 
-  const attendedIds = useMemo(
-    () => new Set(queueItems.filter((item) => item.atendido).map((item) => item.id)),
-    [queueItems],
-  );
-
-  // Orden de atención: primero los que se marcaron como atendidos hace más
-  // tiempo (FIFO), para que "confirmar siguiente" siga un orden predecible.
-  const attendedQueueIds = useMemo(
-    () =>
-      queueItems
-        .filter((item) => item.atendido)
-        .sort((a, b) => new Date(a.atendidoAt || 0) - new Date(b.atendidoAt || 0))
-        .map((item) => item.id),
-    [queueItems],
-  );
-
   return {
     queueItems,
     queuedIds,
-    attendedIds,
-    attendedQueueIds,
     addToQueue,
     removeFromQueue,
   };
