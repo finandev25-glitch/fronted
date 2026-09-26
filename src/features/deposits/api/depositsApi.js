@@ -392,6 +392,12 @@ function mapDeposit(item) {
       ruc_cliente: item.rucCliente || null,
       numero_tarjeta: item.numeroTarjeta || null,
       trabajador_id: (item.trabajadorId || item.vendedorId) ? String(item.trabajadorId || item.vendedorId).toLowerCase() : null,
+      // Id del vendedor (usuario de la app móvil) que subió el depósito --
+      // distinto de trabajador_id (personal de finanzas). Se usa para cruzar
+      // los vouchers de un vendedor con su chat (ver VendorChatWidget.jsx).
+      // Puede venir null si el backend todavía no expone VendedorId en el
+      // LISTADO (GET /v1/deposits) -- solo lo trae hoy el detalle individual.
+      vendedor_id: item.vendedorId ? String(item.vendedorId).toLowerCase() : null,
       empresa: item.empresa ? mapEmpresa(item.empresa) : null,
       banco: item.banco ? mapBanco(item.banco) : null,
       sucursal: item.sucursal ? mapSucursal(item.sucursal) : null,
@@ -498,6 +504,25 @@ export async function fetchDepositsByRange(desdeDate, hastaDate) {
   const { desde } = dateToDayRange(desdeDate);
   const { hasta } = dateToDayRange(hastaDate || desdeDate);
   return fetchDepositsList({ desde, hasta });
+}
+
+// Depósitos recientes de un vendedor puntual (usuario de la app móvil), para
+// mostrar sus vouchers intercalados en su chat -- ver VendorChatWidget.jsx.
+// Pide el filtro `vendedorId` al backend (GET /v1/deposits?vendedorId=...),
+// pero además se filtra client-side por vendedor_id en el widget como
+// salvaguarda: si el backend todavía no tiene desplegado ese filtro (ver
+// snippet de DepositEndpoints.cs), el parámetro simplemente se ignora del
+// lado del servidor y esta función devolvería los depósitos de TODOS los
+// vendedores (si el usuario logueado es finanzas/admin) en vez de solo los
+// del vendedor pedido.
+export async function fetchDepositsByVendedor(vendedorId, { diasAtras = 30 } = {}) {
+  if (!vendedorId) return [];
+
+  const hoy = toLocalISOString(new Date().toISOString());
+  const desdeDate = addDaysToDateStr(hoy, -diasAtras);
+  const { desde } = dateToDayRange(desdeDate);
+
+  return fetchDepositsList({ vendedorId, desde });
 }
 
 export async function fetchDepositsByPeriod(period) {

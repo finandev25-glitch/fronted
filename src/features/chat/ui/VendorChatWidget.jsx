@@ -18,6 +18,13 @@ import {
   sendVendedorChatMessage,
   mapVendorChatMessage,
 } from "../api/vendorChatApi.js";
+import { fetchDepositsByVendedor } from "../../deposits/api/depositsApi.js";
+
+// Cuántos días hacia atrás se piden los vouchers del vendedor al abrir su
+// conversación (ver AskUserQuestion: "solo los últimos N días", no todo el
+// historial). No es paginable como los mensajes -- se vuelve a pedir
+// completo cada vez que se abre/recarga la conversación.
+const VOUCHER_DIAS_ATRAS = 30;
 
 // Roles que pueden ver este widget (finanzas/admin). Los vendedores usan la
 // app movil (CONFIRMO), no este panel — pero por las dudas de que alguna vez
@@ -42,6 +49,85 @@ function formatTime(iso) {
   } catch {
     return "";
   }
+}
+
+function formatMonto(monto, moneda) {
+  if (monto === null || monto === undefined) return "";
+  const symbol = moneda === "USD" ? "US$" : "S/";
+  const value = Number(monto);
+  if (Number.isNaN(value)) return "";
+  return `${symbol} ${value.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Mismos colores que se usan en el resto del Kanban para el estado del
+// depósito (ver DepositCard.jsx) -- se repiten acá en vez de importarlos
+// para no acoplar este widget a ese componente.
+const ESTADO_BADGE_CLASS = {
+  recibido: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  procesado: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  confirmado: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  rechazado: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+};
+
+// Convierte cada depósito (voucher) en un item de timeline con la misma
+// forma minima que un mensaje de chat ({ id, kind, timestamp }), para poder
+// mezclarlo y ordenarlo junto con los mensajes de texto en un solo array.
+function buildVoucherTimelineItem(deposit) {
+  const timestamp = deposit.fecha_registro_original || deposit.fecha_registro;
+  return {
+    kind: "voucher",
+    id: `voucher-${deposit.id}`,
+    timestamp,
+    deposit,
+  };
+}
+
+function VoucherBubble({ deposit }) {
+  const badgeClass =
+    ESTADO_BADGE_CLASS[deposit.estado] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+
+  return (
+    <div className="flex justify-start mb-2">
+      <a
+        href={deposit.imagen_voucher || undefined}
+        target="_blank"
+        rel="noreferrer"
+        className={`block max-w-[75%] rounded-2xl rounded-bl-sm overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 ${
+          deposit.imagen_voucher ? "cursor-pointer" : "pointer-events-none"
+        }`}
+        title={deposit.imagen_voucher ? "Ver voucher completo" : "Este depósito no tiene voucher"}
+      >
+        {deposit.imagen_voucher ? (
+          <img
+            src={deposit.imagen_voucher}
+            alt="Voucher"
+            className="w-full max-h-48 object-cover bg-white dark:bg-gray-900"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-24 flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
+            Sin imagen
+          </div>
+        )}
+        <div className="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold">{formatMonto(deposit.monto, deposit.moneda)}</span>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${badgeClass}`}>
+              {deposit.estado}
+            </span>
+          </div>
+          {deposit.numero_operacion && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              Op. {deposit.numero_operacion}
+            </p>
+          )}
+          <div className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+            {formatTime(deposit.fecha_registro_original || deposit.fecha_registro)}
+          </div>
+        </div>
+      </a>
+    </div>
+  );
 }
 
 function MessageBubble({ message }) {
@@ -100,6 +186,14 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesError, setMessagesError] = useState(null);
   const [hasMore, setHasMore] = useState(false);
+
+  // Vouchers (depósitos con imagen) del vendedor seleccionado, para
+  // intercalarlos en la conversación como contexto de a qué depósito se
+  // refiere cada mensaje. Se cargan aparte de los mensajes -- un error acá
+  // no debe bloquear el chat de texto, por eso su propio loading/error.
+  const [vouchers, setVouchers] = useState([]);
+  const [vouchersLoading, setVouchersLoading] = useState(false);
+  const [vouchersError, setVouchersError] = useState(null);
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -209,12 +303,60 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     loadHistory(selectedVendedor.id);
   }, [selectedVendedor, loadHistory]);
 
-  // Auto-scroll al ultimo mensaje.
+  const loadVouchers = useCallback((vendedorId) => {
+    if (!vendedorId) return;
+    setVouchers([]);
+    setVouchersError(null);
+    setVouchersLoading(true);
+    fetchDepositsByVendedor(vendedorId, { diasAtras: VOUCHER_DIAS_ATRAS })
+      .then((deposits) => {
+        // Salvaguarda client-side (ver comentario en fetchDepositsByVendedor):
+        // si el backend todavía no filtra por vendedorId, acá se descarta
+        // cualquier depósito que no sea realmente de este vendedor. Si
+        // vendedor_id viniera null (backend viejo, sin VendedorId en el
+        // listado) se prefiere no mostrar nada a mostrar vouchers de otro
+        // vendedor por error.
+        const vendedorIdStr = String(vendedorId).toLowerCase();
+        const propios = (deposits || []).filter((d) => d.vendedor_id === vendedorIdStr);
+        setVouchers(propios);
+      })
+      .catch((error) => {
+        setVouchersError(error?.message || "No se pudieron cargar los vouchers de este vendedor.");
+      })
+      .finally(() => setVouchersLoading(false));
+  }, []);
+
+  // Carga los vouchers al seleccionar un vendedor (en paralelo al historial
+  // de texto de arriba).
+  useEffect(() => {
+    if (!selectedVendedor?.id) return;
+    loadVouchers(selectedVendedor.id);
+  }, [selectedVendedor, loadVouchers]);
+
+  // Timeline unificado: mensajes de texto + vouchers, ordenados por fecha.
+  // Es la pieza clave del pedido original ("simular la interfaz del
+  // aplicativo móvil", donde se ven las imágenes intercaladas con el texto).
+  const timeline = useMemo(() => {
+    const messageItems = messages.map((message) => ({
+      kind: "message",
+      id: `message-${message.id}`,
+      timestamp: message.createdAt,
+      message,
+    }));
+    const voucherItems = vouchers.map(buildVoucherTimelineItem);
+    return [...messageItems, ...voucherItems].sort((a, b) => {
+      const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return tsA - tsB;
+    });
+  }, [messages, vouchers]);
+
+  // Auto-scroll al ultimo mensaje (o voucher).
   useEffect(() => {
     if (view === "conversation") {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [messages, view]);
+  }, [timeline, view]);
 
   // Listener de SignalR para el evento "ChatMessage". La conexion activa y
   // compartida (getActiveDepositSignalRConnection) se arranca de forma
@@ -341,6 +483,8 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     setMessages([]);
     setMessagesError(null);
     setSendError(null);
+    setVouchers([]);
+    setVouchersError(null);
   };
 
   const handleSend = async () => {
@@ -557,18 +701,30 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                   </div>
                 )}
 
-                {!messagesLoading && !messagesError && messages.length === 0 && (
+                {vouchersError && (
+                  <div className="flex justify-center mb-2">
+                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                      {vouchersError}
+                    </span>
+                  </div>
+                )}
+
+                {!messagesLoading && !messagesError && !vouchersLoading && timeline.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-8 text-center px-4">
                     <MessageSquare size={22} className="text-gray-300 dark:text-gray-600 mb-2" />
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Todavía no hay mensajes con este vendedor.
+                      Todavía no hay mensajes ni vouchers de este vendedor.
                     </p>
                   </div>
                 )}
 
-                {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} />
-                ))}
+                {timeline.map((item) =>
+                  item.kind === "voucher" ? (
+                    <VoucherBubble key={item.id} deposit={item.deposit} />
+                  ) : (
+                    <MessageBubble key={item.id} message={item.message} />
+                  )
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
