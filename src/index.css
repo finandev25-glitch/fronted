@@ -140,4 +140,20 @@
       animation: none;
     }
   }
+
+  /* Fondo tipo WhatsApp (beige con puntitos / oscuro con puntitos) para el
+     área de mensajes de VendorChatWidget.jsx -- pedido explícito de calcar
+     la maqueta de un chat de WhatsApp real. Va en CSS puro (no Tailwind
+     arbitrary value) porque el patrón es un SVG data-URI con comillas que
+     Tailwind no parsea bien dentro de una clase, y porque así sí se puede
+     cambiar con .dark sin pelear con la especificidad de un style inline. */
+  .wa-chat-wallpaper {
+    background-color: #e5ddd5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='2' cy='2' r='1.4' fill='%2300000012'/%3E%3C/svg%3E");
+  }
+
+  .dark .wa-chat-wallpaper {
+    background-color: #0b141a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='2' cy='2' r='1.4' fill='%23ffffff10'/%3E%3C/svg%3E");
+  }
 }

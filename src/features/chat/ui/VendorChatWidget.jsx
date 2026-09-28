@@ -9,6 +9,9 @@ import {
   Search,
   AlertCircle,
   RefreshCw,
+  CheckCheck,
+  Receipt,
+  ExternalLink,
 } from "lucide-react";
 import { AuthContext } from "../../auth/context/AuthContext.jsx";
 import { getActiveDepositSignalRConnection } from "../../../services/signalrService.js";
@@ -31,6 +34,16 @@ const VOUCHER_DIAS_ATRAS = 30;
 // un usuario con rol "vendedor" llegue a loguearse aca, el widget se oculta
 // para cualquier rol que no este en esta lista.
 const FINANCE_ROLES = ["admin", "finanzas"];
+
+// Paleta calcada de WhatsApp (pedido explícito: "quiero una vista como la
+// imagen adjunta" -- maqueta de un chat de WhatsApp real). Se define acá
+// como constantes de clases Tailwind porque son los únicos lugares del
+// proyecto que necesitan estos tonos exactos. El fondo con puntitos del
+// área de mensajes ("wa-chat-wallpaper") va en index.css, no acá -- ver
+// comentario ahí.
+const WA_HEADER_BG = "bg-[#075E54]";
+const WA_OUTGOING_BUBBLE = "bg-[#dcf8c6] dark:bg-[#005c4b] text-gray-900 dark:text-gray-50";
+const WA_CHECK_COLOR = "text-[#34b7f1]";
 
 function getInitials(name) {
   const clean = String(name || "").trim();
@@ -82,50 +95,112 @@ function buildVoucherTimelineItem(deposit) {
   };
 }
 
+function formatFechaDeposito(fechaDeposito) {
+  if (!fechaDeposito) return null;
+  try {
+    // fecha_deposito es un DateOnly ("YYYY-MM-DD"), sin hora ni offset -- se
+    // arma la fecha con los componentes sueltos para no correr riesgo de que
+    // el navegador la interprete como medianoche UTC y la corra un día.
+    const [year, month, day] = fechaDeposito.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day).toLocaleDateString("es-PE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return null;
+  }
+}
+
+// Burbuja de voucher con forma de "recibo" (pedido explícito: que se vea
+// como la nota/ticket de la maqueta de WhatsApp, no solo una miniatura
+// suelta). Mantiene la miniatura arriba -- finanzas sigue necesitando ver
+// la imagen real del comprobante -- pero agrega el detalle del depósito en
+// un bloque tipo ticket (fuente monoespaciada, separadores punteados).
 function VoucherBubble({ deposit }) {
   const badgeClass =
     ESTADO_BADGE_CLASS[deposit.estado] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+  const fechaVoucher = formatFechaDeposito(deposit.fecha_deposito);
 
   return (
     <div className="flex justify-start mb-2">
-      <a
-        href={deposit.imagen_voucher || undefined}
-        target="_blank"
-        rel="noreferrer"
-        className={`block max-w-[75%] rounded-2xl rounded-bl-sm overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 ${
-          deposit.imagen_voucher ? "cursor-pointer" : "pointer-events-none"
-        }`}
-        title={deposit.imagen_voucher ? "Ver voucher completo" : "Este depósito no tiene voucher"}
-      >
-        {deposit.imagen_voucher ? (
-          <img
-            src={deposit.imagen_voucher}
-            alt="Voucher"
-            className="w-full max-h-48 object-cover bg-white dark:bg-gray-900"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-24 flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
-            Sin imagen
-          </div>
+      <div className="max-w-[80%] rounded-2xl rounded-bl-sm overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+        {deposit.imagen_voucher && (
+          <a
+            href={deposit.imagen_voucher}
+            target="_blank"
+            rel="noreferrer"
+            title="Ver voucher completo"
+            className="block"
+          >
+            <img
+              src={deposit.imagen_voucher}
+              alt="Voucher"
+              className="w-full max-h-40 object-cover bg-gray-100 dark:bg-gray-800"
+              loading="lazy"
+            />
+          </a>
         )}
-        <div className="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold">{formatMonto(deposit.monto, deposit.moneda)}</span>
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${badgeClass}`}>
+
+        <div className="px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-800 dark:text-gray-200">
+          <div className="flex items-center gap-1.5 pb-1.5 mb-1.5 border-b border-dashed border-gray-300 dark:border-gray-700">
+            <Receipt size={12} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+            <span className="font-semibold tracking-wide">COMPROBANTE DE DEPÓSITO</span>
+          </div>
+
+          <div className="space-y-0.5">
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-500 dark:text-gray-400">Monto</span>
+              <span className="font-semibold">{formatMonto(deposit.monto, deposit.moneda)}</span>
+            </div>
+            {deposit.numero_operacion && (
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Operación</span>
+                <span className="truncate">{deposit.numero_operacion}</span>
+              </div>
+            )}
+            {deposit.banco?.nombre && (
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Banco</span>
+                <span className="truncate">{deposit.banco.nombre}</span>
+              </div>
+            )}
+            {deposit.cliente && (
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Cliente</span>
+                <span className="truncate">{deposit.cliente}</span>
+              </div>
+            )}
+            {fechaVoucher && (
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Fecha voucher</span>
+                <span>{fechaVoucher}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-1.5 pt-1.5 border-t border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-between gap-2">
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full font-sans ${badgeClass}`}>
               {deposit.estado}
             </span>
-          </div>
-          {deposit.numero_operacion && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-              Op. {deposit.numero_operacion}
-            </p>
-          )}
-          <div className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-            {formatTime(deposit.fecha_registro_original || deposit.fecha_registro)}
+            {deposit.imagen_voucher && (
+              <a
+                href={deposit.imagen_voucher}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-0.5 text-[10px] font-sans text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Ver completo <ExternalLink size={10} />
+              </a>
+            )}
           </div>
         </div>
-      </a>
+
+        <div className="px-3 pb-1.5 text-right text-[10px] text-gray-400 dark:text-gray-500">
+          {formatTime(deposit.fecha_registro_original || deposit.fecha_registro)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -146,20 +221,26 @@ function MessageBubble({ message }) {
   return (
     <div className={`flex ${isFinance ? "justify-end" : "justify-start"} mb-2`}>
       <div
-        className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words ${
+        className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words shadow-sm ${
           isFinance
-            ? `bg-blue-600 text-white rounded-br-sm ${message._failed ? "opacity-60 border border-red-400" : ""}`
-            : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm"
+            ? `${WA_OUTGOING_BUBBLE} rounded-br-sm ${message._failed ? "opacity-60 border border-red-400" : ""}`
+            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm"
         }`}
       >
         <p className="whitespace-pre-wrap">{message.content}</p>
         <div
-          className={`mt-1 flex items-center gap-1 text-[10px] ${
-            isFinance ? "text-blue-100" : "text-gray-400 dark:text-gray-500"
+          className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
+            isFinance ? "text-gray-600 dark:text-gray-300" : "text-gray-400 dark:text-gray-500"
           }`}
         >
           <span>{formatTime(message.createdAt)}</span>
-          {message._failed && <span className="text-red-200">no enviado</span>}
+          {/* Check doble estilo WhatsApp: puramente estético, no hay
+              tracking real de "leído" -- solo indica que el mensaje ya
+              está persistido (no es el optimista con id temporal). */}
+          {isFinance && !message._failed && !String(message.id).startsWith("local-") && (
+            <CheckCheck size={13} className={WA_CHECK_COLOR} />
+          )}
+          {message._failed && <span className="text-red-500 dark:text-red-300">no enviado</span>}
         </div>
       </div>
     </div>
@@ -554,7 +635,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
         <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 h-[30rem] max-h-[70vh] bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
           {view === "list" ? (
             <>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-blue-600">
+              <div className={`flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 ${WA_HEADER_BG}`}>
                 <h3 className="text-sm font-semibold text-white">Chat con vendedores</h3>
                 <button
                   type="button"
@@ -574,7 +655,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Buscar vendedor..."
-                    className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#075E54]"
                   />
                 </div>
               </div>
@@ -624,11 +705,11 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                         className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-left transition-colors"
                       >
                         <div className="relative flex-shrink-0">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-semibold text-sm">
+                          <div className="w-10 h-10 rounded-full bg-[#075E54]/10 dark:bg-[#075E54]/40 text-[#075E54] dark:text-emerald-300 flex items-center justify-center font-semibold text-sm">
                             {getInitials(vendedor.nombre)}
                           </div>
                           {isUnread && (
-                            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-gray-900" />
+                            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#25D366] border-2 border-white dark:border-gray-900" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -646,7 +727,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 bg-blue-600">
+              <div className={`flex items-center gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 ${WA_HEADER_BG}`}>
                 <button
                   type="button"
                   onClick={goBack}
@@ -671,7 +752,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 bg-gray-50 dark:bg-gray-950">
+              <div className="flex-1 overflow-y-auto p-3 wa-chat-wallpaper">
                 {messagesLoading && (
                   <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
                     <Loader2 size={18} className="animate-spin mr-2" />
@@ -739,13 +820,13 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                     onKeyDown={handleKeyDown}
                     placeholder="Escribe un mensaje..."
                     rows={1}
-                    className="flex-1 resize-none max-h-24 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="flex-1 resize-none max-h-24 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-[#075E54]"
                   />
                   <button
                     type="button"
                     onClick={handleSend}
                     disabled={!draft.trim() || sending}
-                    className="flex-shrink-0 p-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                    className="flex-shrink-0 p-2.5 rounded-lg bg-[#075E54] hover:bg-[#064c44] disabled:opacity-50 disabled:cursor-not-allowed text-white"
                     aria-label="Enviar mensaje"
                   >
                     {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -760,7 +841,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white p-4 flex items-center justify-center transition-colors"
+        className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg bg-[#25D366] hover:bg-[#20bd5a] text-white p-4 flex items-center justify-center transition-colors"
         aria-label={isOpen ? "Cerrar chat de vendedores" : "Abrir chat de vendedores"}
       >
         {isOpen ? <X size={22} /> : <MessageSquare size={22} />}

@@ -62,6 +62,53 @@ export const isDepositAntiguo = (deposit) => {
 };
 
 /**
+ * Determina si un depósito debe VERSE en el subgrupo colapsable "Antiguos"
+ * dentro de la columna "En Validación" (ver KanbanPage.jsx, groupedDeposits).
+ *
+ * OJO: esto es DISTINTO de isDepositAntiguo. `condicion === "antiguo"` cumple
+ * dos roles a la vez en el backend:
+ *   1) Enrutar el depósito directo a "En Validación" en vez de "Pendiente"
+ *      (ver getKanbanBucket más abajo -- eso SÍ debe seguir usando
+ *      isDepositAntiguo tal cual, sin este chequeo extra).
+ *   2) Marcar visualmente el depósito como "viene de un día anterior".
+ *
+ * El endpoint POST /pull-rezagados-a-hoy ("Traer rezagados a hoy") adelanta
+ * fecha_registro a HOY pero deja condicion="antiguo" para siempre (nunca la
+ * limpia) -- a propósito, porque sigue haciendo falta para el rol (1). Sin
+ * un chequeo extra, un depósito ya traído a hoy quedaría atrapado para
+ * siempre en el subgrupo "Antiguos" aunque ya se haya "resuelto" su atraso.
+ *
+ * FIX (primer intento fallido): comparar fecha_solo_date (deriva de
+ * fecha_registro) contra hoy escondía TAMBIÉN el caso más común de
+ * "antiguo" -- un depósito recibido HOY pero cuyo voucher trae una fecha
+ * impresa vieja (fecha_deposito), que el backend autoclasifica como
+ * condicion="antiguo" apenas se procesa (ver WorkerResultConsumer.cs). En
+ * ese caso fecha_registro YA es hoy, así que esa comparación lo ocultaba
+ * por error -- el bug que reportó el usuario con los depósitos de
+ * 286,20 y 5000,00 (fecha_deposito vieja pero recibidos/registrados hoy).
+ *
+ * FIX correcto: usar fecha_registro_original (inmutable, NUNCA la toca
+ * pull-rezagados-a-hoy) contra fecha_registro (que sí la pisa ese mismo
+ * endpoint). Si son distintas, es la señal real de "esto se trajo a hoy
+ * desde un día anterior" -- ahí sí se oculta. Si coinciden (o no hay
+ * fecha_registro_original todavía, depósitos viejos sin backfill), se
+ * respeta el criterio original: se ve "antiguo" tal cual lo marcó el
+ * backend, sin importar cuándo se recibió.
+ * @param {{ es_antiguo?: boolean, condicion?: string, fecha_registro?: string | null, fecha_registro_original?: string | null }} deposit
+ * @returns {boolean}
+ */
+export const isDepositVisiblyAntiguo = (deposit) => {
+  if (!isDepositAntiguo(deposit)) return false;
+  if (!deposit.fecha_registro_original || !deposit.fecha_registro) return true;
+
+  const originalMs = new Date(deposit.fecha_registro_original).getTime();
+  const registradoMs = new Date(deposit.fecha_registro).getTime();
+  if (Number.isNaN(originalMs) || Number.isNaN(registradoMs)) return true;
+
+  return originalMs === registradoMs;
+};
+
+/**
  * Columna del Kanban a la que pertenece un depósito. El backend no tiene un
  * estado "en_validacion" real: un "procesado" pasa a la columna "En Validación"
  * cuando ya fue tomado (validado_por) O cuando es antiguo (condicion "antiguo"),
@@ -131,5 +178,6 @@ export default {
   getStatusLabel,
   getStatusBorder,
   isDepositAntiguo,
+  isDepositVisiblyAntiguo,
   getKanbanBucket,
 };

@@ -11,7 +11,7 @@ import {
 import {
   getStatusInfo,
   getKanbanBucket,
-  isDepositAntiguo,
+  isDepositVisiblyAntiguo,
 } from "../utils/depositStatusHelpers";
 import { formatDate, formatShortDateFromDateOnly } from "../utils/dateFormatters";
 import { getBankBadgeClassName } from "../utils/bankColors";
@@ -101,9 +101,12 @@ const DepositCard = ({
   const companyLogo = deposit.empresa ? getCompanyLogo(deposit.empresa) : null;
   const currencyBadge = getCurrencyBadge(deposit.moneda);
 
-  // Determinar si es un depósito antiguo en validación
+  // Determinar si es un depósito antiguo en validación. isDepositVisiblyAntiguo
+  // (no isDepositAntiguo a secas) para que la card deje de verse "antigua"
+  // (borde/color) una vez que ya se trajo a hoy con "Traer rezagados a hoy"
+  // -- mismo criterio que usa KanbanPage.jsx para el subgrupo "Antiguos".
   const isOldDeposit =
-    isDepositAntiguo(deposit) && effectiveEstado === "en_validacion";
+    isDepositVisiblyAntiguo(deposit) && effectiveEstado === "en_validacion";
   // Depósito procesado marcado con riesgo -> peligro (parpadeo rojo + ícono).
   const isRiesgo = deposit.estado === "procesado" && deposit.riesgo === true;
   // Depósito procesado vía pago con link (Niubiz, ver sección "Pagos con

@@ -27,7 +27,7 @@ import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
 import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
 import {
   getKanbanBucket,
-  isDepositAntiguo,
+  isDepositVisiblyAntiguo,
 } from "../../../../utils/depositStatusHelpers";
 import {
   KANBAN_COLUMNS as KANBAN_COLUMN_DEFS,
@@ -565,12 +565,17 @@ const KanbanPage = ({
     return grouped;
   }, [visibleDeposits]);
 
-  // Separar depósitos en validación en normales y antiguos
+  // Separar depósitos en validación en normales y antiguos. Usa
+  // isDepositVisiblyAntiguo (no isDepositAntiguo a secas): un depósito
+  // "traído a hoy" (ver botón "Traer rezagados a hoy") sigue enrutado acá
+  // por getKanbanBucket, pero ya no debe verse en el subgrupo "Antiguos"
+  // una vez que su fecha ya es la de hoy -- ver el comentario en
+  // depositStatusHelpers.js.
   const validacionSeparated = useMemo(() => {
     const enValidacion = groupedDeposits["en_validacion"] || [];
     return {
-      normales: enValidacion.filter((d) => !isDepositAntiguo(d)),
-      antiguos: enValidacion.filter((d) => isDepositAntiguo(d)),
+      normales: enValidacion.filter((d) => !isDepositVisiblyAntiguo(d)),
+      antiguos: enValidacion.filter((d) => isDepositVisiblyAntiguo(d)),
     };
   }, [groupedDeposits]);
 
