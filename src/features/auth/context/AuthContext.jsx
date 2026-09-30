@@ -182,7 +182,7 @@ export function AuthProvider({ children }) {
 
       return { data: { user: normalizedUser }, error: null };
     } catch (error) {
-      const message = error.status === 401 ? "Numero de telefono o contrasena incorrectos." : error.message;
+      const message = error.status === 401 ? "DNI o contraseña incorrectos." : error.message;
       return { data: null, error: { message } };
     }
   };
@@ -192,20 +192,6 @@ export function AuthProvider({ children }) {
     setCurrentUser(null);
     setUsers([]);
     setAuthSession(null);
-  };
-
-  const register = async (fullName, email, password) => {
-    try {
-      const response = await apiPost("/auth/register", {
-        fullName,
-        email,
-        password,
-      });
-
-      return { data: response?.data || null, error: null };
-    } catch (error) {
-      return { data: null, error: { message: error.message } };
-    }
   };
 
   // PUT /v1/masters/profiles/{id} reemplaza el perfil completo (solo admin),
@@ -305,7 +291,6 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
-    register,
     users,
     updateUserProfile,
     createUserProfile,
