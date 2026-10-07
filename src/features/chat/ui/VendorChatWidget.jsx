@@ -12,6 +12,7 @@ import {
   CheckCheck,
   Receipt,
   ExternalLink,
+  Reply,
 } from "lucide-react";
 import { AuthContext } from "../../auth/context/AuthContext.jsx";
 import { getActiveDepositSignalRConnection } from "../../../services/signalrService.js";
@@ -23,11 +24,17 @@ import {
 } from "../api/vendorChatApi.js";
 import { fetchDepositsByVendedor } from "../../deposits/api/depositsApi.js";
 
-// Cuántos días hacia atrás se piden los vouchers del vendedor al abrir su
-// conversación (ver AskUserQuestion: "solo los últimos N días", no todo el
-// historial). No es paginable como los mensajes -- se vuelve a pedir
-// completo cada vez que se abre/recarga la conversación.
-const VOUCHER_DIAS_ATRAS = 30;
+// Ventana de días visible al abrir una conversación (mensajes + vouchers).
+// Mostrar todo el historial de golpe sobrecargaba el widget, así que se
+// arranca con los últimos DIAS_INICIALES y el botón "Cargar más" va
+// sumando de a un día (DIAS_POR_CLICK) hasta DIAS_MAXIMOS.
+const DIAS_INICIALES = 2;
+const DIAS_POR_CLICK = 1;
+const DIAS_MAXIMOS = 30;
+const MS_POR_DIA = 24 * 60 * 60 * 1000;
+// Tope de páginas de 50 mensajes que se piden en una sola carga, para que
+// un vendedor con muchísimo chat no dispare decenas de requests seguidos.
+const MAX_PAGINAS_HISTORIAL = 20;
 
 // Roles que pueden ver este widget (finanzas/admin). Los vendedores usan la
 // app movil (CONFIRMO), no este panel — pero por las dudas de que alguna vez
@@ -95,6 +102,71 @@ function buildVoucherTimelineItem(deposit) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Responder a un mensaje (estilo WhatsApp). El backend no tiene un campo
+// "reply_to" en VendedorMessage (solo Content + MessageType), así que la cita
+// viaja DENTRO del texto con un formato legible:
+//
+//   > Autor: texto citado
+//   respuesta real
+//
+// Este widget lo detecta y lo dibuja como tarjeta de cita; cualquier otro
+// cliente (p. ej. la app móvil) lo ve como texto plano con la línea citada
+// arriba, que sigue siendo entendible. Si algún día el backend suma un campo
+// de respuesta, solo hay que cambiar estas dos funciones.
+// ---------------------------------------------------------------------------
+const QUOTE_REGEX = /^> ([^:\n]{1,40}): ([^\n]*)\n([\s\S]*)$/;
+const QUOTE_MAX_CHARS = 80;
+
+function buildQuotedContent(quote, body) {
+  if (!quote) return body;
+  const snippet = String(quote.text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, QUOTE_MAX_CHARS);
+  const author = String(quote.author || "").replace(/[:\n]/g, " ").trim().slice(0, 40) || "Mensaje";
+  return `> ${author}: ${snippet}\n${body}`;
+}
+
+function parseQuotedContent(content) {
+  const match = QUOTE_REGEX.exec(String(content || ""));
+  if (!match) return { quote: null, body: content };
+  return { quote: { author: match[1], text: match[2] }, body: match[3] };
+}
+
+function firstName(name) {
+  return String(name || "").trim().split(/\s+/)[0] || "Vendedor";
+}
+
+function QuoteBlock({ quote, outgoing }) {
+  return (
+    <div
+      className={`mb-1 rounded-md border-l-4 px-2 py-1 text-xs ${
+        outgoing
+          ? "border-[#075E54] bg-black/5 dark:bg-white/10"
+          : "border-[#34b7f1] bg-gray-100 dark:bg-gray-700/60"
+      }`}
+    >
+      <p className="font-semibold text-[#075E54] dark:text-emerald-300">{quote.author}</p>
+      <p className="line-clamp-2 text-gray-600 dark:text-gray-300">{quote.text}</p>
+    </div>
+  );
+}
+
+function ReplyButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Responder"
+      aria-label="Responder"
+      className="self-center opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 rounded-full p-1 text-gray-500 hover:bg-black/10 dark:text-gray-400 dark:hover:bg-white/10"
+    >
+      <Reply size={14} />
+    </button>
+  );
+}
+
 function formatFechaDeposito(fechaDeposito) {
   if (!fechaDeposito) return null;
   try {
@@ -118,13 +190,13 @@ function formatFechaDeposito(fechaDeposito) {
 // suelta). Mantiene la miniatura arriba -- finanzas sigue necesitando ver
 // la imagen real del comprobante -- pero agrega el detalle del depósito en
 // un bloque tipo ticket (fuente monoespaciada, separadores punteados).
-function VoucherBubble({ deposit }) {
+function VoucherBubble({ deposit, onReply }) {
   const badgeClass =
     ESTADO_BADGE_CLASS[deposit.estado] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
   const fechaVoucher = formatFechaDeposito(deposit.fecha_deposito);
 
   return (
-    <div className="flex justify-start mb-2">
+    <div className="group flex justify-start mb-2 gap-1">
       <div className="max-w-[80%] rounded-2xl rounded-bl-sm overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
         {deposit.imagen_voucher && (
           <a
@@ -201,11 +273,23 @@ function VoucherBubble({ deposit }) {
           {formatTime(deposit.fecha_registro_original || deposit.fecha_registro)}
         </div>
       </div>
+      {onReply && (
+        <ReplyButton
+          onClick={() =>
+            onReply({
+              author: "Comprobante",
+              text: [formatMonto(deposit.monto, deposit.moneda), deposit.numero_operacion && `Op. ${deposit.numero_operacion}`]
+                .filter(Boolean)
+                .join(" · "),
+            })
+          }
+        />
+      )}
     </div>
   );
 }
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, vendedorNombre, onReply }) {
   if (message.senderType === "system") {
     return (
       <div className="flex justify-center my-1">
@@ -217,9 +301,24 @@ function MessageBubble({ message }) {
   }
 
   const isFinance = message.senderType === "finance";
+  const { quote, body } = parseQuotedContent(message.content);
+
+  const replyButton = onReply && (
+    <ReplyButton
+      onClick={() =>
+        onReply({
+          author: isFinance ? "Finanzas" : firstName(vendedorNombre),
+          // Si este mensaje a su vez era una respuesta, se cita solo su texto
+          // propio (no la cita anidada) -- igual que WhatsApp.
+          text: body,
+        })
+      }
+    />
+  );
 
   return (
-    <div className={`flex ${isFinance ? "justify-end" : "justify-start"} mb-2`}>
+    <div className={`group flex ${isFinance ? "justify-end" : "justify-start"} mb-2 gap-1`}>
+      {isFinance && replyButton}
       <div
         className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words shadow-sm ${
           isFinance
@@ -227,7 +326,8 @@ function MessageBubble({ message }) {
             : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm"
         }`}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {quote && <QuoteBlock quote={quote} outgoing={isFinance} />}
+        <p className="whitespace-pre-wrap">{body}</p>
         <div
           className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
             isFinance ? "text-gray-600 dark:text-gray-300" : "text-gray-400 dark:text-gray-500"
@@ -243,6 +343,7 @@ function MessageBubble({ message }) {
           {message._failed && <span className="text-red-500 dark:text-red-300">no enviado</span>}
         </div>
       </div>
+      {!isFinance && replyButton}
     </div>
   );
 }
@@ -276,7 +377,19 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   const [vouchersLoading, setVouchersLoading] = useState(false);
   const [vouchersError, setVouchersError] = useState(null);
 
+  // Días hacia atrás que se muestran hoy (ver DIAS_INICIALES arriba) y estado
+  // del botón "Cargar más".
+  const [diasVisibles, setDiasVisibles] = useState(DIAS_INICIALES);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Id del último item del timeline: el auto-scroll al fondo solo debe
+  // dispararse cuando cambia (mensaje/voucher nuevo), no cuando se cargan
+  // items VIEJOS arriba -- si no, "Cargar más" te tiraría al final.
+  const lastTimelineIdRef = useRef(null);
+
   const [draft, setDraft] = useState("");
+  // Mensaje/voucher al que se está respondiendo ({ author, text }) o null.
+  const [replyingTo, setReplyingTo] = useState(null);
+  const draftInputRef = useRef(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
 
@@ -358,15 +471,39 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     setPendingVendorMatch(null);
   }, [pendingVendorMatch, vendedoresLoaded, vendedores]);
 
+  // Pide páginas de 50 mensajes (cursor `before`, el backend devuelve los más
+  // recientes primero y los reordena ascendente) y las va ANTEPONIENDO a
+  // `seed` hasta que el mensaje más viejo cargado llegue al cutoff o no
+  // queden más. El backend pagina por cantidad, no por días, así que la
+  // ventana de días se arma acá.
+  const fetchMessagesUntil = useCallback(async (vendedorId, cutoffMs, seed = [], seedHasMore = true) => {
+    let acc = seed;
+    let more = seedHasMore;
+    let pages = 0;
+    while (more && pages < MAX_PAGINAS_HISTORIAL) {
+      const oldest = acc[0];
+      if (oldest && new Date(oldest.createdAt).getTime() <= cutoffMs) break;
+      const { messages: page, hasMore: pageMore } = await fetchVendedorChatHistory(vendedorId, {
+        limit: 50,
+        before: oldest?.createdAt,
+      });
+      pages += 1;
+      more = !!pageMore;
+      if (page.length === 0) break;
+      acc = [...page, ...acc];
+    }
+    return { list: acc, hasMore: more };
+  }, []);
+
   const loadHistory = useCallback((vendedorId) => {
     if (!vendedorId) return;
     setMessages([]);
     setMessagesError(null);
     setMessagesLoading(true);
-    fetchVendedorChatHistory(vendedorId, { limit: 50 })
-      .then(({ messages: list, hasMore: more }) => {
+    fetchMessagesUntil(vendedorId, Date.now() - DIAS_INICIALES * MS_POR_DIA)
+      .then(({ list, hasMore: more }) => {
         setMessages(list);
-        setHasMore(!!more);
+        setHasMore(more);
       })
       .catch((error) => {
         setMessagesError(
@@ -376,7 +513,7 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
         );
       })
       .finally(() => setMessagesLoading(false));
-  }, []);
+  }, [fetchMessagesUntil]);
 
   // Carga el historial al seleccionar un vendedor.
   useEffect(() => {
@@ -384,12 +521,15 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     loadHistory(selectedVendedor.id);
   }, [selectedVendedor, loadHistory]);
 
-  const loadVouchers = useCallback((vendedorId) => {
+  // No limpia `vouchers` al arrancar: se vuelve a llamar cada vez que se
+  // amplía la ventana de días y vaciar la lista haría parpadear la
+  // conversación. La limpieza al cambiar de vendedor está en
+  // openVendedor/goBack.
+  const loadVouchers = useCallback((vendedorId, dias) => {
     if (!vendedorId) return;
-    setVouchers([]);
     setVouchersError(null);
     setVouchersLoading(true);
-    fetchDepositsByVendedor(vendedorId, { diasAtras: VOUCHER_DIAS_ATRAS })
+    fetchDepositsByVendedor(vendedorId, { diasAtras: dias })
       .then((deposits) => {
         // Salvaguarda client-side (ver comentario en fetchDepositsByVendedor):
         // si el backend todavía no filtra por vendedorId, acá se descarta
@@ -408,35 +548,89 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   }, []);
 
   // Carga los vouchers al seleccionar un vendedor (en paralelo al historial
-  // de texto de arriba).
+  // de texto de arriba) y de nuevo cada vez que se amplía la ventana.
   useEffect(() => {
     if (!selectedVendedor?.id) return;
-    loadVouchers(selectedVendedor.id);
-  }, [selectedVendedor, loadVouchers]);
+    loadVouchers(selectedVendedor.id, diasVisibles);
+  }, [selectedVendedor, diasVisibles, loadVouchers]);
 
   // Timeline unificado: mensajes de texto + vouchers, ordenados por fecha.
   // Es la pieza clave del pedido original ("simular la interfaz del
   // aplicativo móvil", donde se ven las imágenes intercaladas con el texto).
-  const timeline = useMemo(() => {
-    const messageItems = messages.map((message) => ({
-      kind: "message",
-      id: `message-${message.id}`,
-      timestamp: message.createdAt,
-      message,
-    }));
-    const voucherItems = vouchers.map(buildVoucherTimelineItem);
-    return [...messageItems, ...voucherItems].sort((a, b) => {
+  // Solo entra lo que cae dentro de la ventana de `diasVisibles` días; lo
+  // más viejo ya cargado queda guardado en `messages` y aparece al ampliar.
+  const cutoffMs = useMemo(
+    () => Date.now() - diasVisibles * MS_POR_DIA,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [diasVisibles, selectedVendedor]
+  );
+
+  const { timeline, hayMensajesOcultos } = useMemo(() => {
+    const dentroDeVentana = (iso) => {
+      const ts = iso ? new Date(iso).getTime() : 0;
+      return ts >= cutoffMs;
+    };
+    const messageItems = messages
+      .filter((message) => dentroDeVentana(message.createdAt))
+      .map((message) => ({
+        kind: "message",
+        id: `message-${message.id}`,
+        timestamp: message.createdAt,
+        message,
+      }));
+    const voucherItems = vouchers
+      .filter((deposit) =>
+        dentroDeVentana(deposit.fecha_registro_original || deposit.fecha_registro)
+      )
+      .map(buildVoucherTimelineItem);
+    const items = [...messageItems, ...voucherItems].sort((a, b) => {
       const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
       const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       return tsA - tsB;
     });
-  }, [messages, vouchers]);
+    return {
+      timeline: items,
+      hayMensajesOcultos: messageItems.length < messages.length,
+    };
+  }, [messages, vouchers, cutoffMs]);
 
-  // Auto-scroll al ultimo mensaje (o voucher).
-  useEffect(() => {
-    if (view === "conversation") {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  // "Cargar más" se ofrece mientras haya algo más que traer: mensajes
+  // viejos ya cargados pero ocultos, mensajes sin traer todavía (hasMore) o
+  // aún no se llegó al máximo de días de vouchers.
+  const puedeCargarMas = hayMensajesOcultos || hasMore || diasVisibles < DIAS_MAXIMOS;
+
+  const handleCargarMas = async () => {
+    if (!selectedVendedor?.id || loadingMore) return;
+    const nuevosDias = Math.min(diasVisibles + DIAS_POR_CLICK, DIAS_MAXIMOS);
+    setDiasVisibles(nuevosDias);
+    if (!hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const { list, hasMore: more } = await fetchMessagesUntil(
+        selectedVendedor.id,
+        Date.now() - nuevosDias * MS_POR_DIA,
+        messages,
+        hasMore
+      );
+      setMessages(list);
+      setHasMore(more);
+    } catch (error) {
+      setMessagesError(error?.message || "No se pudieron cargar más mensajes.");
+    } finally {
+      setLoadingMore(false);
     }
+  };
+
+  // Auto-scroll al ultimo mensaje (o voucher) solo cuando cambia el ÚLTIMO
+  // item del timeline. Al cargar items viejos arriba ("Cargar más") el último
+  // no cambia, así que no te manda al fondo.
+  useEffect(() => {
+    if (view !== "conversation") return;
+    const lastId = timeline.length ? timeline[timeline.length - 1].id : null;
+    if (lastId === lastTimelineIdRef.current) return;
+    lastTimelineIdRef.current = lastId;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [timeline, view]);
 
   // Listener de SignalR para el evento "ChatMessage". La conexion activa y
@@ -550,6 +744,13 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     setView("conversation");
     setSendError(null);
     setDraft("");
+    // Cada conversación arranca de nuevo con la ventana corta y sin restos
+    // de la anterior.
+    setDiasVisibles(DIAS_INICIALES);
+    setVouchers([]);
+    setHasMore(false);
+    setReplyingTo(null);
+    lastTimelineIdRef.current = null;
     setUnreadVendedorIds((prev) => {
       if (!prev.has(String(vendedor.id))) return prev;
       const next = new Set(prev);
@@ -566,14 +767,28 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     setSendError(null);
     setVouchers([]);
     setVouchersError(null);
+    setDiasVisibles(DIAS_INICIALES);
+    setHasMore(false);
+    setReplyingTo(null);
+    lastTimelineIdRef.current = null;
+  };
+
+  const handleReply = (quote) => {
+    setReplyingTo(quote);
+    draftInputRef.current?.focus();
   };
 
   const handleSend = async () => {
-    const content = draft.trim();
-    if (!content || !selectedVendedor?.id || sending) return;
+    const body = draft.trim();
+    if (!body || !selectedVendedor?.id || sending) return;
+    // Si se está respondiendo a algo, la cita se antepone al texto (ver
+    // buildQuotedContent). Ese string completo es lo que se manda y se
+    // guarda, así que el eco de SignalR coincide con el optimista.
+    const content = buildQuotedContent(replyingTo, body);
 
     setSending(true);
     setSendError(null);
+    setReplyingTo(null);
 
     const optimisticId = `local-${Date.now()}`;
     const optimisticMessage = {
@@ -774,10 +989,19 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                   </div>
                 )}
 
-                {!messagesLoading && !messagesError && hasMore && (
-                  <div className="flex justify-center mb-2">
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      Hay mensajes anteriores no cargados
+                {!messagesLoading && !messagesError && puedeCargarMas && (
+                  <div className="flex flex-col items-center gap-1 mb-3">
+                    <button
+                      type="button"
+                      onClick={handleCargarMas}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-800 px-3 py-1 text-xs font-medium text-[#075E54] dark:text-emerald-300 shadow-sm hover:bg-white disabled:opacity-60"
+                    >
+                      {loadingMore && <Loader2 size={12} className="animate-spin" />}
+                      Cargar más (+{DIAS_POR_CLICK} día)
+                    </button>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                      Mostrando los últimos {diasVisibles} días
                     </span>
                   </div>
                 )}
@@ -794,16 +1018,23 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                   <div className="flex flex-col items-center justify-center py-8 text-center px-4">
                     <MessageSquare size={22} className="text-gray-300 dark:text-gray-600 mb-2" />
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Todavía no hay mensajes ni vouchers de este vendedor.
+                      {puedeCargarMas
+                        ? `No hay mensajes ni vouchers en los últimos ${diasVisibles} días.`
+                        : "Todavía no hay mensajes ni vouchers de este vendedor."}
                     </p>
                   </div>
                 )}
 
                 {timeline.map((item) =>
                   item.kind === "voucher" ? (
-                    <VoucherBubble key={item.id} deposit={item.deposit} />
+                    <VoucherBubble key={item.id} deposit={item.deposit} onReply={handleReply} />
                   ) : (
-                    <MessageBubble key={item.id} message={item.message} />
+                    <MessageBubble
+                      key={item.id}
+                      message={item.message}
+                      vendedorNombre={selectedVendedor?.nombre}
+                      onReply={handleReply}
+                    />
                   )
                 )}
                 <div ref={messagesEndRef} />
@@ -813,8 +1044,27 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                 {sendError && (
                   <p className="text-xs text-red-500 mb-1.5 px-1">{sendError}</p>
                 )}
+                {replyingTo && (
+                  <div className="mb-1.5 flex items-start gap-2 rounded-lg border-l-4 border-[#34b7f1] bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-[#075E54] dark:text-emerald-300">
+                        Respondiendo a {replyingTo.author}
+                      </p>
+                      <p className="truncate text-gray-600 dark:text-gray-300">{replyingTo.text}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      aria-label="Cancelar respuesta"
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-end gap-2">
                   <textarea
+                    ref={draftInputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={handleKeyDown}
