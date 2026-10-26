@@ -50,7 +50,11 @@ function formatHour(date) {
 
 export function SystemPulseMonitor({ realtimeStatus }) {
   const health = useSystemHealth({ realtimeStatus });
-  const theme = THEME[health.status];
+  // Imágenes bloqueadas: el sistema funciona (no es "reconectando"), así que
+  // se muestra ámbar con su propia etiqueta para no confundir al usuario.
+  const theme = health.status === "degraded" && health.cause === "images"
+    ? { ...THEME.degraded, label: "Sin imágenes" }
+    : THEME[health.status];
 
   const tooltip = [
     `Estado: ${health.reason}`,
@@ -59,6 +63,9 @@ export function SystemPulseMonitor({ realtimeStatus }) {
       health.serverOk === null ? "verificando…" : health.serverOk ? `OK (${health.latencyMs} ms)` : "sin respuesta"
     }`,
     `Tiempo real: ${health.realtimeLabel}`,
+    `Imágenes: ${
+      health.imagesOk === null ? "verificando…" : health.imagesOk ? "OK" : "bloqueadas por la red (Google Storage)"
+    }`,
     `Última verificación: ${formatHour(health.lastCheckAt)}`,
     "Clic para verificar ahora",
   ].join("\n");
@@ -119,7 +126,9 @@ export function SystemPulseMonitor({ realtimeStatus }) {
             ? health.online
               ? "servidor caído"
               : "sin internet"
-            : health.latencyMs != null
+            : health.cause === "images"
+              ? "imágenes bloqueadas"
+              : health.latencyMs != null
               ? `${health.latencyMs} ms`
               : "verificando…"}
         </span>

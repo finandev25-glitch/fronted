@@ -10,6 +10,13 @@
  *     api-bridge (Program.cs: app.MapGet("/health", ...)).
  *  3. Tiempo real (SignalR) -> realtimeStatus que ya calcula
  *     useRealtimeDeposits.js y llega acá por props.
+ *  4. Imágenes (Google Cloud Storage) -> las fotos de los vouchers no vienen
+ *     del api-bridge: /deposits/{id}/image redirige a storage.googleapis.com.
+ *     Algunas redes corporativas bloquean ese dominio (pasó con la red de la
+ *     oficina: todo funcionaba menos las imágenes). Se prueba con un fetch
+ *     "no-cors" a storage.googleapis.com: si la red lo bloquea, el fetch
+ *     falla con error de red; si llega, resuelve (respuesta opaca, no
+ *     importa el contenido). No usa token ni depende de ningún depósito.
  *
  * Devuelve un estado único:
  *   "ok"        -> todo responde.
@@ -23,6 +30,7 @@ const HEALTH_INTERVAL_MS = 30000;
 const HEALTH_TIMEOUT_MS = 5000;
 const SLOW_RESPONSE_MS = 3000;
 const FAILURES_FOR_DOWN = 2;
+const STORAGE_PROBE_URL = "https://storage.googleapis.com/";
 
 // Estados de useRealtimeDeposits/signalrService.js que significan "el tiempo
 // real no está entregando actualizaciones ahora mismo".
@@ -56,13 +64,34 @@ export function useSystemHealth({ realtimeStatus = null, enabled = true } = {}) 
     failures: 0,
     lastCheckAt: null,
   });
+  // null = todavía no se probó; true = Google Storage alcanzable; false = bloqueado.
+  const [imagesOk, setImagesOk] = useState(null);
   const inFlightRef = useRef(false);
+
+  const checkImages = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+    try {
+      await fetch(STORAGE_PROBE_URL, {
+        method: "GET",
+        mode: "no-cors",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      setImagesOk(true);
+    } catch {
+      setImagesOk(false);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }, []);
 
   const checkHealth = useCallback(async () => {
     if (!enabled || inFlightRef.current) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     inFlightRef.current = true;
+    void checkImages();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
     const startedAt = performance.now();
@@ -87,7 +116,7 @@ export function useSystemHealth({ realtimeStatus = null, enabled = true } = {}) 
       clearTimeout(timeoutId);
       inFlightRef.current = false;
     }
-  }, [enabled]);
+  }, [enabled, checkImages]);
 
   // Internet del navegador + chequeo inmediato al recuperar conexión o al
   // volver a la pestaña (si estuvo en segundo plano, el dato puede ser viejo).
@@ -124,6 +153,9 @@ export function useSystemHealth({ realtimeStatus = null, enabled = true } = {}) 
   // ---- Estado combinado ----
   let status = "ok";
   let reason = "Todo en orden";
+  // Qué originó un estado "degraded" puntual que el componente quiera
+  // distinguir (por ahora solo "images").
+  let cause = null;
 
   if (!online) {
     status = "down";
@@ -140,6 +172,10 @@ export function useSystemHealth({ realtimeStatus = null, enabled = true } = {}) 
   } else if (REALTIME_NOT_READY.has(realtimeStatus)) {
     status = "degraded";
     reason = "Reconectando actualizaciones en tiempo real…";
+  } else if (imagesOk === false) {
+    status = "degraded";
+    cause = "images";
+    reason = "Las imágenes no cargan: la red bloquea Google Storage";
   } else if (api.latencyMs != null && api.latencyMs > SLOW_RESPONSE_MS) {
     status = "degraded";
     reason = "El servidor está respondiendo lento";
@@ -148,7 +184,10 @@ export function useSystemHealth({ realtimeStatus = null, enabled = true } = {}) 
   return {
     status,
     reason,
+    cause,
     online,
+    imagesOk,
+    imagesBlocked: online && api.ok === true && imagesOk === false,
     latencyMs: api.latencyMs,
     serverOk: api.ok,
     lastCheckAt: api.lastCheckAt,
