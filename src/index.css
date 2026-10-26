@@ -141,6 +141,46 @@
     }
   }
 
+  /* Monitor de estado del sistema (SystemPulseMonitor.jsx): el SVG del
+     electrocardiograma mide el doble del recuadro y se desplaza -50% en
+     bucle, así el trazo corre sin cortes. La duración la fija el componente
+     según el estado (latido normal vs. débil). */
+  @keyframes ecgScroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes ecgFlatBlink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  .ecg-scroll {
+    animation-name: ecgScroll;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  .ecg-flat-blink {
+    animation: ecgFlatBlink 1s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ecg-scroll,
+    .ecg-flat-blink {
+      animation: none;
+    }
+  }
+
   /* Fondo tipo WhatsApp (beige con puntitos / oscuro con puntitos) para el
      área de mensajes de VendorChatWidget.jsx -- pedido explícito de calcar
      la maqueta de un chat de WhatsApp real. Va en CSS puro (no Tailwind

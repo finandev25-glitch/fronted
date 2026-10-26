@@ -10,9 +10,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 import DailyAttendanceSummary from "../../../../shared/ui/DailyAttendanceSummary.jsx";
 import NotificationPermissionButton from "./NotificationPermissionButton.jsx";
+import SystemPulseMonitor from "./SystemPulseMonitor.jsx";
 
 export function KanbanToolbar({
   isCompactKanban,
+  showConnectionStatus = true,
+  connectionStatus,
   attendedUsersSummary,
   selectedValidatorFilter,
   handleValidatorFilterToggle,
@@ -73,9 +76,16 @@ export function KanbanToolbar({
             vez de reclamar una fila entera solo quando aplica (finanzas/admin
             + viendo el día de hoy). */}
         <div className="flex items-center justify-between gap-3">
-          <h2 className="whitespace-nowrap text-2xl font-bold text-gray-900 dark:text-zinc-100">
-            Kanban de Depósitos
-          </h2>
+          <div className="flex min-w-0 items-center gap-3">
+            <h2 className="whitespace-nowrap text-2xl font-bold text-gray-900 dark:text-zinc-100">
+              Kanban de Depósitos
+            </h2>
+            {/* Monitor de "signos vitales" del sistema (internet, servidor y
+                tiempo real). Oculto en el modo extensión / ventana compacta. */}
+            {showConnectionStatus && !isCompactKanban && (
+              <SystemPulseMonitor realtimeStatus={connectionStatus?.realtimeStatus} />
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {puedeTraerRezagados && viendoHoy && (
               <button
