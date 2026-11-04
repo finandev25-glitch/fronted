@@ -10,7 +10,32 @@ import {
 import RegularizeImageModal from "../features/deposits/components/RegularizeImageModal.jsx";
 import { useToast } from "./ToastProvider.jsx";
 import VoucherModal from "./VoucherModal.jsx";
-import { Download, Search, RefreshCw, History, Image as ImageIcon, UploadCloud } from "lucide-react";
+import { toLocalISOString } from "../utils/dateFormatters";
+import { Download, Search, RefreshCw, History, Image as ImageIcon, UploadCloud, ChevronLeft, ChevronRight } from "lucide-react";
+
+// Antes la vista traía TODO el historial en la primera carga y la tabla
+// crecía sin tope día a día. Ahora arranca con los últimos DEFAULT_DIAS días
+// y pagina de a PAGE_SIZE filas en el cliente. Los "Pendiente" (marcado) se
+// muestran SIEMPRE, sin importar el rango de fechas, porque son los que
+// todavía requieren acción -- un pendiente de hace 3 semanas no debe
+// esconderse solo por ser viejo.
+const DEFAULT_DIAS = 7;
+const PAGE_SIZE = 25;
+
+// "YYYY-MM-DD" en huso Lima de hace `dias` días (incluye hoy como día 1).
+function limaDateDaysAgo(dias) {
+  const hoy = toLocalISOString(new Date());
+  const [y, m, d] = hoy.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - (dias - 1));
+  return dt.toISOString().slice(0, 10);
+}
+
+const RANGOS_RAPIDOS = [
+  { key: "7", label: "7 días", dias: 7 },
+  { key: "30", label: "30 días", dias: 30 },
+  { key: "todo", label: "Todo", dias: null },
+];
 
 const ACCION_LABELS = {
   marcado: "Pendiente",
@@ -66,8 +91,9 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAccion, setFilterAccion] = useState("all");
   const [filterEmpresa, setFilterEmpresa] = useState("all");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [desde, setDesde] = useState(() => limaDateDaysAgo(DEFAULT_DIAS));
+  const [hasta, setHasta] = useState(() => toLocalISOString(new Date()));
+  const [page, setPage] = useState(1);
   const [zoomImage, setZoomImage] = useState(null);
   const [uploadRow, setUploadRow] = useState(null);
 
@@ -78,19 +104,44 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const empresaParam = filterEmpresa !== "all" ? { empresaId: filterEmpresa } : {};
+      const hayRango = Boolean(desde || hasta);
+
       // FIX: antes se armaba acá `${desde}T00:00:00.000Z` / `${hasta}T23:59:59.999Z`,
       // tratando las 00:00/23:59 de Lima como si ya fueran UTC -- "hasta"
       // terminaba cortando a las 18:59:59 hora Lima, no 23:59:59, y se
       // perdían regularizaciones de la noche. fetchRegularizacionesHistorial
       // ahora hace la conversión correcta (huso America/Lima) internamente,
       // así que acá solo se manda la fecha plana "YYYY-MM-DD".
-      if (desde) params.desde = desde;
-      if (hasta) params.hasta = hasta;
-      if (filterAccion !== "all") params.accion = filterAccion;
-      if (filterEmpresa !== "all") params.empresaId = filterEmpresa;
-      const data = await fetchRegularizacionesHistorial(params);
-      setRows(data);
+      const requests = [];
+
+      // 1) Lo del rango de fechas (salvo que se haya pedido solo "Pendiente",
+      //    que se resuelve abajo sin fechas).
+      if (filterAccion !== "marcado") {
+        const params = { ...empresaParam };
+        if (desde) params.desde = desde;
+        if (hasta) params.hasta = hasta;
+        if (filterAccion !== "all") params.accion = filterAccion;
+        requests.push(fetchRegularizacionesHistorial(params));
+      }
+
+      // 2) Pendientes siempre, sin importar fechas (ver comentario arriba).
+      //    Si no hay rango, el pedido (1) ya los trae y no hace falta repetir.
+      if (filterAccion === "marcado" || (filterAccion === "all" && hayRango)) {
+        requests.push(fetchRegularizacionesHistorial({ ...empresaParam, accion: "marcado" }));
+      }
+
+      const results = await Promise.all(requests);
+      const byId = new Map();
+      results.flat().forEach((row) => byId.set(row.id, row));
+      // Pendientes primero (son los que requieren acción), luego por fecha.
+      const merged = [...byId.values()].sort((a, b) => {
+        const pa = a.accion === "marcado" ? 0 : 1;
+        const pb = b.accion === "marcado" ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      setRows(merged);
     } catch (err) {
       setError(err.message || "No se pudo cargar el historial.");
     } finally {
@@ -143,6 +194,38 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
       );
     });
   }, [rows, searchTerm]);
+
+  // Paginación en el cliente. Cualquier cambio de filtros o búsqueda vuelve a
+  // la página 1 para no quedar en una página que ya no existe.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterAccion, filterEmpresa, desde, hasta]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () => filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filteredRows, currentPage]
+  );
+  const rangeStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, filteredRows.length);
+
+  const rangoActivo = (() => {
+    if (!desde && !hasta) return "todo";
+    const hoy = toLocalISOString(new Date());
+    const match = RANGOS_RAPIDOS.find((r) => r.dias && desde === limaDateDaysAgo(r.dias) && hasta === hoy);
+    return match ? match.key : null;
+  })();
+
+  const aplicarRango = (rango) => {
+    if (!rango.dias) {
+      setDesde("");
+      setHasta("");
+      return;
+    }
+    setDesde(limaDateDaysAgo(rango.dias));
+    setHasta(toLocalISOString(new Date()));
+  };
 
   const handleExportExcel = () => {
     const dataToExport = filteredRows.map((row) => ({
@@ -255,6 +338,30 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
         />
       </div>
 
+      {/* Rangos rápidos + aviso de que los pendientes se ven siempre */}
+      <div className="-mt-3 mb-4 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-gray-500 dark:text-gray-400">Rango:</span>
+        {RANGOS_RAPIDOS.map((rango) => (
+          <button
+            key={rango.key}
+            type="button"
+            onClick={() => aplicarRango(rango)}
+            className={`rounded-full border px-3 py-1 font-medium transition-colors ${
+              rangoActivo === rango.key
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            }`}
+          >
+            {rango.label}
+          </button>
+        ))}
+        {(filterAccion === "all" || filterAccion === "marcado") && (desde || hasta) && (
+          <span className="ml-1 text-gray-500 dark:text-gray-400">
+            · Los <span className="font-semibold text-purple-700 dark:text-purple-300">pendientes</span> se muestran siempre, sin importar la fecha.
+          </span>
+        )}
+      </div>
+
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
           {error}
@@ -281,7 +388,7 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateTime(row.createdAt)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDateOnly(row.fechaDeposito)}</td>
@@ -367,6 +474,37 @@ const RegularizacionesHistorialView = ({ empresas = [] }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {filteredRows.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-gray-200 px-4 py-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:text-gray-400">
+            <span>
+              Mostrando <span className="font-medium text-gray-900 dark:text-gray-200">{rangeStart}–{rangeEnd}</span> de{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-200">{filteredRows.length}</span> registros
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                <ChevronLeft size={14} /> Anterior
+              </button>
+              <span className="px-1">
+                Página {currentPage} de {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                Siguiente <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {zoomImage && (

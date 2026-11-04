@@ -3206,6 +3206,9 @@ const DepositDetailModal = ({
                           deposit.banco?.abreviatura || deposit.banco?.nombre || "",
                         monto: editableData.monto || deposit.monto,
                         deposit_id: deposit.id,
+                        // Niubiz exige tarjeta para confirmar desde el panel lateral.
+                        numeroTarjeta:
+                          editableData.numero_tarjeta || deposit.numero_tarjeta || "",
                         verificacionOcr,
                       })
                     }
@@ -3273,6 +3276,9 @@ const DepositDetailModal = ({
                           deposit.banco?.abreviatura || deposit.banco?.nombre || "",
                         monto: editableData.monto || deposit.monto,
                         deposit_id: deposit.id,
+                        // Niubiz exige tarjeta para confirmar desde el panel lateral.
+                        numeroTarjeta:
+                          editableData.numero_tarjeta || deposit.numero_tarjeta || "",
                         verificacionOcr,
                       })
                     }

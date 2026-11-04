@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Voucher Side Panel",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Panel lateral persistente para ver el voucher y los datos clave del depósito.",
   "browser_specific_settings": {
     "gecko": {

@@ -72,6 +72,78 @@ window.addEventListener("message", (event) => {
   }
 });
 
+// ── Confirmar desde el side panel ───────────────────────────────────────────
+// El panel no tiene sesión propia: el background le pide a ESTA pestaña (la
+// pantalla principal del sistema) que confirme. Se reenvía a la app con el
+// CustomEvent "confirmo:queue-confirm"; la app responde con un acuse
+// ("confirmo:queue-confirm-ack", para saber que el Kanban está abierto) y
+// luego con el resultado ("confirmo:queue-confirm-result").
+const CONFIRM_ACK_TIMEOUT_MS = 2500;
+const CONFIRM_RESULT_TIMEOUT_MS = 60000;
+
+if (isExtensionContextValid()) {
+  try {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== "CONFIRMO_CONFIRM_REQUEST") return false;
+
+      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let acked = false;
+      let done = false;
+
+      const cleanup = () => {
+        clearTimeout(ackTimer);
+        clearTimeout(resultTimer);
+        window.removeEventListener("confirmo:queue-confirm-ack", onAck);
+        window.removeEventListener("confirmo:queue-confirm-result", onResult);
+      };
+      const finish = (result) => {
+        if (done) return;
+        done = true;
+        cleanup();
+        sendResponse(result);
+      };
+      const onAck = (event) => {
+        if (event?.detail?.requestId === requestId) acked = true;
+      };
+      const onResult = (event) => {
+        if (event?.detail?.requestId !== requestId) return;
+        finish({ ok: !!event.detail.ok, message: event.detail.message || "" });
+      };
+
+      const ackTimer = setTimeout(() => {
+        if (!acked) {
+          finish({
+            ok: false,
+            noListener: true,
+            message: "Esta pestaña no tiene el Kanban abierto (o la pantalla principal está desactualizada).",
+          });
+        }
+      }, CONFIRM_ACK_TIMEOUT_MS);
+      const resultTimer = setTimeout(() => {
+        finish({
+          ok: false,
+          message: "La pantalla principal no respondió a tiempo. Revisa en el Kanban si el depósito quedó confirmado.",
+        });
+      }, CONFIRM_RESULT_TIMEOUT_MS);
+
+      window.addEventListener("confirmo:queue-confirm-ack", onAck);
+      window.addEventListener("confirmo:queue-confirm-result", onResult);
+      try {
+        window.dispatchEvent(
+          new CustomEvent("confirmo:queue-confirm", {
+            detail: { requestId, id: message.id, fields: message.fields || {} },
+          }),
+        );
+      } catch (error) {
+        finish({ ok: false, message: `No se pudo enviar el pedido a la página: ${error.message}` });
+      }
+      return true; // respuesta asíncrona
+    });
+  } catch (_error) {
+    // Contexto invalidado -- ver comentario junto a isExtensionContextValid.
+  }
+}
+
 // ── Canal de VUELTA extensión → página: cuando el usuario marca un depósito
 // como "atendido" en el side panel (mientras navega la página del banco),
 // eso se guarda en chrome.storage.local. Este content-script está inyectado

@@ -38,10 +38,66 @@ async function setQueueState(state) {
 
 // Reemplaza lo que hubiera antes -- ya no se acumula, un depósito nuevo
 // desplaza al que estaba mostrando el panel.
-async function addToQueue({ id, depositData }) {
+// sourceTabId = pestaña de la pantalla principal que mandó el depósito; se
+// usa para pedirle a ESA pestaña la confirmación (ver CONFIRM_QUEUE_ITEM).
+async function addToQueue({ id, depositData, sourceTabId = null }) {
   if (!id) return getQueueState();
   const nowIso = new Date().toISOString();
-  return setQueueState({ items: [{ id, depositData: depositData || null, addedAt: nowIso }] });
+  return setQueueState({
+    items: [{ id, depositData: depositData || null, addedAt: nowIso, sourceTabId }],
+  });
+}
+
+// Pestañas donde puede estar abierta la pantalla principal del sistema
+// (mismas que content_scripts en manifest.json, sin los bancos).
+const PORTAL_TAB_PATTERNS = [
+  "https://portal.tyresperu.com/*",
+  "https://*.gnfcio.easypanel.host/*",
+  "http://localhost:*/*",
+  "http://127.0.0.1:*/*",
+];
+
+// Confirmar desde el side panel: el panel no tiene sesión propia, así que se
+// le pide a la pestaña de la pantalla principal (content-script ->
+// CustomEvent -> la app, que confirma con su sesión). Primero la pestaña que
+// mandó el depósito; si ya no existe, cualquier otra pestaña del sistema.
+async function confirmQueueItemViaPortal({ id, fields }) {
+  const state = await getQueueState();
+  const item = (state.items || []).find((entry) => entry.id === id);
+
+  const tabIds = [];
+  if (item?.sourceTabId) tabIds.push(item.sourceTabId);
+  try {
+    const portalTabs = await chrome.tabs.query({ url: PORTAL_TAB_PATTERNS });
+    portalTabs.forEach((tab) => {
+      if (tab.id && !tabIds.includes(tab.id)) tabIds.push(tab.id);
+    });
+  } catch (error) {
+    console.warn("No se pudieron listar las pestañas del sistema:", error);
+  }
+
+  let lastMessage = "";
+  for (const tabId of tabIds) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, {
+        type: "CONFIRMO_CONFIRM_REQUEST",
+        id,
+        fields: fields || {},
+      });
+      if (response && !response.noListener) return response;
+      if (response?.message) lastMessage = response.message;
+    } catch (_error) {
+      // Pestaña sin content-script (recargada antes de instalar la
+      // extensión, cerrada, etc.) -- probar la siguiente.
+    }
+  }
+
+  return {
+    ok: false,
+    message:
+      lastMessage ||
+      "No se encontró la pantalla principal abierta. Abre el Kanban del sistema en otra pestaña (o recárgala) e inténtalo de nuevo.",
+  };
 }
 
 async function removeFromQueue({ id }) {
@@ -180,6 +236,119 @@ async function searchPlainTextInActiveTab(terms) {
   });
 
   return { ok: true, results: merged };
+}
+
+// ── Búsqueda de la CUENTA del anexo en la página del banco ─────────────────
+// Usada al elegir el Anexo en el panel y por el botón "Validar". Más tolerante
+// que searchPlainTextInActiveTab (que exige la frase exacta, ej. "Corriente
+// Soles 191-6661277-0-24"): la cuenta se compara SOLO POR DÍGITOS, así la
+// encuentra aunque el banco la muestre con otros guiones, espacios o sin el
+// texto "Corriente Soles" (mismo criterio que PortalPanelExtension). La
+// empresa se compara también sin puntos/espacios ("J.CH.COMERCIAL S.A." ==
+// "JCH COMERCIAL SA"). Si encuentra la cuenta, la resalta en verde y hace
+// scroll hasta ella.
+async function searchAccountInActiveTab({ empresaValidar, datoValidar }) {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab?.id) {
+    return { ok: false, message: "No hay una pestaña activa para buscar." };
+  }
+
+  let frameResults;
+  try {
+    frameResults = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      args: [empresaValidar || "", datoValidar || ""],
+      func: (empresa, dato) => {
+        const HL_ATTR = "data-voucher-account-hl";
+        const normalizeText = (value) =>
+          String(value || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+        const alnum = (value) => normalizeText(value).replace(/[^a-z0-9]/g, "");
+        const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
+
+        // Quitar el resaltado de una búsqueda anterior (restaura el estilo).
+        document.querySelectorAll(`[${HL_ATTR}]`).forEach((el) => {
+          el.style.outline = el.dataset.voucherPrevOutline || "";
+          el.style.background = el.dataset.voucherPrevBackground || "";
+          el.removeAttribute(HL_ATTR);
+          delete el.dataset.voucherPrevOutline;
+          delete el.dataset.voucherPrevBackground;
+        });
+
+        const bodyText = document.body ? document.body.innerText || "" : "";
+        const bodyNorm = normalizeText(bodyText);
+        const bodyAlnum = alnum(bodyText);
+
+        const empresaFound =
+          !empresa ||
+          bodyNorm.includes(normalizeText(empresa)) ||
+          (alnum(empresa) && bodyAlnum.includes(alnum(empresa)));
+
+        const accountDigits = onlyDigits(dato);
+        const datoTextFound = !!dato && bodyNorm.includes(normalizeText(dato));
+        const datoDigitsFound = accountDigits.length >= 7 && onlyDigits(bodyText).includes(accountDigits);
+
+        // Elemento más específico que contiene la cuenta, para resaltarlo.
+        let target = null;
+        if (accountDigits.length >= 7) {
+          const walker = document.createTreeWalker(document.body || document, NodeFilter.SHOW_TEXT);
+          let node = walker.nextNode();
+          const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "TEXTAREA"]);
+          while (node && !target) {
+            const parent = node.parentElement;
+            if (parent && !SKIP_TAGS.has(parent.tagName) && onlyDigits(node.textContent).includes(accountDigits)) {
+              target = parent;
+            }
+            node = walker.nextNode();
+          }
+          if (!target) {
+            // La cuenta puede venir partida en varios <span>: buscar el
+            // elemento más chico cuyo texto completo la contenga.
+            let best = null;
+            document.querySelectorAll("td, th, li, p, span, div, a, label, strong, b").forEach((el) => {
+              // Filtro barato primero (textContent no fuerza layout); luego
+              // innerText para ignorar <script>/<style> internos.
+              if ((el.textContent || "").length > 400) return;
+              const text = el.innerText || "";
+              if (!onlyDigits(text).includes(accountDigits)) return;
+              if (!best || text.length < (best.innerText || "").length) best = el;
+            });
+            target = best;
+          }
+        }
+
+        if (target) {
+          target.setAttribute(HL_ATTR, "1");
+          target.dataset.voucherPrevOutline = target.style.outline || "";
+          target.dataset.voucherPrevBackground = target.style.background || "";
+          target.style.outline = "3px solid #16a34a";
+          target.style.background = "#dcfce7";
+          target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+        }
+
+        return {
+          empresaFound,
+          datoFound: datoTextFound || datoDigitsFound || !!target,
+          frameUrl: location.href,
+        };
+      },
+    });
+  } catch (error) {
+    return { ok: false, message: `No se pudo buscar en esta pestaña: ${error?.message || error}` };
+  }
+
+  const results = (frameResults || []).map((frame) => frame?.result).filter(Boolean);
+  return {
+    ok: true,
+    empresaFound: results.some((r) => r.empresaFound),
+    datoFound: results.some((r) => r.datoFound),
+    tabUrl: tab.url || "",
+  };
 }
 
 async function searchInActiveTab(payload, searchType = "both") {
@@ -492,7 +661,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     (async () => {
-      const state = await addToQueue({ id: message.id, depositData: message.depositData });
+      const state = await addToQueue({
+        id: message.id,
+        depositData: message.depositData,
+        sourceTabId: sender?.tab?.id || null,
+      });
 
       if (sender?.tab?.id && chrome.sidePanel?.setOptions) {
         try {
@@ -531,6 +704,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "CONFIRM_QUEUE_ITEM") {
+    confirmQueueItemViaPortal({ id: message.id, fields: message.fields })
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error.message }));
+    return true;
+  }
+
   if (message.type === "EDIT_QUEUE_ITEM_FIELDS") {
     updateQueueItemFields({ id: message.id, fields: message.fields })
       .then((state) => sendResponse({ ok: true, state }))
@@ -538,19 +718,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === "SEARCH_ANEXO_VALIDATION_IN_PAGE") {
+  // Validación Anexo/Empresa vs. la página del banco. Antes usaba
+  // searchPlainTextInActiveTab (frase exacta); ahora searchAccountInActiveTab,
+  // que compara la cuenta por dígitos y la resalta -- mismo resultado
+  // {empresaFound, datoFound} para no tocar a quien lo llama.
+  if (message.type === "SEARCH_ANEXO_VALIDATION_IN_PAGE" || message.type === "SEARCH_ACCOUNT_IN_PAGE") {
     (async () => {
-      const terms = [message.empresaValidar, message.datoValidar].filter(Boolean);
-      const search = await searchPlainTextInActiveTab(terms);
-      if (!search.ok) {
-        sendResponse({ ok: false, message: search.message });
-        return;
-      }
-      sendResponse({
-        ok: true,
-        empresaFound: !!search.results[message.empresaValidar],
-        datoFound: !!search.results[message.datoValidar],
+      const search = await searchAccountInActiveTab({
+        empresaValidar: message.empresaValidar,
+        datoValidar: message.datoValidar,
       });
+      sendResponse(search);
     })().catch((error) => {
       sendResponse({ ok: false, message: error.message });
     });

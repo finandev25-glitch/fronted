@@ -350,6 +350,7 @@ function updateQueueItemDetailInPlace(inner, item, data) {
     monto: String(data.monto ?? data.importe ?? ""),
     numero_operacion_solicitante: data.numero_operacion_solicitante || data.numero_operacion || "",
     fecha_deposito: resolveDepositDate(data),
+    numeroTarjeta: data.numeroTarjeta || "",
   };
 
   inner.querySelectorAll("[data-field]").forEach((el) => {
@@ -362,6 +363,15 @@ function updateQueueItemDetailInPlace(inner, item, data) {
     if (el.value !== nextValue) el.value = nextValue;
     if (el.dataset.required && nextValue.trim()) el.classList.remove("is-invalid");
   });
+
+  // La fecha pudo cambiar desde la pantalla principal: recalcular el aviso.
+  updateFechaNote(inner);
+  // Si el anexo cambió desde afuera, el resultado de la búsqueda anterior ya
+  // no corresponde.
+  if ((inner.dataset.anexoChecked || "") !== (fieldValues.anexo || "") && inner.dataset.anexoChecked !== undefined) {
+    setAnexoStatus(inner, "", "");
+    delete inner.dataset.anexoChecked;
+  }
 
   const voucherUrl = normalizeVoucherUrl(data.voucherUrl || "");
   if (inner.dataset.voucherUrl !== voucherUrl) {
@@ -500,16 +510,31 @@ function wireEditInput(editEl, itemId) {
     editEl.addEventListener("change", clearInvalidIfFilled);
   }
 
+  let lastCommittedValue = editEl.value;
   const commit = () => {
     const field = editEl.dataset.field;
     const value = editEl.value;
+    // Un blur sin cambios igual guarda (como siempre), pero no dispara las
+    // comprobaciones ni oculta el resultado de "Validar" sin motivo.
+    const changed = value !== lastCommittedValue;
+    lastCommittedValue = value;
+
+    const inner = editEl.closest(".queue-item-detail-inner");
+    if (changed && inner) {
+      // Cualquier cambio deja vieja la última "Validación": se oculta para no
+      // mostrar un ✓ sobre datos que ya no son los que se validaron.
+      hideValidationReport(inner);
+      hideConfirmBar(inner);
+      if (field === "anexo") {
+        checkAnexoMonedaMismatch(inner, value);
+        // Al elegir el anexo, buscar su cuenta en la página del banco.
+        void runAnexoAccountCheck(inner);
+      }
+      if (field === "fecha_deposito") updateFechaNote(inner);
+    }
     if (field === "monto") {
       void saveQueueItemFields(itemId, { monto: value, importe: value });
       return;
-    }
-    if (field === "anexo") {
-      const inner = editEl.closest(".queue-item-detail-inner");
-      if (inner) checkAnexoMonedaMismatch(inner, value);
     }
     void saveQueueItemFields(itemId, { [field]: value });
   };
@@ -531,6 +556,342 @@ function wireEditInput(editEl, itemId) {
   }
 }
 
+// ── Validaciones del panel (fecha, cuenta del anexo, botón "Validar") ──────
+// Solo validan: la confirmación del depósito se sigue haciendo en la
+// pantalla principal del sistema.
+
+const REQUIRED_FIELD_LABELS = {
+  cliente: "Cliente",
+  bancoId: "Banco",
+  moneda: "Moneda",
+  anexo: "Anexo",
+  monto: "Importe",
+  numero_operacion_solicitante: "Nro. operación",
+  fecha_deposito: "Fecha depósito",
+  numeroTarjeta: "Nº de tarjeta (Niubiz)",
+};
+
+function isNiubizNombre(nombre) {
+  return String(nombre || "").trim().toUpperCase().startsWith("NIUBIZ");
+}
+
+function getFieldValue(inner, field) {
+  return String(inner.querySelector(`[data-field="${field}"]`)?.value || "").trim();
+}
+
+function formatDateDisplay(isoDate) {
+  const [y, m, d] = String(isoDate || "").split("-");
+  return y && m && d ? `${d}/${m}/${y}` : isoDate || "";
+}
+
+// Fecha del depósito vs. hoy: hoy = ok, anterior = aviso (se puede seguir,
+// pero hay que revisarla -- igual que el aviso de la pantalla principal),
+// futura = error (un voucher no puede tener fecha posterior a hoy).
+function evaluateFecha(value) {
+  if (!value) return { tone: "", text: "" };
+  const today = getTodayDateInputValue();
+  if (value === today) return { tone: "ok", text: "✓ Fecha de hoy." };
+  if (value > today) {
+    return { tone: "error", text: `✗ La fecha (${formatDateDisplay(value)}) es futura. Revisa el voucher.` };
+  }
+  return {
+    tone: "warning",
+    text: `⚠ La fecha (${formatDateDisplay(value)}) no es la de hoy. Revísala antes de confirmar.`,
+  };
+}
+
+function updateFechaNote(inner) {
+  const noteEl = inner.querySelector("[data-fecha-note]");
+  if (!noteEl) return;
+  const { tone, text } = evaluateFecha(getFieldValue(inner, "fecha_deposito"));
+  noteEl.textContent = text;
+  noteEl.className = `field-check-note${tone ? ` tone-${tone}` : ""}`;
+  noteEl.hidden = !text;
+}
+
+function setAnexoStatus(inner, tone, text) {
+  const statusEl = inner.querySelector("[data-anexo-status]");
+  if (!statusEl) return;
+  statusEl.textContent = text || "";
+  statusEl.className = `anexo-check-status${tone ? ` tone-${tone}` : ""}`;
+  statusEl.hidden = !text;
+}
+
+// Busca en la pestaña activa (la página del banco) la cuenta que corresponde
+// a la combinación Empresa + Anexo elegida (tabla ANEXO_VALIDATION_RULES,
+// la misma que usa la pantalla principal). Devuelve
+// { tone: "ok"|"warning"|"error", text } y lo pinta debajo de Anexo.
+async function runAnexoAccountCheck(inner) {
+  const anexo = getFieldValue(inner, "anexo");
+  const empresa = inner.dataset.empresa || "";
+  inner.dataset.anexoChecked = anexo;
+
+  if (!anexo) {
+    setAnexoStatus(inner, "", "");
+    return { tone: "error", text: "Falta elegir el anexo." };
+  }
+
+  const rule = findAnexoValidationRule(empresa, anexo);
+  if (!rule) {
+    const result = {
+      tone: "warning",
+      text: `Sin cuenta registrada para ${anexo} en ${empresa || "esta empresa"}: no se pudo validar en la página.`,
+    };
+    setAnexoStatus(inner, result.tone, result.text);
+    return result;
+  }
+
+  setAnexoStatus(inner, "", "Buscando la cuenta en la página del banco…");
+  let result;
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "SEARCH_ACCOUNT_IN_PAGE",
+      empresaValidar: rule.empresaValidar,
+      datoValidar: rule.datoValidar,
+    });
+    if (!response?.ok) {
+      result = { tone: "error", text: `No se pudo buscar en la página: ${response?.message || "error desconocido"}.` };
+    } else if (response.datoFound && response.empresaFound) {
+      result = { tone: "ok", text: `✓ Cuenta encontrada en la página: ${rule.datoValidar} (resaltada).` };
+    } else if (response.datoFound) {
+      result = {
+        tone: "warning",
+        text: `⚠ Se encontró la cuenta ${rule.datoValidar}, pero no el titular "${rule.empresaValidar}".`,
+      };
+    } else {
+      result = {
+        tone: "error",
+        text: `✗ No se encontró la cuenta ${rule.datoValidar} en la página. Revisa que estés en el banco correcto y que el anexo coincida con el voucher.`,
+      };
+    }
+  } catch (error) {
+    result = { tone: "error", text: `Error al buscar la cuenta: ${error.message}` };
+  }
+
+  // Si mientras buscaba el usuario cambió de anexo, no pisar el estado nuevo.
+  if (inner.dataset.anexoChecked === anexo) setAnexoStatus(inner, result.tone, result.text);
+  return result;
+}
+
+function getDomSearchPayload(inner, item) {
+  return getSearchPayloadFromDepositData({
+    ...(item?.depositData || {}),
+    monto: getFieldValue(inner, "monto"),
+    importe: getFieldValue(inner, "monto"),
+    numero_operacion_solicitante: getFieldValue(inner, "numero_operacion_solicitante"),
+  });
+}
+
+async function searchFieldInPage(inner, item, searchType) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "SEARCH_VOUCHER_IN_PAGE",
+      depositData: getDomSearchPayload(inner, item),
+      searchType,
+    });
+    return response || { ok: false, message: "Sin respuesta" };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+}
+
+function hideValidationReport(inner) {
+  const reportEl = inner.querySelector("[data-validation-report]");
+  if (reportEl) {
+    reportEl.hidden = true;
+    reportEl.innerHTML = "";
+  }
+}
+
+function renderValidationReport(inner, checks) {
+  const reportEl = inner.querySelector("[data-validation-report]");
+  if (!reportEl) return;
+  const hasError = checks.some((c) => c.tone === "error");
+  const hasWarning = checks.some((c) => c.tone === "warning");
+  const summaryTone = hasError ? "error" : hasWarning ? "warning" : "ok";
+  const summaryText = hasError
+    ? "Hay observaciones: corrígelas antes de confirmar en la pantalla principal."
+    : hasWarning
+      ? "Validado con advertencias: revísalas antes de confirmar en la pantalla principal."
+      : "Todo validado. Ya puedes confirmar el depósito en la pantalla principal.";
+  const icon = { ok: "✓", warning: "⚠", error: "✗", "": "•" };
+
+  reportEl.innerHTML = `
+    <div class="validation-summary tone-${summaryTone}">${escapeHtml(summaryText)}</div>
+    <ul class="validation-list">
+      ${checks
+        .map(
+          (c) =>
+            `<li class="tone-${c.tone || "info"}"><span class="validation-icon">${icon[c.tone] || "•"}</span><span><strong>${escapeHtml(c.label)}:</strong> ${escapeHtml(c.text)}</span></li>`,
+        )
+        .join("")}
+    </ul>`;
+  reportEl.hidden = false;
+}
+
+// Botón "Validar": revisa todo de una y muestra un resumen. No guarda ni
+// confirma nada (los campos ya se guardan solos al editarlos).
+async function runFullValidation(inner, item, button) {
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Validando…";
+  const checks = [];
+
+  try {
+    // 1. Campos obligatorios
+    const invalidEls = getInvalidRequiredFields(inner);
+    markRequiredFieldsValidity(inner, invalidEls);
+    if (invalidEls.length > 0) {
+      const faltan = invalidEls.map((el) => REQUIRED_FIELD_LABELS[el.dataset.field] || el.dataset.field);
+      checks.push({ label: "Campos", tone: "error", text: `faltan ${faltan.join(", ")}.` });
+    } else {
+      checks.push({ label: "Campos", tone: "ok", text: "completos." });
+    }
+
+    // 2. Anexo vs. moneda (sufijo MN = Soles, ME = Dólares)
+    const anexo = getFieldValue(inner, "anexo");
+    const moneda = getFieldValue(inner, "moneda");
+    const expectedMoneda = ANEXO_SUFFIX_TO_MONEDA[anexo.toUpperCase().slice(-2)];
+    if (anexo && moneda && expectedMoneda && expectedMoneda !== moneda) {
+      checks.push({
+        label: "Anexo y moneda",
+        tone: "error",
+        text: `el anexo ${anexo} es de ${MONEDA_LABEL[expectedMoneda]}, pero la moneda es ${MONEDA_LABEL[moneda] || moneda}.`,
+      });
+    } else if (anexo && moneda) {
+      checks.push({ label: "Anexo y moneda", tone: "ok", text: "coinciden." });
+    }
+
+    // 3. Fecha
+    const fecha = evaluateFecha(getFieldValue(inner, "fecha_deposito"));
+    if (fecha.text) {
+      checks.push({ label: "Fecha", tone: fecha.tone, text: fecha.text.replace(/^[✓⚠✗]\s*/, "") });
+    }
+
+    // 4. Importe y nro. de operación en la página del banco
+    if (getFieldValue(inner, "monto")) {
+      const r = await searchFieldInPage(inner, item, "amount");
+      checks.push(
+        r.found
+          ? { label: "Importe en la página", tone: "ok", text: `encontrado (${r.term}).` }
+          : { label: "Importe en la página", tone: "warning", text: r.message || "no se encontró en la página activa." },
+      );
+    }
+    if (getFieldValue(inner, "numero_operacion_solicitante")) {
+      const r = await searchFieldInPage(inner, item, "operation");
+      checks.push(
+        r.found
+          ? { label: "Nro. operación en la página", tone: "ok", text: `encontrado (${r.term}).` }
+          : { label: "Nro. operación en la página", tone: "warning", text: r.message || "no se encontró en la página activa." },
+      );
+    }
+
+    // 5. Cuenta del anexo en la página (al final, así queda resaltada en pantalla)
+    if (anexo) {
+      const r = await runAnexoAccountCheck(inner);
+      checks.push({ label: "Cuenta del anexo", tone: r.tone, text: r.text.replace(/^[✓⚠✗]\s*/, "") });
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+
+  renderValidationReport(inner, checks);
+  return checks;
+}
+
+// ── Confirmar desde el panel ──────────────────────────────────────────────
+// 1) Corre la misma "Validación"; si hay algún ✗, no deja seguir.
+// 2) Pide confirmación explícita (barra "¿Confirmar…?").
+// 3) Le pide a la pantalla principal (pestaña del sistema, que tiene la
+//    sesión) que confirme -- ver CONFIRM_QUEUE_ITEM en background.js y
+//    confirmFromPanelRef en KanbanPage.jsx. Al confirmarse, la app saca el
+//    depósito del panel sola.
+
+function hideConfirmBar(inner) {
+  const bar = inner.querySelector("[data-confirm-bar]");
+  if (bar) {
+    bar.hidden = true;
+    bar.innerHTML = "";
+  }
+}
+
+function collectConfirmFields(inner, item) {
+  const data = item?.depositData || {};
+  return {
+    anexo: getFieldValue(inner, "anexo"),
+    numeroOperacion: getFieldValue(inner, "numero_operacion_solicitante"),
+    empresaId: data.empresaId || "",
+    bancoId: getFieldValue(inner, "bancoId") || data.bancoId || "",
+    monto: getFieldValue(inner, "monto"),
+    moneda: getFieldValue(inner, "moneda"),
+    fechaDeposito: getFieldValue(inner, "fecha_deposito"),
+    cliente: getFieldValue(inner, "cliente"),
+    numeroTarjeta: getFieldValue(inner, "numeroTarjeta") || data.numeroTarjeta || "",
+  };
+}
+
+async function startConfirmFlow(inner, item, confirmBtn) {
+  hideConfirmBar(inner);
+  const checks = await runFullValidation(inner, item, confirmBtn);
+  if (checks.some((c) => c.tone === "error")) {
+    showToast("Corrige las observaciones marcadas con ✗ antes de confirmar.", "warning");
+    return;
+  }
+
+  const warnings = checks.filter((c) => c.tone === "warning").length;
+  const fields = collectConfirmFields(inner, item);
+  const simbolo = fields.moneda === "USD" ? "US$" : "S/";
+  const bar = inner.querySelector("[data-confirm-bar]");
+  if (!bar) return;
+
+  bar.innerHTML = `
+    <p class="confirm-bar-text">
+      ¿Confirmar el depósito <strong>${escapeHtml(simbolo)} ${escapeHtml(formatAmount(fields.monto))}</strong>
+      · Op. <strong>${escapeHtml(fields.numeroOperacion)}</strong>?
+      ${warnings ? `<br><span class="confirm-bar-warn">Tiene ${warnings} advertencia${warnings === 1 ? "" : "s"} (ver arriba).</span>` : ""}
+    </p>
+    <div class="confirm-bar-actions">
+      <button type="button" class="link-button confirm-bar-yes">Sí, confirmar</button>
+      <button type="button" class="link-button link-button--secondary confirm-bar-no">Cancelar</button>
+    </div>`;
+  bar.hidden = false;
+  bar.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  bar.querySelector(".confirm-bar-no").addEventListener("click", (event) => {
+    event.stopPropagation();
+    hideConfirmBar(inner);
+  });
+
+  const yesBtn = bar.querySelector(".confirm-bar-yes");
+  yesBtn.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    yesBtn.disabled = true;
+    yesBtn.textContent = "Confirmando…";
+    confirmBtn.disabled = true;
+    try {
+      const result = await chrome.runtime.sendMessage({
+        type: "CONFIRM_QUEUE_ITEM",
+        id: item.id,
+        fields: collectConfirmFields(inner, item),
+      });
+      if (result?.ok) {
+        showToast("Depósito confirmado");
+        // La app saca el depósito del panel; por si tarda, se limpia la barra.
+        hideConfirmBar(inner);
+      } else {
+        showToast(result?.message || "No se pudo confirmar el depósito.", "error");
+        hideConfirmBar(inner);
+      }
+    } catch (error) {
+      showToast(`No se pudo confirmar: ${error.message}`, "error");
+      hideConfirmBar(inner);
+    } finally {
+      confirmBtn.disabled = false;
+    }
+  });
+}
+
 function buildQueueItemDetailContent(item, data) {
   const inner = document.createElement("div");
   inner.className = "queue-item-detail-inner";
@@ -543,6 +904,8 @@ function buildQueueItemDetailContent(item, data) {
   inner.dataset.itemId = item.id;
   inner.dataset.bancoId = String(data.bancoId || "");
   inner.dataset.voucherUrl = voucherUrl;
+  // Empresa (solo lectura) para buscar la cuenta del anexo en la página.
+  inner.dataset.empresa = data.empresa || "";
   // Un solo campo de operación: numero_operacion_banco era un vestigio de un
   // sistema anterior, ya no se usa para nada -- backend/BD trabajan solo con
   // "numero_operacion" (acá guardado en data.numero_operacion_solicitante,
@@ -639,6 +1002,7 @@ function buildQueueItemDetailContent(item, data) {
         ${anexoFieldHtml}
       </div>
     </div>
+    <div class="anexo-check-status" data-anexo-status hidden></div>
 
     <div class="queue-item-fields queue-item-fields--trio">
       <div class="queue-item-field">
@@ -663,14 +1027,29 @@ function buildQueueItemDetailContent(item, data) {
         </span>
         <input type="date" class="queue-edit-input ${fechaVerifClass}" data-field="fecha_deposito" data-required="1" value="${escapeHtml(resolveDepositDate(data))}" title="${escapeHtml(fechaVerifTitle)}" />
         ${verifNoteHtml(fechaVerifTitle)}
+        <p class="field-check-note" data-fecha-note hidden></p>
       </div>
     </div>
+    ${
+      isNiubizNombre(data.banco)
+        ? `<div class="queue-item-fields">
+            <div class="queue-item-field">
+              <span class="label">Nº de tarjeta (Niubiz)</span>
+              <input type="text" class="queue-edit-input" data-field="numeroTarjeta" data-required="1" value="${escapeHtml(data.numeroTarjeta || "")}" placeholder="Número de tarjeta del pago" />
+            </div>
+          </div>`
+        : ""
+    }
     <div class="queue-item-search-status search-status">Busca por nro. operación o importe en la pestaña activa.</div>
 
     <div class="queue-item-actions">
+      <button type="button" class="link-button queue-item-validate-btn" title="Revisa campos, fecha, cuenta del anexo, importe y nro. de operación en la página del banco">Validar</button>
+      <button type="button" class="link-button queue-item-confirm-btn" title="Valida y confirma el depósito (usa la sesión de la pantalla principal, que debe estar abierta)">Confirmar</button>
       <button type="button" class="link-button queue-item-attend-btn">Guardar cambios</button>
       <button type="button" class="link-button queue-item-remove-btn">Quitar</button>
     </div>
+    <div class="validation-report" data-validation-report hidden></div>
+    <div class="confirm-bar" data-confirm-bar hidden></div>
 
     <div class="preview queue-item-preview${voucherUrl ? "" : " empty"}">
       <div class="queue-item-preview-media"></div>
@@ -766,6 +1145,24 @@ function buildQueueItemDetailContent(item, data) {
     // así que hace falta dispararlo a mano -- setear .value con JS no
     // dispara ningún evento solo.
     fechaEl.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  // Nota de fecha (hoy / anterior / futura): al pintar y en vivo mientras se
+  // cambia el <input type="date">.
+  updateFechaNote(inner);
+  inner.querySelector('[data-field="fecha_deposito"]')?.addEventListener("input", () => updateFechaNote(inner));
+
+  const validateBtn = inner.querySelector(".queue-item-validate-btn");
+  validateBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    hideConfirmBar(inner);
+    void runFullValidation(inner, item, validateBtn);
+  });
+
+  const confirmBtn = inner.querySelector(".queue-item-confirm-btn");
+  confirmBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void startConfirmFlow(inner, item, confirmBtn);
   });
 
   inner.querySelector(".queue-search-op-btn").addEventListener("click", (event) => {
@@ -878,7 +1275,10 @@ function renderVoucherPreview(container, voucherUrl) {
 
 async function runQueueItemSearch(item, searchType, inner) {
   const statusEl = inner.querySelector(".queue-item-search-status");
-  const payload = getSearchPayloadFromDepositData(item.depositData);
+  // FIX: antes buscaba con item.depositData, que es el dato de cuando se
+  // pintó el panel -- si el usuario corregía el importe/operación, la lupa
+  // seguía buscando el valor viejo. Ahora toma lo que se ve en los campos.
+  const payload = getDomSearchPayload(inner, item);
   statusEl.textContent =
     searchType === "amount"
       ? "Buscando importe en la pestaña activa..."

@@ -21,7 +21,12 @@ import {
 } from "../../../../utils/persistenceHelpers";
 import { KanbanToolbar } from "../../../../widgets/deposits-kanban-board/ui/KanbanToolbar.jsx";
 import { KanbanColumns } from "../../../../widgets/deposits-kanban-board/ui/KanbanColumns.jsx";
-import { fetchDepositById, pullRezagadosAHoy } from "../../api/depositsApi.js";
+import {
+  fetchDepositById,
+  pullRezagadosAHoy,
+  checkDuplicate,
+  confirmDeposit,
+} from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
 import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
@@ -118,6 +123,10 @@ const KanbanPage = ({
 }) => {
   const { currentUser, users } = useContext(AuthContext);
   const toast = useToast();
+  // Confirmación pedida desde el side panel de AppExtension (botón
+  // "Confirmar" del panel). Se implementa más abajo (confirmFromPanelRef.current
+  // = ...) porque necesita handleUpdateDepositFromModal, que se declara después.
+  const confirmFromPanelRef = useRef(null);
   const depositQueue = useDepositQueue({
     deposits,
     cuentas,
@@ -125,6 +134,10 @@ const KanbanPage = ({
     currentUser,
     onTakeDeposit,
     onUnlockDeposit,
+    onConfirmFromPanel: (depositId, fields) =>
+      confirmFromPanelRef.current
+        ? confirmFromPanelRef.current(depositId, fields)
+        : Promise.resolve({ ok: false, message: "La pantalla principal todavía está cargando." }),
   });
   // Candado con vencimiento de 4 min: libera proactivamente mis propios
   // depósitos tomados si se pasaron de tiempo sin confirmar (ver
@@ -811,6 +824,127 @@ const KanbanPage = ({
     if (selectedDepositRef.current?.id !== unlockedDeposit.id) return;
     clearOpenDepositId();
     setSelectedDeposit(null);
+  };
+
+  // Confirmar desde el side panel de AppExtension. Mismas validaciones que el
+  // botón Confirmar del detalle (useDepositActions.js): campos obligatorios,
+  // número de tarjeta si es Niubiz, anexo vs. moneda y duplicados; luego
+  // POST /confirm con la sesión de esta página. Los datos vienen del panel
+  // (lo que el usuario dejó en sus campos); lo que falte se toma del depósito.
+  // Se reasigna en cada render para ver siempre deposits/bancos/usuario actuales.
+  confirmFromPanelRef.current = async (depositId, fields = {}) => {
+    if (!currentUser) {
+      return { ok: false, message: "No hay una sesión iniciada en la pantalla principal." };
+    }
+
+    let deposit = (deposits || []).find((d) => String(d.id) === String(depositId));
+    if (!deposit) {
+      try {
+        deposit = await fetchDepositById(depositId);
+      } catch {
+        deposit = null;
+      }
+    }
+    if (!deposit) {
+      return { ok: false, message: "No se encontró el depósito en la pantalla principal." };
+    }
+    if (deposit.estado !== "procesado") {
+      return { ok: false, message: `El depósito ya no está pendiente (estado: ${deposit.estado}).` };
+    }
+    if (
+      deposit.validado_por &&
+      String(deposit.validado_por).toLowerCase() !== String(currentUser.id).toLowerCase()
+    ) {
+      return { ok: false, message: "Este depósito está siendo validado por otro usuario." };
+    }
+
+    const data = {
+      anexo: String(fields.anexo || deposit.anexo || "").trim(),
+      numeroOperacion: String(fields.numeroOperacion || deposit.numero_operacion || "").trim(),
+      empresaId: fields.empresaId || deposit.empresa_id || deposit.empresa?.id || "",
+      bancoId: fields.bancoId || deposit.banco_id || deposit.banco?.id || "",
+      monto: fields.monto !== undefined && fields.monto !== "" ? fields.monto : deposit.monto,
+      moneda: fields.moneda || deposit.moneda || "",
+      fechaDeposito: fields.fechaDeposito || deposit.fecha_deposito || "",
+      cliente: fields.cliente || deposit.cliente || "",
+      numeroTarjeta: String(fields.numeroTarjeta || deposit.numero_tarjeta || "").trim(),
+    };
+
+    const banco =
+      (bancos || []).find((b) => String(b.id).toLowerCase() === String(data.bancoId).toLowerCase()) ||
+      deposit.banco;
+    const missing = [];
+    if (!data.empresaId) missing.push("Empresa");
+    if (!data.bancoId) missing.push("Banco");
+    if (!data.anexo) missing.push("Anexo");
+    if (!data.moneda) missing.push("Moneda");
+    if (data.monto === undefined || data.monto === null || data.monto === "") missing.push("Importe");
+    if (!data.numeroOperacion) missing.push("Nro. operación");
+    if (!data.fechaDeposito) missing.push("Fecha");
+    if (isNiubizBanco(banco) && !data.numeroTarjeta) missing.push("Número de tarjeta");
+    if (missing.length > 0) {
+      return { ok: false, message: `Faltan datos: ${missing.join(", ")}.` };
+    }
+
+    const expectedMoneda = { MN: "PEN", ME: "USD" }[data.anexo.toUpperCase().slice(-2)];
+    if (expectedMoneda && expectedMoneda !== data.moneda) {
+      return { ok: false, message: `El anexo ${data.anexo} no corresponde a la moneda ${data.moneda}.` };
+    }
+
+    try {
+      const dup = await checkDuplicate({
+        monto: data.monto,
+        moneda: data.moneda,
+        numeroOperacion: data.numeroOperacion,
+        excludeId: deposit.id,
+      });
+      if (dup?.error) {
+        return { ok: false, message: `No se pudo comprobar duplicados: ${dup.error}` };
+      }
+      if (Array.isArray(dup?.duplicates) && dup.duplicates.length > 0) {
+        return {
+          ok: false,
+          message:
+            "Posible duplicado: ya hay un depósito confirmado con el mismo importe y nro. de operación. Revísalo en la pantalla principal.",
+        };
+      }
+
+      await confirmDeposit(deposit.id, data);
+    } catch (error) {
+      return { ok: false, message: error?.message || "No se pudo confirmar el depósito." };
+    }
+
+    // Mismo estado local que deja el Confirmar del detalle. handleUpdateDepositFromModal
+    // además saca el depósito del panel lateral (estado final).
+    handleUpdateDepositFromModal(
+      {
+        ...deposit,
+        estado: "confirmado",
+        motivo_rechazo: null,
+        validado_por: currentUser.id,
+        fecha_validacion: new Date().toISOString(),
+        empresa_id: data.empresaId,
+        banco_id: data.bancoId,
+        anexo: data.anexo,
+        monto: Number(data.monto),
+        moneda: data.moneda,
+        numero_operacion: data.numeroOperacion,
+        fecha_deposito: data.fechaDeposito,
+        cliente: data.cliente,
+        numero_tarjeta: data.numeroTarjeta || deposit.numero_tarjeta || null,
+      },
+      { skipPersist: true },
+    );
+
+    // Si su detalle estaba abierto acá, se cierra (sin "unlock": ya está
+    // confirmado), así el usuario no tiene que volver a esta pantalla.
+    if (selectedDepositRef.current?.id === deposit.id) {
+      clearOpenDepositId();
+      setSelectedDeposit(null);
+    }
+
+    toast.success(`Depósito ${data.numeroOperacion} confirmado desde el panel lateral.`);
+    return { ok: true, message: "Depósito confirmado." };
   };
 
   return (

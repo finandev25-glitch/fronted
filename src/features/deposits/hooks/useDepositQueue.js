@@ -78,6 +78,9 @@ function buildQueueDepositData(deposit, cuentas, bancos) {
     empresa: deposit?.empresa?.nombre || deposit?.empresa_nombre || "",
     bancoId: currentBancoId,
     estado: deposit?.estado,
+    // Niubiz exige número de tarjeta para confirmar (lo pide el side panel
+    // cuando el banco es NIUBIZ).
+    numeroTarjeta: deposit?.numero_tarjeta || "",
     // Para el temporizador de 4 min en el side panel (ver sidepanel.js) --
     // mismo campo que usa el Kanban (utils/depositLockHelpers.js).
     fechaBloqueo: deposit?.fecha_bloqueo || null,
@@ -101,8 +104,59 @@ export function useDepositQueue({
   currentUser,
   onTakeDeposit,
   onUnlockDeposit,
+  // (depositId, fields) => Promise<{ ok, message }>. Lo usa el botón
+  // "Confirmar" del side panel de AppExtension: el panel no tiene sesión
+  // propia, así que le pide a ESTA página (que sí la tiene) que confirme.
+  onConfirmFromPanel,
 } = {}) {
   const [queueItems, setQueueItems] = useState([]);
+  const onConfirmFromPanelRef = useRef(onConfirmFromPanel);
+
+  useEffect(() => {
+    onConfirmFromPanelRef.current = onConfirmFromPanel;
+  }, [onConfirmFromPanel]);
+
+  // Pedido de confirmación desde el side panel (AppExtension):
+  // panel -> background -> content-script -> CustomEvent "confirmo:queue-confirm"
+  // { requestId, id, fields }. La respuesta vuelve por
+  // "confirmo:queue-confirm-result" { requestId, ok, message }, que el
+  // content-script le devuelve al panel.
+  useEffect(() => {
+    const handleConfirmRequest = async (event) => {
+      const { requestId, id, fields } = event?.detail || {};
+      if (!requestId) return;
+
+      // Acuse inmediato: así la extensión sabe que esta pestaña SÍ atiende el
+      // pedido (si no llega, avisa "abre el Kanban" en vez de esperar de más).
+      try {
+        window.dispatchEvent(new CustomEvent("confirmo:queue-confirm-ack", { detail: { requestId } }));
+      } catch (_error) {
+        // ignorar
+      }
+
+      let result;
+      try {
+        result = onConfirmFromPanelRef.current
+          ? await onConfirmFromPanelRef.current(id, fields || {})
+          : { ok: false, message: "Abre el Kanban en la pantalla principal para confirmar desde el panel." };
+      } catch (error) {
+        result = { ok: false, message: error?.message || "No se pudo confirmar el depósito." };
+      }
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent("confirmo:queue-confirm-result", {
+            detail: { requestId, ok: !!result?.ok, message: result?.message || "" },
+          }),
+        );
+      } catch (_error) {
+        // ignorar en entornos sin CustomEvent
+      }
+    };
+
+    window.addEventListener("confirmo:queue-confirm", handleConfirmRequest);
+    return () => window.removeEventListener("confirmo:queue-confirm", handleConfirmRequest);
+  }, []);
 
   // Referencias "en vivo" para leer el último valor dentro del listener de
   // confirmo:queue-updated sin tener que recrear ese efecto en cada render.

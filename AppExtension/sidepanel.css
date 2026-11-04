@@ -548,6 +548,163 @@ select.queue-edit-input {
   background: linear-gradient(135deg, #ef4444, #dc2626);
 }
 
+/* Botón "Validar" (revisión interna) y "Confirmar" (confirma usando la
+   sesión de la pantalla principal). */
+.queue-item-validate-btn {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+}
+
+.queue-item-confirm-btn {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+/* Barra "¿Confirmar el depósito…?" */
+.confirm-bar {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+.confirm-bar-text {
+  margin: 0 0 6px;
+  color: #14532d;
+  line-height: 1.35;
+}
+
+.confirm-bar-warn {
+  color: #b45309;
+}
+
+.confirm-bar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.confirm-bar-actions .link-button {
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.confirm-bar-yes {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.confirm-bar-actions .link-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.queue-item-actions .link-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Aviso de fecha bajo el campo (hoy / anterior / futura) y estado de la
+   búsqueda de la cuenta del anexo en la página del banco. */
+.field-check-note,
+.anexo-check-status {
+  margin: 2px 0 0;
+  font-size: 9px;
+  line-height: 1.3;
+  color: #64748b;
+  white-space: normal;
+}
+
+.anexo-check-status {
+  margin: -2px 0 2px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
+.field-check-note.tone-ok,
+.anexo-check-status.tone-ok {
+  color: #15803d;
+}
+
+.field-check-note.tone-warning,
+.anexo-check-status.tone-warning {
+  color: #b45309;
+}
+
+.field-check-note.tone-error,
+.anexo-check-status.tone-error {
+  color: #b91c1c;
+}
+
+.anexo-check-status.tone-ok {
+  background: #dcfce7;
+}
+
+.anexo-check-status.tone-warning {
+  background: #fef3c7;
+}
+
+.anexo-check-status.tone-error {
+  background: #fee2e2;
+}
+
+/* Resultado del botón "Validar" */
+.validation-report {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #ffffff;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.validation-summary {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.validation-summary.tone-ok {
+  color: #15803d;
+}
+
+.validation-summary.tone-warning {
+  color: #b45309;
+}
+
+.validation-summary.tone-error {
+  color: #b91c1c;
+}
+
+.validation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.validation-list li {
+  display: flex;
+  gap: 4px;
+  color: #334155;
+}
+
+.validation-list .validation-icon {
+  flex: 0 0 12px;
+  font-weight: 700;
+}
+
+.validation-list li.tone-ok .validation-icon {
+  color: #16a34a;
+}
+
+.validation-list li.tone-warning .validation-icon {
+  color: #d97706;
+}
+
+.validation-list li.tone-error .validation-icon {
+  color: #dc2626;
+}
+
 @media (max-width: 420px) {
   .panel {
     padding: 8px;
