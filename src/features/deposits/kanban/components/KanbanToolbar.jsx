@@ -31,6 +31,7 @@ export function KanbanToolbar({
   setAmountSearch,
   branchPersonSearch,
   setBranchPersonSearch,
+  branchPersonLabel = "",
   onFetchDepositsByDate,
   puedeTraerRezagados = false,
   viendoHoy = false,
@@ -297,6 +298,23 @@ export function KanbanToolbar({
               )}
             </div>
 
+            {/* Filtro por persona activo (lo pone a mano "Más filtros" o el
+                chat de vendedores al tocar el nombre): visible con su ✕ para
+                que nadie se quede viendo un Kanban filtrado sin darse cuenta. */}
+            {branchPersonSearch && (
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                <span className="max-w-[14rem] truncate">Vendedor: {branchPersonLabel || branchPersonSearch}</span>
+                <button
+                  type="button"
+                  onClick={() => setBranchPersonSearch("")}
+                  className="rounded-full p-0.5 hover:bg-emerald-200/60 dark:hover:bg-emerald-800/60"
+                  aria-label="Quitar filtro de vendedor"
+                  title="Quitar filtro"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
             <div className="relative" ref={moreFiltersRef}>
               <button
                 type="button"

@@ -164,6 +164,40 @@ const KanbanPage = ({
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [amountSearch, setAmountSearch] = useState("");
   const [branchPersonSearch, setBranchPersonSearch] = useState("");
+  // Etiqueta legible del filtro "Persona sucursal" cuando lo puso el chat
+  // (ej. el nombre del vendedor en vez de su teléfono).
+  const [branchPersonLabel, setBranchPersonLabel] = useState("");
+  const depositsRef = useRef(deposits);
+  depositsRef.current = deposits;
+
+  // El chat de vendedores (VendorChatWidget) pide filtrar el Kanban por un
+  // vendedor al tocar su nombre. Se marca detail.handled para que el chat
+  // sepa que el Kanban está abierto y lo aplicó.
+  useEffect(() => {
+    const handleFilterPerson = (event) => {
+      const detail = event?.detail;
+      if (!detail?.value) return;
+      detail.handled = true;
+
+      // Se filtra por teléfono; si ningún depósito cargado tiene ese teléfono
+      // (el celular del usuario de la app puede no coincidir con el del
+      // solicitante), se intenta por nombre.
+      const value = String(detail.value).toLowerCase();
+      const nombre = String(detail.nombre || "").toLowerCase();
+      const coincide = (texto) =>
+        (depositsRef.current || []).some(
+          (d) =>
+            String(d.trabajador?.telefono_origen || "").toLowerCase().includes(texto) ||
+            String(d.trabajador?.nombre || "").toLowerCase().includes(texto),
+        );
+      const finalValue = coincide(value) || !nombre || !coincide(nombre) ? detail.value : detail.nombre;
+
+      setBranchPersonSearch(String(finalValue));
+      setBranchPersonLabel(String(detail.label || finalValue));
+    };
+    window.addEventListener("confirmo:filter-kanban-person", handleFilterPerson);
+    return () => window.removeEventListener("confirmo:filter-kanban-person", handleFilterPerson);
+  }, []);
   const [filterDateOption, setFilterDateOption] = useState("specific");
   const [specificDate, setSpecificDate] = useState(() => {
     const fecha = toLocalISOString(new Date());
@@ -902,10 +936,15 @@ const KanbanPage = ({
         return { ok: false, message: `No se pudo comprobar duplicados: ${dup.error}` };
       }
       if (Array.isArray(dup?.duplicates) && dup.duplicates.length > 0) {
+        const donde = dup.duplicates
+          .map((d) => d?.sucursal?.nombre || (typeof d?.sucursal === "string" ? d.sucursal : ""))
+          .filter(Boolean);
         return {
           ok: false,
           message:
-            "Posible duplicado: ya hay un depósito confirmado con el mismo importe y nro. de operación. Revísalo en la pantalla principal.",
+            `DUPLICADO: ya hay ${dup.duplicates.length} depósito(s) confirmado(s) con el mismo importe, moneda y nro. de operación` +
+            (donde.length ? ` (sucursal: ${[...new Set(donde)].join(", ")})` : "") +
+            ". No se confirmó. Revísalo en la pantalla principal.",
         };
       }
 
@@ -969,7 +1008,12 @@ const KanbanPage = ({
           amountSearch={amountSearch}
           setAmountSearch={setAmountSearch}
           branchPersonSearch={branchPersonSearch}
-          setBranchPersonSearch={setBranchPersonSearch}
+          setBranchPersonSearch={(value) => {
+            // Si se edita/limpia a mano, la etiqueta del chat ya no aplica.
+            setBranchPersonSearch(value);
+            setBranchPersonLabel("");
+          }}
+          branchPersonLabel={branchPersonLabel}
           onFetchDepositsByDate={onFetchDepositsByDate}
           puedeTraerRezagados={puedeTraerRezagados}
           viendoHoy={viendoHoy}

@@ -13,6 +13,13 @@ import {
   Receipt,
   ExternalLink,
   Reply,
+  Maximize2,
+  Minimize2,
+  Filter,
+  FileText,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
 } from "lucide-react";
 import { AuthContext } from "../../auth/context/AuthContext.jsx";
 import { getActiveDepositSignalRConnection } from "../../../services/signalrService.js";
@@ -41,6 +48,32 @@ const MAX_PAGINAS_HISTORIAL = 20;
 // un usuario con rol "vendedor" llegue a loguearse aca, el widget se oculta
 // para cualquier rol que no este en esta lista.
 const FINANCE_ROLES = ["admin", "finanzas"];
+
+const CHAT_EXPANDED_KEY = "confirmo-vendor-chat-expanded";
+
+// Filtra el Kanban por los depósitos de un vendedor. El Kanban (KanbanPage.jsx)
+// escucha "confirmo:filter-kanban-person" y pone el valor en el filtro
+// "Persona sucursal", que busca por nombre o teléfono del solicitante.
+// Se usa el teléfono (9 dígitos, sin 51) porque es lo que comparten el
+// usuario de la app y el solicitante del depósito; si no hay, el nombre.
+// detail.handled lo marca el Kanban: si queda en false es que no está abierto.
+function requestKanbanFilterByVendedor(vendedor) {
+  const phone = String(vendedor?.telefono || "").replace(/\D/g, "").replace(/^51(?=\d{9}$)/, "");
+  const value = phone || String(vendedor?.nombre || "").trim();
+  if (!value) return { handled: false, value: "" };
+  const detail = {
+    value,
+    nombre: String(vendedor?.nombre || "").trim(),
+    label: vendedor?.nombre || value,
+    handled: false,
+  };
+  try {
+    window.dispatchEvent(new CustomEvent("confirmo:filter-kanban-person", { detail }));
+  } catch {
+    // ignorar
+  }
+  return detail;
+}
 
 // Paleta calcada de WhatsApp (pedido explícito: "quiero una vista como la
 // imagen adjunta" -- maqueta de un chat de WhatsApp real). Se define acá
@@ -190,29 +223,104 @@ function formatFechaDeposito(fechaDeposito) {
 // suelta). Mantiene la miniatura arriba -- finanzas sigue necesitando ver
 // la imagen real del comprobante -- pero agrega el detalle del depósito en
 // un bloque tipo ticket (fuente monoespaciada, separadores punteados).
-function VoucherBubble({ deposit, onReply }) {
+// Visor flotante del voucher DENTRO del chat (antes "Ver completo" abría una
+// pestaña nueva del navegador). Se superpone a la conversación. Si la URL no
+// carga como imagen, se asume PDF y se muestra en un <iframe> (mismo criterio
+// que el side panel de la extensión). Clic en la imagen = acercar/alejar.
+function VoucherViewer({ url, title, onClose }) {
+  const [asPdf, setAsPdf] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const [rotation, setRotation] = useState(0);
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const iconBtn = "rounded-md p-1.5 text-white/80 hover:bg-white/10 hover:text-white";
+
+  return (
+    <div className="absolute inset-0 z-30 flex flex-col bg-gray-950/95" role="dialog" aria-label="Voucher">
+      <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+        <span className="flex-1 truncate text-sm font-semibold text-white">{title || "Voucher"}</span>
+        {!asPdf && (
+          <>
+            <button type="button" className={iconBtn} onClick={() => setZoomed((z) => !z)} title={zoomed ? "Alejar" : "Acercar"}>
+              {zoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+            </button>
+            <button type="button" className={iconBtn} onClick={() => setRotation((r) => (r + 90) % 360)} title="Rotar">
+              <RotateCw size={16} />
+            </button>
+          </>
+        )}
+        <a href={url} target="_blank" rel="noreferrer" className={iconBtn} title="Abrir en pestaña nueva">
+          <ExternalLink size={16} />
+        </a>
+        <button type="button" className={iconBtn} onClick={onClose} aria-label="Cerrar visor" title="Cerrar (Esc)">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className={`flex-1 ${zoomed ? "overflow-auto" : "overflow-hidden"} flex items-center justify-center p-2`}>
+        {asPdf ? (
+          <iframe src={url} title="Voucher" className="h-full w-full rounded bg-white" />
+        ) : (
+          <img
+            src={url}
+            alt="Voucher"
+            onError={() => setAsPdf(true)}
+            onClick={() => setZoomed((z) => !z)}
+            style={{ transform: `rotate(${rotation}deg)` }}
+            className={`transition-transform duration-200 ${
+              zoomed ? "max-w-none w-[200%] cursor-zoom-out" : "max-h-full max-w-full object-contain cursor-zoom-in"
+            }`}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VoucherBubble({ deposit, onReply, onOpenVoucher }) {
   const badgeClass =
     ESTADO_BADGE_CLASS[deposit.estado] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
   const fechaVoucher = formatFechaDeposito(deposit.fecha_deposito);
+  // La miniatura es un <img>: si el voucher es PDF no carga, y en vez de una
+  // imagen rota se muestra un recuadro "Documento PDF".
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const openViewer = () =>
+    onOpenVoucher?.({
+      url: deposit.imagen_voucher,
+      title: `${formatMonto(deposit.monto, deposit.moneda)}${deposit.numero_operacion ? ` · Op. ${deposit.numero_operacion}` : ""}`,
+    });
 
   return (
     <div className="group flex justify-start mb-2 gap-1">
       <div className="max-w-[80%] rounded-2xl rounded-bl-sm overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
         {deposit.imagen_voucher && (
-          <a
-            href={deposit.imagen_voucher}
-            target="_blank"
-            rel="noreferrer"
-            title="Ver voucher completo"
-            className="block"
+          <button
+            type="button"
+            onClick={openViewer}
+            title="Ver voucher"
+            className="block w-full cursor-zoom-in"
           >
-            <img
-              src={deposit.imagen_voucher}
-              alt="Voucher"
-              className="w-full max-h-40 object-cover bg-gray-100 dark:bg-gray-800"
-              loading="lazy"
-            />
-          </a>
+            {thumbFailed ? (
+              <div className="flex h-24 w-full items-center justify-center gap-2 bg-gray-100 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <FileText size={18} /> Documento PDF · toca para ver
+              </div>
+            ) : (
+              <img
+                src={deposit.imagen_voucher}
+                alt="Voucher"
+                className="w-full max-h-40 object-cover bg-gray-100 dark:bg-gray-800"
+                loading="lazy"
+                onError={() => setThumbFailed(true)}
+              />
+            )}
+          </button>
         )}
 
         <div className="px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-800 dark:text-gray-200">
@@ -257,14 +365,13 @@ function VoucherBubble({ deposit, onReply }) {
               {deposit.estado}
             </span>
             {deposit.imagen_voucher && (
-              <a
-                href={deposit.imagen_voucher}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={openViewer}
                 className="inline-flex items-center gap-0.5 text-[10px] font-sans text-blue-600 dark:text-blue-400 hover:underline"
               >
-                Ver completo <ExternalLink size={10} />
-              </a>
+                Ver completo <Maximize2 size={10} />
+              </button>
             )}
           </div>
         </div>
@@ -355,6 +462,30 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   const canUseChat = !!currentUser && FINANCE_ROLES.includes(role);
 
   const [isOpen, setIsOpen] = useState(false);
+  // Tamaño del chat: normal (esquina) o expandido. Se recuerda entre sesiones.
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(CHAT_EXPANDED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleExpanded = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(CHAT_EXPANDED_KEY, next ? "1" : "0");
+      } catch {
+        // localStorage no disponible: solo no se recuerda.
+      }
+      return next;
+    });
+  };
+  // Aviso breve bajo la cabecera tras tocar el nombre del vendedor.
+  const [filterNotice, setFilterNotice] = useState(null);
+  // Voucher abierto en el visor flotante dentro del chat ({ url, title }).
+  const [viewerVoucher, setViewerVoucher] = useState(null);
+  const closeViewer = useCallback(() => setViewerVoucher(null), []);
   const [view, setView] = useState("list"); // "list" | "conversation"
 
   const [vendedores, setVendedores] = useState([]);
@@ -750,6 +881,8 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
     setVouchers([]);
     setHasMore(false);
     setReplyingTo(null);
+    setFilterNotice(null);
+    setViewerVoucher(null);
     lastTimelineIdRef.current = null;
     setUnreadVendedorIds((prev) => {
       if (!prev.has(String(vendedor.id))) return prev;
@@ -847,19 +980,39 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
   return (
     <>
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 h-[30rem] max-h-[70vh] bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
+        <div
+          className={`fixed bottom-24 right-6 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden transition-[width,height] duration-200 ${
+            isExpanded
+              ? "w-[min(44rem,calc(100vw-3rem))] h-[calc(100vh-8rem)]"
+              : "w-80 sm:w-96 h-[30rem] max-h-[70vh]"
+          }`}
+        >
+          {viewerVoucher && view === "conversation" && (
+            <VoucherViewer url={viewerVoucher.url} title={viewerVoucher.title} onClose={closeViewer} />
+          )}
           {view === "list" ? (
             <>
               <div className={`flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 ${WA_HEADER_BG}`}>
                 <h3 className="text-sm font-semibold text-white">Chat con vendedores</h3>
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="text-white/80 hover:text-white"
-                  aria-label="Cerrar chat"
-                >
-                  <X size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleExpanded}
+                    className="text-white/80 hover:text-white"
+                    aria-label={isExpanded ? "Reducir chat" : "Agrandar chat"}
+                    title={isExpanded ? "Reducir" : "Agrandar"}
+                  >
+                    {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="text-white/80 hover:text-white"
+                    aria-label="Cerrar chat"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
@@ -954,9 +1107,32 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                 <div className="w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0">
                   {getInitials(selectedVendedor?.nombre)}
                 </div>
-                <h3 className="text-sm font-semibold text-white truncate flex-1">
-                  {selectedVendedor?.nombre || "Vendedor"}
-                </h3>
+                {/* El nombre filtra el Kanban por los depósitos de este vendedor */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const result = requestKanbanFilterByVendedor(selectedVendedor);
+                    setFilterNotice(
+                      result.handled
+                        ? { tone: "ok", text: `Kanban filtrado por ${result.label}. Para quitarlo, usa la ✕ del filtro en el Kanban.` }
+                        : { tone: "warn", text: "Abre el Kanban para filtrar los depósitos de este vendedor." },
+                    );
+                  }}
+                  className="group flex min-w-0 flex-1 items-center gap-1 text-left text-sm font-semibold text-white hover:underline"
+                  title="Ver en el Kanban solo los depósitos de este vendedor"
+                >
+                  <span className="truncate">{selectedVendedor?.nombre || "Vendedor"}</span>
+                  <Filter size={13} className="flex-shrink-0 opacity-70 group-hover:opacity-100" />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleExpanded}
+                  className="text-white/80 hover:text-white flex-shrink-0"
+                  aria-label={isExpanded ? "Reducir chat" : "Agrandar chat"}
+                  title={isExpanded ? "Reducir" : "Agrandar"}
+                >
+                  {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
@@ -966,6 +1142,25 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
                   <X size={18} />
                 </button>
               </div>
+              {filterNotice && (
+                <div
+                  className={`flex items-start justify-between gap-2 px-3 py-1.5 text-xs ${
+                    filterNotice.tone === "ok"
+                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+                      : "bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+                  }`}
+                >
+                  <span>{filterNotice.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => setFilterNotice(null)}
+                    className="flex-shrink-0 opacity-70 hover:opacity-100"
+                    aria-label="Cerrar aviso"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
 
               <div className="flex-1 overflow-y-auto p-3 wa-chat-wallpaper">
                 {messagesLoading && (
@@ -1027,7 +1222,12 @@ export default function VendorChatWidget({ currentUser: currentUserProp } = {}) 
 
                 {timeline.map((item) =>
                   item.kind === "voucher" ? (
-                    <VoucherBubble key={item.id} deposit={item.deposit} onReply={handleReply} />
+                    <VoucherBubble
+                      key={item.id}
+                      deposit={item.deposit}
+                      onReply={handleReply}
+                      onOpenVoucher={setViewerVoucher}
+                    />
                   ) : (
                     <MessageBubble
                       key={item.id}
