@@ -28,6 +28,7 @@ import {
   confirmDeposit,
 } from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
+import { logDepositEvent } from "../../../../services/depositEventLog.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
 import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
 import {
@@ -982,6 +983,9 @@ const KanbanPage = ({
       setSelectedDeposit(null);
     }
 
+    // Bitácora: el backend ya registra "confirmado"; acá se deja constancia
+    // de que vino del panel de la extensión (sin abrir el detalle).
+    logDepositEvent(deposit.id, "accion", { metadata: { accion: "confirmar_desde_extension" } });
     toast.success(`Depósito ${data.numeroOperacion} confirmado desde el panel lateral.`);
     return { ok: true, message: "Depósito confirmado." };
   };

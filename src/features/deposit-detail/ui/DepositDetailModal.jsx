@@ -5,6 +5,7 @@ import {
 import { useDepositForm } from "../hooks/useDepositForm.js";
 import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
+import { useDepositEventTracking } from "../hooks/useDepositEventTracking.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
 import ZoomableVoucherImage from "./ZoomableVoucherImage.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
@@ -143,6 +144,12 @@ const DepositDetailModal = ({
   const { currentUser, users } = useContext(AuthContext);
   const isBackendConnected = !!currentUser;
 
+  // Bitácora de horas-hombre: tiempo con el detalle abierto (total, visible
+  // y activo) y acciones clave. Ver useDepositEventTracking.js.
+  const { trackAction } = useDepositEventTracking(deposit, {
+    presentacion: isCompactPresentation ? "compacta" : "default",
+  });
+
   // 1. Hook de Formulario
   const {
     editableData,
@@ -254,6 +261,7 @@ const DepositDetailModal = ({
 
   // Utilidades que usaba el modal
   const openSqlMovementsModal = () => {
+    trackAction("consulta_sql");
     setIsSqlMovementsModalOpen(true);
   };
 
@@ -365,6 +373,7 @@ const DepositDetailModal = ({
   // se usa para confirmar/rechazar, además del mensaje que ya queda en la
   // barra de estado.
   const handleCheckDuplicatesWithFeedback = async () => {
+    trackAction("comprobar_duplicados");
     const result = await handleCheckDuplicates();
     if (result?.blocked) {
       showCompactToast(`❌ ${result.message}`, "error");
@@ -3006,6 +3015,7 @@ const DepositDetailModal = ({
                           <button
                             type="button"
                             onClick={() =>
+                              trackAction("abrir_chat") ||
                               window.dispatchEvent(
                                 new CustomEvent("confirmo:open-vendor-chat", {
                                   detail: {
@@ -3192,6 +3202,7 @@ const DepositDetailModal = ({
                 {displayVoucherUrl && (
                   <button
                     onClick={() =>
+                      trackAction("panel_lateral") ||
                       onOpenVoucherWindow(displayVoucherUrl, {
                         fecha_deposito:
                           editableData.fecha_deposito || deposit.fecha_deposito,
@@ -3262,6 +3273,7 @@ const DepositDetailModal = ({
                 {displayVoucherUrl && (
                   <button
                     onClick={() =>
+                      trackAction("panel_lateral") ||
                       onOpenVoucherWindow(displayVoucherUrl, {
                         fecha_deposito:
                           editableData.fecha_deposito || deposit.fecha_deposito,
