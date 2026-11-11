@@ -10,7 +10,7 @@ import { AuthContext } from "../context/AuthContext.jsx";
 const LAST_DNI_KEY = "control-depositos-last-dni";
 
 function AuthPage() {
-  const { login } = useContext(AuthContext);
+  const { login, sessionNotice } = useContext(AuthContext);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -158,6 +158,14 @@ function AuthPage() {
           <p className="mt-4 text-center text-xs text-gray-400 dark:text-gray-500">
             ¿Problemas para ingresar? Contacta al administrador del sistema.
           </p>
+
+          {/* Aviso de cierre automático (sesión vencida / 401 / otra
+              pestaña). Se oculta apenas aparece un error de login. */}
+          {sessionNotice && !error && (
+            <p className="mt-4 rounded-lg bg-amber-50 p-3 text-center text-sm text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              {sessionNotice}
+            </p>
+          )}
 
           <AnimatePresence>
             {error && (

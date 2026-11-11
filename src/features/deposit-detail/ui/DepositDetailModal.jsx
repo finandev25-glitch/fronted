@@ -21,6 +21,7 @@ import {
   getRechazoHistorialImagenUrl,
 } from "../../deposits/api/depositsApi.js";
 import RegularizeImageModal from "../../deposits/components/RegularizeImageModal.jsx";
+import ConfirmedDepositAdminPanel from "./ConfirmedDepositAdminPanel.jsx";
 import { useEscapeClose } from "../../../hooks/useEscapeClose.js";
 import React, {
   useState,
@@ -3076,6 +3077,21 @@ const DepositDetailModal = ({
                     Cargando historial de rechazos...
                   </div>
                 )}
+
+                {/* Corrección administrativa de depósitos CONFIRMADOS (solo
+                    admin) + historial de correcciones (finanzas/admin). Ver
+                    ConfirmedDepositAdminPanel.jsx. */}
+                <ConfirmedDepositAdminPanel
+                  deposit={deposit}
+                  empresas={empresas}
+                  bancos={bancos}
+                  cuentas={cuentas}
+                  isAdmin={userRolForRegularize === "admin"}
+                  canViewHistory={canRegularize}
+                  onDepositUpdated={(updated) =>
+                    onUpdateDeposit({ ...deposit, ...updated }, { skipPersist: true })
+                  }
+                />
 
                 {/* Mensaje de campos requeridos debajo del card Datos del Solicitante.
                     Se oculta mientras isDetailLoaded es false: recien sabemos

@@ -1,11 +1,20 @@
-import React, { createContext, useCallback, useEffect, useState } from "react";
+import React, { createContext, useCallback, useEffect, useRef, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../services/backendApi.js";
 import { getClaimsFromToken } from "../lib/jwt.js";
+import { SESSION_EXPIRED_EVENT } from "../../../services/sessionEvents.js";
 
 export const AuthContext = createContext();
 
 const SESSION_KEY = "control-depositos-auth-session";
 const CURRENT_USER_KEY = "control-depositos-current-user";
+
+export const SESSION_EXPIRED_MESSAGE = "Tu sesión expiró. Ingresa nuevamente para continuar.";
+// setTimeout no acepta más de ~24.8 días; para vencimientos más lejanos se
+// reprograma en tramos (en la práctica el token dura horas).
+const MAX_TIMEOUT_MS = 2_000_000_000;
+// Revisión periódica de respaldo: los timers se congelan si la PC entra en
+// suspensión o la pestaña queda en segundo plano mucho tiempo.
+const SESSION_CHECK_INTERVAL_MS = 30_000;
 
 function readStoredJSON(key) {
   try {
@@ -82,6 +91,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [authSession, setAuthSession] = useState(null);
+  // Mensaje para la pantalla de login cuando la sesión se cerró sola
+  // (token vencido, 401 del backend o cierre de sesión en otra pestaña).
+  const [sessionNotice, setSessionNotice] = useState("");
+  const expiringRef = useRef(false);
 
   const applySession = (accessToken, refreshToken, expiresInSeconds, user) => {
     const normalizedUser = buildUserFromLoginResponse(user, accessToken);
@@ -91,6 +104,8 @@ export function AuthProvider({ children }) {
       expires_at: Date.now() + Math.max(0, (expiresInSeconds || 0) * 1000),
     };
 
+    expiringRef.current = false;
+    setSessionNotice("");
     setCurrentUser(normalizedUser);
     setAuthSession(session);
     setUsers([normalizedUser]);
@@ -188,11 +203,81 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    setSessionNotice("");
     clearStoredAuth();
     setCurrentUser(null);
     setUsers([]);
     setAuthSession(null);
   };
+
+  // Cierre automático: limpia todo y deja el aviso para AuthPage. Al quedar
+  // currentUser en null, AppShell muestra la pantalla de login en lugar de
+  // la vista congelada.
+  const expireSession = useCallback((message = SESSION_EXPIRED_MESSAGE) => {
+    if (expiringRef.current) return;
+    expiringRef.current = true;
+    clearStoredAuth();
+    setSessionNotice(message);
+    setCurrentUser(null);
+    setUsers([]);
+    setAuthSession(null);
+  }, []);
+
+  // 1) Vencimiento por reloj: dispara justo cuando expira el token.
+  useEffect(() => {
+    if (!currentUser || !authSession?.expires_at) return undefined;
+    let timeoutId;
+    const schedule = () => {
+      const remaining = authSession.expires_at - Date.now();
+      if (remaining <= 0) {
+        expireSession();
+        return;
+      }
+      timeoutId = setTimeout(schedule, Math.min(remaining, MAX_TIMEOUT_MS));
+    };
+    schedule();
+    return () => clearTimeout(timeoutId);
+  }, [currentUser, authSession?.expires_at, expireSession]);
+
+  // 2) Respaldo: al volver a la pestaña / despertar la PC, y cada 30 s.
+  useEffect(() => {
+    if (!currentUser || !authSession?.expires_at) return undefined;
+    const check = () => {
+      if (Date.now() >= authSession.expires_at) expireSession();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    const intervalId = setInterval(check, SESSION_CHECK_INTERVAL_MS);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [currentUser, authSession?.expires_at, expireSession]);
+
+  // 3) El backend respondió 401 (token revocado, usuario desactivado, etc.).
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const onExpired = () => expireSession();
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, [currentUser, expireSession]);
+
+  // 4) Sesión cerrada en otra pestaña/ventana (incluida la ventana de
+  //    validación compacta): localStorage avisa con el evento "storage".
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const onStorage = (event) => {
+      if (event.key === SESSION_KEY && !event.newValue) {
+        expireSession("Se cerró la sesión. Ingresa nuevamente para continuar.");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [currentUser, expireSession]);
 
   // PUT /v1/masters/profiles/{id} reemplaza el perfil completo (solo admin),
   // asi que hay que partir del registro actual y aplicarle los cambios.
@@ -297,6 +382,7 @@ export function AuthProvider({ children }) {
     resetUserPassword,
     refreshUsers,
     authSession,
+    sessionNotice,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

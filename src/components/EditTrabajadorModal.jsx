@@ -1,18 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, User, Phone, Loader2 } from 'lucide-react';
+import { X, User, Phone, Loader2, Smartphone, Search, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 // Edita un Trabajador existente. UpdateTrabajadorRequest (backend) solo
 // permite cambiar Nombre/TelefonoPersonal/SucursalId/Activo — la EmpresaId no
 // se puede modificar despues de creado el Trabajador, por eso este modal no
 // incluye un selector de empresa.
-const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) => {
+//
+// "Usuario de la app": permite re-apuntar el trabajador a otra cuenta
+// (Profile) de la misma empresa. Solo se listan cuentas activas; las que ya
+// tienen OTRO trabajador activo se muestran deshabilitadas (el backend
+// también lo bloquea), porque al subir un voucher el backend usa el único
+// trabajador activo de la cuenta.
+const EditTrabajadorModal = ({
+  onClose,
+  onSave,
+  trabajador,
+  sucursales = [],
+  profiles = [],
+  profilesLoading = false,
+  personal = [],
+}) => {
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
   const [sucursalId, setSucursalId] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [changingProfile, setChangingProfile] = useState(false);
+  const [profileSearch, setProfileSearch] = useState('');
+  const [newProfileId, setNewProfileId] = useState('');
 
   useEscapeClose(onClose, !submitting);
 
@@ -23,6 +40,45 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
       setSucursalId(trabajador.sucursal_id || '');
     }
   }, [trabajador]);
+
+  const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
+  const currentProfile = profileById.get(trabajador?.profile_id) || null;
+  const newProfile = newProfileId ? profileById.get(newProfileId) || null : null;
+
+  // profile_id -> nombre del trabajador ACTIVO que lo usa (excluye a este).
+  const ocupadoPor = useMemo(() => {
+    const map = new Map();
+    personal.forEach((p) => {
+      if (p.id !== trabajador?.id && p.estado === 'activo' && p.profile_id) map.set(p.profile_id, p.nombre);
+    });
+    return map;
+  }, [personal, trabajador?.id]);
+
+  const candidatos = useMemo(() => {
+    const term = profileSearch.trim().toLowerCase();
+    return profiles
+      .filter((p) => p.estado === 'activo')
+      .filter((p) => !trabajador?.empresa_id || p.empresa_id === trabajador.empresa_id)
+      .filter((p) => p.id !== trabajador?.profile_id)
+      .filter(
+        (p) =>
+          !term ||
+          (p.nombre || '').toLowerCase().includes(term) ||
+          (p.phoneNumber || '').toLowerCase().includes(term) ||
+          (p.email || '').toLowerCase().includes(term)
+      )
+      .sort((a, b) => Number(ocupadoPor.has(a.id)) - Number(ocupadoPor.has(b.id)) || (a.nombre || '').localeCompare(b.nombre || ''));
+  }, [profiles, profileSearch, trabajador?.empresa_id, trabajador?.profile_id, ocupadoPor]);
+
+  const sucursalNombre = (id) => sucursales.find((s) => s.id === id)?.nombre || '';
+  const sucursalDistinta =
+    newProfile && newProfile.sucursal_id && sucursalId && newProfile.sucursal_id !== sucursalId;
+
+  const cancelProfileChange = () => {
+    setChangingProfile(false);
+    setNewProfileId('');
+    setProfileSearch('');
+  };
 
   const sucursalesDeEmpresa = sucursales.filter(
     (s) => !trabajador?.empresa_id || s.empresa_id === trabajador.empresa_id
@@ -39,10 +95,16 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
 
     setSubmitting(true);
     try {
+      if (newProfileId && ocupadoPor.has(newProfileId)) {
+        setError(`Ese usuario ya está asignado al trabajador activo "${ocupadoPor.get(newProfileId)}".`);
+        setSubmitting(false);
+        return;
+      }
       await onSave(trabajador.id, {
         nombre: nombre.trim(),
         telefono: telefono.trim() || null,
         sucursal_id: sucursalId || null,
+        ...(newProfileId ? { profile_id: newProfileId } : {}),
       });
       onClose();
     } catch (err) {
@@ -58,7 +120,7 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 30 }}
-        className="bg-white rounded-xl w-full max-w-sm shadow-2xl"
+        className="bg-white rounded-xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col"
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-base font-bold text-gray-900">Editar Trabajador</h2>
@@ -66,8 +128,8 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="p-5 space-y-3">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="p-5 space-y-3 overflow-y-auto">
             <div>
               <label htmlFor="edit-trabajador-nombre" className="block text-sm font-medium text-gray-700 mb-1.5">Nombre</label>
               <div className="relative">
@@ -112,6 +174,119 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
               </select>
             </div>
 
+            <div className="rounded-lg border border-gray-200 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                  <Smartphone className="h-4 w-4 text-gray-400" />
+                  Usuario de la app
+                </span>
+                {!changingProfile ? (
+                  <button
+                    type="button"
+                    onClick={() => setChangingProfile(true)}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Cambiar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={cancelProfileChange}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                  >
+                    Cancelar cambio
+                  </button>
+                )}
+              </div>
+
+              <p className="mt-1 text-sm text-gray-900">
+                {profilesLoading && !currentProfile ? (
+                  <span className="text-gray-400">Cargando...</span>
+                ) : currentProfile ? (
+                  <>
+                    {currentProfile.nombre || 'Sin nombre'}{' '}
+                    <span className="text-xs text-gray-500">
+                      · {currentProfile.phoneNumber || currentProfile.email || 'sin contacto'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-gray-400">No encontrado ({trabajador?.profile_id || 'sin usuario'})</span>
+                )}
+              </p>
+
+              {changingProfile && (
+                <div className="mt-2 space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={profileSearch}
+                      onChange={(e) => setProfileSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Buscar por nombre, DNI o teléfono..."
+                    />
+                  </div>
+                  <div className="max-h-44 overflow-y-auto divide-y divide-gray-100 rounded-lg border border-gray-200">
+                    {profilesLoading ? (
+                      <div className="flex items-center justify-center p-3 text-sm text-gray-500">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando usuarios...
+                      </div>
+                    ) : candidatos.length === 0 ? (
+                      <div className="p-3 text-center text-sm text-gray-500">
+                        No hay usuarios activos de esta empresa con ese criterio.
+                      </div>
+                    ) : (
+                      candidatos.map((p) => {
+                        const ocupado = ocupadoPor.get(p.id);
+                        return (
+                          <button
+                            type="button"
+                            key={p.id}
+                            disabled={Boolean(ocupado)}
+                            onClick={() => setNewProfileId(p.id)}
+                            className={`flex w-full items-center justify-between px-3 py-2 text-left ${
+                              ocupado ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'
+                            } ${newProfileId === p.id ? 'bg-blue-50' : ''}`}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-gray-900">{p.nombre || 'Sin nombre'}</p>
+                              <p className="truncate text-xs text-gray-500">
+                                {p.phoneNumber || p.email || 'Sin contacto'}
+                                {p.sucursal_id && sucursalNombre(p.sucursal_id) ? ` · ${sucursalNombre(p.sucursal_id)}` : ''}
+                              </p>
+                            </div>
+                            <span className="ml-2 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                              {ocupado ? `Asignado a ${ocupado}` : p.rol}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {newProfile && (
+                <div className="mt-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                  <p className="flex items-start gap-1 font-medium">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                    Nuevo usuario: {newProfile.nombre} ({newProfile.phoneNumber || newProfile.email || 'sin contacto'})
+                  </p>
+                  <p>Los depósitos anteriores se quedan con la cuenta anterior; desde ahora los vouchers de esta cuenta se registrarán a nombre de {nombre || trabajador?.nombre}.</p>
+                  {currentProfile && (
+                    <p>La cuenta de {currentProfile.nombre} dejará de poder subir vouchers hasta que se le asigne otro trabajador.</p>
+                  )}
+                  {sucursalDistinta && (
+                    <p>
+                      Ojo: la cuenta nueva pertenece a la sucursal <strong>{sucursalNombre(newProfile.sucursal_id) || 'otra'}</strong>; los
+                      depósitos toman la sucursal de la cuenta, no la del trabajador.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
           <div className="p-4 border-t border-gray-200 flex items-center justify-end space-x-2 bg-gray-50/50 rounded-b-xl">
@@ -129,7 +304,7 @@ const EditTrabajadorModal = ({ onClose, onSave, trabajador, sucursales = [] }) =
               className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm disabled:opacity-60 flex items-center gap-1.5"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
-              Guardar Cambios
+              {newProfile ? 'Guardar y cambiar usuario' : 'Guardar Cambios'}
             </button>
           </div>
         </form>

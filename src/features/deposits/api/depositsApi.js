@@ -1,5 +1,6 @@
 import { buildApiUrl } from "../../../services/apiBase.js";
 import { apiBlob } from "../../../services/backendApi.js";
+import { notifySessionExpired } from "../../../services/sessionEvents.js";
 import { MOCK_MODE_ENABLED } from "../../../mocks/mockServer.js";
 import { createInitialMockState } from "../../../mocks/mockData.js";
 import { toLocalISOString } from "../../../utils/dateFormatters.js";
@@ -121,6 +122,8 @@ export async function apiJson(path, options = {}) {
     cache: "no-store",
     ...options,
   });
+
+  if (response.status === 401) notifySessionExpired(path);
 
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json")
@@ -777,6 +780,10 @@ export async function updatePersonal(id, data) {
     sucursalId: data.sucursal_id || data.sucursalId || null,
     activo: data.estado ? data.estado === "activo" : true,
   };
+  // ProfileId opcional: permite re-apuntar el trabajador a otra cuenta de la
+  // app. Mandar el mismo valor actual no cambia nada en el backend.
+  const profileId = data.profileId || data.profile_id;
+  if (profileId) body.profileId = profileId;
   const updated = await apiJson(`${MASTERS_BASE}/trabajadores/${id}`, {
     method: "PUT",
     body: JSON.stringify(body),
@@ -996,6 +1003,48 @@ export function getRechazoHistorialImagenUrl(rechazoId) {
   return buildApiUrl(
     `${API_BASE}${DEPOSITS_BASE}/rechazos-historial/${rechazoId}/imagen?access_token=${encodeURIComponent(token)}`
   );
+}
+
+// ---------------------------------------------------------------------------
+// Corrección de depósitos CONFIRMADOS (solo admin). Cada acción exige motivo
+// y deja un registro en deposito_correcciones (ver GET /correcciones).
+// ---------------------------------------------------------------------------
+
+// PUT /v1/deposits/{id}/correccion — corrige campos sin cambiar el estado.
+// Devuelve el depósito actualizado (mismo shape que GET /{id}).
+export async function correctConfirmedDeposit(id, { motivo, ...fields } = {}) {
+  const body = { ...buildEditableFieldsBody(fields), motivo: motivo || "" };
+  const data = await apiJson(`${DEPOSITS_BASE}/${id}/correccion`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return mapDeposit(data);
+}
+
+// POST /v1/deposits/{id}/revertir — destino "pendiente" | "rechazado".
+// El backend avisa al vendedor por chat + push.
+export async function revertConfirmedDeposit(id, { motivo, destino }) {
+  const data = await apiJson(`${DEPOSITS_BASE}/${id}/revertir`, {
+    method: "POST",
+    body: JSON.stringify({ motivo: motivo || "", destino }),
+  });
+  return mapDeposit(data);
+}
+
+// GET /v1/deposits/{id}/correcciones — historial (finanzas/admin).
+export async function fetchDepositCorrecciones(depositId) {
+  if (!depositId) return [];
+  const data = await apiJson(`${DEPOSITS_BASE}/${depositId}/correcciones`);
+  if (!Array.isArray(data)) return [];
+  return data.map((c) => {
+    let cambios = [];
+    try {
+      cambios = typeof c.cambios === "string" ? JSON.parse(c.cambios) : c.cambios || [];
+    } catch {
+      cambios = [];
+    }
+    return { ...c, cambios: Array.isArray(cambios) ? cambios : [] };
+  });
 }
 
 export async function updateDeposit(id, payload) {

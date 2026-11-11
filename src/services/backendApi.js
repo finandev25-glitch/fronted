@@ -1,4 +1,5 @@
 import { buildApiUrl } from "./apiBase.js";
+import { notifySessionExpired } from "./sessionEvents.js";
 
 const API_PREFIX = "/api";
 const SESSION_KEY = "control-depositos-auth-session";
@@ -67,12 +68,14 @@ async function parseResponse(response) {
 
 export async function apiRequest(path, options = {}) {
   const response = await fetch(buildApiUrl(`${API_PREFIX}${path}`), prepareRequestOptions(options));
+  if (response.status === 401) notifySessionExpired(path);
 
   return parseResponse(response);
 }
 
 export async function apiBlob(path, options = {}) {
   const response = await fetch(buildApiUrl(`${API_PREFIX}${path}`), prepareRequestOptions(options));
+  if (response.status === 401) notifySessionExpired(path);
 
   if (!response.ok) {
     const text = await response.text();

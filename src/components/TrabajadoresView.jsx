@@ -6,7 +6,7 @@ import ToggleSwitch from './ToggleSwitch';
 import AddPersonModal from './AddPersonModal.jsx';
 import EditTrabajadorModal from './EditTrabajadorModal.jsx';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
-import { fetchPersonal, createPersonal, updatePersonal, deletePersonal } from '../features/deposits/api/depositsApi.js';
+import { fetchPersonal, createPersonal, updatePersonal, deletePersonal, fetchProfiles } from '../features/deposits/api/depositsApi.js';
 
 // Vista "Trabajadores": a diferencia de SucursalDetailModal (que gestiona
 // personal DENTRO del contexto de una sucursal fija), esta vista lista TODOS
@@ -31,6 +31,28 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTrabajador, setEditingTrabajador] = useState(null);
   const [deletingTrabajador, setDeletingTrabajador] = useState(null);
+
+  // Cuentas (Profiles) para mostrar a qué usuario de la app apunta cada
+  // trabajador y para el cambio de usuario en EditTrabajadorModal.
+  const [profiles, setProfiles] = useState([]);
+  const [profilesLoading, setProfilesLoading] = useState(true);
+
+  const loadProfiles = useCallback(async () => {
+    setProfilesLoading(true);
+    try {
+      setProfiles((await fetchProfiles()) || []);
+    } catch {
+      setProfiles([]);
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
+
+  const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
 
   const loadPersonal = useCallback(async () => {
     setLoading(true);
@@ -61,7 +83,9 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
     const matchesSearch =
       !term ||
       (p.nombre && p.nombre.toLowerCase().includes(term)) ||
-      (p.telefono_origen && p.telefono_origen.toLowerCase().includes(term));
+      (p.telefono_origen && p.telefono_origen.toLowerCase().includes(term)) ||
+      (profileById.get(p.profile_id)?.nombre || '').toLowerCase().includes(term) ||
+      (profileById.get(p.profile_id)?.phoneNumber || '').toLowerCase().includes(term);
     const matchesEmpresa = filterEmpresa === 'all' || p.empresa_id === filterEmpresa;
     return matchesSearch && matchesEmpresa;
   });
@@ -132,6 +156,8 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
       Empresa: empresaById.get(trabajador.empresa_id)?.nombre || '',
       Sucursal: sucursalById.get(trabajador.sucursal_id)?.nombre || 'Sin asignar',
       Teléfono: trabajador.telefono_origen || '',
+      'Usuario app': profileById.get(trabajador.profile_id)?.nombre || '',
+      'Login app': profileById.get(trabajador.profile_id)?.phoneNumber || profileById.get(trabajador.profile_id)?.email || '',
       Estado: trabajador.estado === 'activo' ? 'Activo' : 'Inactivo',
     }));
 
@@ -172,7 +198,7 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
             <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre o teléfono..."
+              placeholder="Buscar por nombre, teléfono o usuario..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200"
@@ -199,6 +225,7 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Empresa</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sucursal</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Teléfono</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Usuario app</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -206,7 +233,7 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="text-center p-8">
+                    <td colSpan="7" className="text-center p-8">
                       <Loader2 className="animate-spin inline-block text-gray-400" />
                     </td>
                   </tr>
@@ -240,6 +267,18 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
                             <Phone size={12} className="mr-1.5 text-gray-400" />
                             {trabajador.telefono_origen || 'No especificado'}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                          {(() => {
+                            const prof = profileById.get(trabajador.profile_id);
+                            if (!prof) return <span className="text-gray-400">{profilesLoading ? '...' : 'Sin usuario'}</span>;
+                            return (
+                              <div className="leading-tight">
+                                <div className={prof.estado === 'activo' ? '' : 'line-through text-gray-400'}>{prof.nombre || 'Sin nombre'}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">{prof.phoneNumber || prof.email || ''}</div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <ToggleSwitch
@@ -295,6 +334,9 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
           <EditTrabajadorModal
             trabajador={editingTrabajador}
             sucursales={sucursales}
+            profiles={profiles}
+            profilesLoading={profilesLoading}
+            personal={personal}
             onClose={() => setEditingTrabajador(null)}
             onSave={handleUpdate}
           />
