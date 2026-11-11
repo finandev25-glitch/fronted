@@ -2701,7 +2701,9 @@ const DepositDetailModal = ({
             </div>
           </div>
 
-          {isLockedByOther && (
+          {/* En confirmados/rechazados validado_por queda guardado como
+              "quién lo resolvió", no es un candado activo: no se muestra. */}
+          {isLockedByOther && !isResolved && (
             <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/25 dark:text-amber-100">
               <div className="flex items-center gap-2">
                 <Ban className="h-4 w-4 flex-shrink-0" />
@@ -2738,7 +2740,12 @@ const DepositDetailModal = ({
               isCompactPresentation ? "p-2.5 md:p-3" : "p-4"
             } bg-gray-50/50 dark:bg-zinc-900/50`}
           >
-            <div className={`grid h-full grid-cols-1 ${isCompactPresentation ? "gap-4 items-stretch lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]" : "gap-6 lg:grid-cols-9"}`}>
+            {/* lg:grid-rows-[minmax(0,1fr)]: fija la fila al alto disponible. Sin
+                esto la fila "auto" crecía al alto del contenido de la columna
+                izquierda, el contenedor (overflow-hidden) la recortaba y las
+                tarjetas de abajo (historiales, corrección) quedaban
+                inaccesibles en vez de scrollear. */}
+            <div className={`grid h-full grid-cols-1 lg:grid-rows-[minmax(0,1fr)] ${isCompactPresentation ? "gap-4 items-stretch lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]" : "gap-6 lg:grid-cols-9"}`}>
               <div className="space-y-3 lg:col-span-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-2">
                 <div
                   className={`relative w-full bg-slate-50 dark:bg-slate-800/50 border border-gray-200 dark:border-zinc-700 border-l-4 ${getCardBorderColor(

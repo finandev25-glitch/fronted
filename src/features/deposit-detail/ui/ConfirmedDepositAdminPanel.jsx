@@ -353,7 +353,7 @@ const ConfirmedDepositAdminPanel = ({
           <p className="mb-2 text-[11px] text-gray-500 dark:text-zinc-400">
             Solo para errores al confirmar. Cada acción pide motivo y queda en el historial.
           </p>
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-1.5">
             <button
               type="button"
               onClick={() => openMode("editar")}
