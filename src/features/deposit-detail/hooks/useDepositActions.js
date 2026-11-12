@@ -74,7 +74,19 @@ export function useDepositActions({
   }, []);
 
   // ─── Valores derivados ──────────────────────────────────────────────────────
+  // El N° de operación del voucher NUNCA es el que registra el banco: el
+  // analista siempre lo reemplaza por el del banco. Mientras el campo siga
+  // con el del voucher no tiene sentido comprobar duplicados (los
+  // confirmados guardan el N° del banco, así que siempre daría "sin
+  // duplicados") ni se puede confirmar.
+  const opVoucher = String(deposit?.numero_operacion_voucher ?? deposit?.numero_operacion ?? "").replace(/\D/g, "");
+  const opIngresada = String(editableData.numero_operacion_banco || "").replace(/\D/g, "");
+  const opEsDelVoucher =
+    deposit?.estado === "procesado" && Boolean(opVoucher) && opIngresada === opVoucher;
+  const opPendienteMensaje = `Ingresa el N° de operación del banco: el actual (${opVoucher}) es el del voucher.`;
+
   const canCheckDuplicates =
+    !opEsDelVoucher &&
     editableData.empresa_id &&
     editableData.banco_id &&
     editableData.anexo &&
@@ -93,6 +105,7 @@ export function useDepositActions({
   // comprobación anterior) y el botón/popup de Confirmar se habilitaba
   // igual, con datos incompletos.
   const canConfirm =
+    !opEsDelVoucher &&
     !isChecking &&
     checkResult.checked &&
     !checkResult.isDuplicate &&
@@ -178,6 +191,12 @@ export function useDepositActions({
   //     botón para validar la cuenta (no se puede confirmar hasta entonces).
   // Los resultados llevan auto:true para no abrir popups solos.
   const handleCheckDuplicates = useCallback(async ({ auto = false } = {}) => {
+    if (opEsDelVoucher) {
+      // Aviso en ámbar (pending) en vez de "sin duplicados".
+      setDuplicateDeposits([]);
+      setCheckResult({ checked: false, isDuplicate: false, pending: true, message: opPendienteMensaje, auto });
+      return auto ? { skipped: true } : { blocked: true, message: opPendienteMensaje };
+    }
     if (auto && !canCheckDuplicates) return { skipped: true };
     const seq = ++checkSeqRef.current;
     const isStale = () => seq !== checkSeqRef.current;
@@ -333,7 +352,7 @@ export function useDepositActions({
         setCheckResult({
           checked: true,
           isDuplicate: false,
-          message: "No se encontraron duplicados. Puede confirmar el depósito.",
+          message: `Sin duplicados para Op. ${editableData.numero_operacion_banco} · ${selectedMoneda === "USD" ? "$" : "S/"} ${Number(editableData.monto || 0).toFixed(2)}`,
           auto,
         });
       }
@@ -342,7 +361,7 @@ export function useDepositActions({
     } finally {
       if (!isStale()) setIsChecking(false);
     }
-  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits, empresas]);
+  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits, empresas, opEsDelVoucher, opPendienteMensaje]);
 
   // ─── Confirmar depósito ───────────────────────────────────────────────────────
   // Devuelve { success, error? } en vez de usar window.alert(): además de que
@@ -352,6 +371,9 @@ export function useDepositActions({
   // propio modal/toast, tanto en la Ventana de validación (panel compacto)
   // como en el modal completo.
   const handleConfirmDeposit = useCallback(async () => {
+    if (opEsDelVoucher) {
+      return { success: false, error: opPendienteMensaje };
+    }
     if (!checkResult.checked) {
       return { success: false, error: "Primero debes comprobar duplicados." };
     }
@@ -401,7 +423,7 @@ export function useDepositActions({
       setIsSending(false);
       setIsProcessing(false);
     }
-  }, [buildEditableFieldsForRequest, buildUpdatePayload, checkResult, currentUser, deposit, editableData, onClose, onUpdateDeposit, selectedMoneda]);
+  }, [buildEditableFieldsForRequest, buildUpdatePayload, checkResult, currentUser, deposit, editableData, onClose, onUpdateDeposit, selectedMoneda, opEsDelVoucher, opPendienteMensaje]);
 
   // ─── Rechazar depósito ───────────────────────────────────────────────────────
   // FIX: ahora llama al endpoint real POST /v1/deposits/{id}/reject, que
@@ -497,6 +519,7 @@ export function useDepositActions({
     // Derivados
     canConfirm,
     canCheckDuplicates,
+    opEsDelVoucher,
     // Handlers
     buildUpdatePayload,
     handleCheckDuplicates,

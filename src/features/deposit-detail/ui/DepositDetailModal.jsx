@@ -184,6 +184,7 @@ const DepositDetailModal = ({
     dateReviewWarning,
     canConfirm,
     canCheckDuplicates,
+    opEsDelVoucher,
     handleCheckDuplicates,
     handleConfirmDeposit,
     handleConfirmRejection,
@@ -1118,7 +1119,11 @@ const DepositDetailModal = ({
         : "border-slate-200 bg-slate-50 text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-slate-300";
 
 
-  const nroOperacionClasses = "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400";
+  // Ámbar mientras el campo siga con el N° del voucher (hay que pegar el
+  // del banco; ver opEsDelVoucher en useDepositActions.js).
+  const nroOperacionClasses = opEsDelVoucher
+    ? "border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/30 focus:ring-amber-500"
+    : "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400";
   const getCardBorderColor = (type) => "border-gray-200";
 
   const sqlMovementsModalPortal =
@@ -1988,6 +1993,11 @@ const DepositDetailModal = ({
                           className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${nroOperacionClasses}`}
                           placeholder="pega la operacion"
                         />
+                        {opEsDelVoucher && (
+                          <p className="text-[10px] font-medium leading-tight text-amber-700 dark:text-amber-300">
+                            Es el N° del voucher: pega el del banco.
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-0.5">
@@ -2890,6 +2900,7 @@ const DepositDetailModal = ({
                     filteredAnexos={filteredAnexos}
                     selectedMoneda={selectedMoneda}
                     nroOperacionClasses={nroOperacionClasses}
+                    opEsDelVoucher={opEsDelVoucher}
                     selectedBanco={selectedBanco}
                     deposit={deposit}
                   />
@@ -2925,6 +2936,8 @@ const DepositDetailModal = ({
                             className={`mt-3 text-sm font-medium p-2.5 rounded-lg ${
                               isChecking
                                 ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                                : checkResult.pending || (!checkResult.checked && !checkResult.isDuplicate)
+                                  ? "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200"
                                 : checkResult.isDuplicate
                                   ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300"
                                   : "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300"

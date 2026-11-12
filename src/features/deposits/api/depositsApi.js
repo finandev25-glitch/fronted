@@ -342,6 +342,11 @@ function mapDeposit(item) {
     return {
       id: item.id,
       numero_operacion: item.numeroOperacion,
+      // Copia intocable del N° de operación tal como vino del voucher. El
+      // Kanban puede pisar numero_operacion con lo editado en el panel
+      // lateral; este campo no, y sirve para exigir que al confirmar se use
+      // el N° del BANCO (que nunca coincide con el del voucher).
+      numero_operacion_voucher: item.numeroOperacion,
       cliente: item.cliente,
       monto: item.monto,
       moneda: item.moneda,
