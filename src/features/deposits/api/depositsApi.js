@@ -791,6 +791,46 @@ export async function updatePersonal(id, data) {
   return mapTrabajador(updated);
 }
 
+// ---------------------------------------------------------------------------
+// Motivos de rechazo frecuentes (chips del modal de rechazo). Los lee
+// finanzas/admin; solo admin los crea, edita, ordena y elimina.
+// ---------------------------------------------------------------------------
+function mapMotivoRechazo(m) {
+  return {
+    id: String(m.id || m.Id || "").toLowerCase(),
+    texto: m.texto || m.Texto || "",
+    orden: Number(m.orden ?? m.Orden ?? 0),
+    activo: Boolean(m.activo ?? m.Activo ?? true),
+  };
+}
+
+// GET /v1/masters/motivos-rechazo[?incluirInactivos=true]
+export async function fetchMotivosRechazo({ incluirInactivos = false } = {}) {
+  const qs = incluirInactivos ? "?incluirInactivos=true" : "";
+  const data = await apiJson(`${MASTERS_BASE}/motivos-rechazo${qs}`);
+  return (Array.isArray(data) ? data : []).map(mapMotivoRechazo);
+}
+
+export async function createMotivoRechazo({ texto, orden, activo = true }) {
+  const data = await apiJson(`${MASTERS_BASE}/motivos-rechazo`, {
+    method: "POST",
+    body: JSON.stringify({ texto, orden, activo }),
+  });
+  return mapMotivoRechazo(data);
+}
+
+export async function updateMotivoRechazo(id, { texto, orden, activo }) {
+  const data = await apiJson(`${MASTERS_BASE}/motivos-rechazo/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ texto, orden, activo }),
+  });
+  return mapMotivoRechazo(data);
+}
+
+export async function deleteMotivoRechazo(id) {
+  return apiJson(`${MASTERS_BASE}/motivos-rechazo/${id}`, { method: "DELETE" });
+}
+
 // POST /v1/masters/trabajadores/{id}/intercambiar-usuario — solo admin.
 // Cada trabajador se queda con la cuenta (Profile) del otro, en una sola
 // transacción. Opcionalmente intercambia también los teléfonos personales.

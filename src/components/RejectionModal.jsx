@@ -1,12 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { X, MessageSquareWarning, Loader2, Check } from "lucide-react";
 import { useEscapeClose } from "../hooks/useEscapeClose.js";
+import { fetchMotivosRechazo } from "../features/deposits/api/depositsApi.js";
 
 // Motivos frecuentes: un clic los agrega (uno por línea) y otro los quita.
 // El texto sigue siendo editable para agregar detalle propio. Usar siempre
 // los mismos textos también deja los rechazos uniformes para los reportes.
+//
+// La lista la administra el admin (Administrador → Motivos de rechazo) y se
+// lee de GET /v1/masters/motivos-rechazo. Esta lista fija solo se usa si el
+// backend todavía no tiene el endpoint o no responde.
 export const MOTIVOS_RECHAZO_FRECUENTES = [
   "Enviar voucher completo",
   "Enviar voucher legible",
@@ -16,6 +21,23 @@ export const MOTIVOS_RECHAZO_FRECUENTES = [
   "El abono no existe en el banco seleccionado",
   "El abono no existe, enviar el voucher mañana",
 ];
+
+// Caché por pestaña: el modal de rechazo se abre muchas veces al día y la
+// lista casi nunca cambia. La vista de administración la invalida al editar.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let motivosCache = { at: 0, list: null };
+
+export function invalidateMotivosRechazoCache() {
+  motivosCache = { at: 0, list: null };
+}
+
+async function loadMotivos() {
+  if (motivosCache.list && Date.now() - motivosCache.at < CACHE_TTL_MS) return motivosCache.list;
+  const data = await fetchMotivosRechazo();
+  const list = data.filter((m) => m.activo && m.texto).sort((a, b) => a.orden - b.orden).map((m) => m.texto);
+  motivosCache = { at: Date.now(), list };
+  return list;
+}
 
 const reasonLines = (text) =>
   String(text || "")
@@ -33,6 +55,22 @@ const RejectionModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEscapeClose(onClose, !isSubmitting);
+
+  const [motivos, setMotivos] = useState(() => motivosCache.list || MOTIVOS_RECHAZO_FRECUENTES);
+  useEffect(() => {
+    let active = true;
+    loadMotivos()
+      .then((list) => {
+        // Lista vacía en el backend = el admin desactivó todos: no se muestran chips.
+        if (active) setMotivos(list);
+      })
+      .catch(() => {
+        if (active) setMotivos(MOTIVOS_RECHAZO_FRECUENTES);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const selectedLines = reasonLines(reason);
   const toggleMotivo = (motivo) => {
@@ -68,7 +106,7 @@ const RejectionModal = ({
         initial={{ opacity: 0, scale: 0.96, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 20 }}
-        className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
           <h2 className="text-base font-bold text-gray-900">
@@ -89,8 +127,8 @@ const RejectionModal = ({
             <MessageSquareWarning className="mr-2 h-5 w-5 text-yellow-500" />
             Motivo del Rechazo
           </label>
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {MOTIVOS_RECHAZO_FRECUENTES.map((motivo) => {
+          <div className="mb-3 flex flex-wrap gap-2">
+            {motivos.map((motivo) => {
               const active = selectedLines.includes(motivo);
               return (
                 <button
@@ -99,13 +137,13 @@ const RejectionModal = ({
                   onClick={() => toggleMotivo(motivo)}
                   disabled={isSubmitting}
                   aria-pressed={active}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium leading-tight transition-colors disabled:opacity-50 ${
                     active
                       ? "border-red-500 bg-red-50 text-red-700"
                       : "border-gray-300 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50/50"
                   }`}
                 >
-                  {active && <Check className="h-3 w-3" />}
+                  {active && <Check className="h-4 w-4" />}
                   {motivo}
                 </button>
               );
@@ -113,7 +151,7 @@ const RejectionModal = ({
           </div>
           <textarea
             id="rejection-reason"
-            rows="3"
+            rows="4"
             value={reason}
             onChange={(e) => {
               setReason(e.target.value);
