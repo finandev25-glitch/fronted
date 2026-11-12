@@ -6,7 +6,7 @@ import ToggleSwitch from './ToggleSwitch';
 import AddPersonModal from './AddPersonModal.jsx';
 import EditTrabajadorModal from './EditTrabajadorModal.jsx';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
-import { fetchPersonal, createPersonal, updatePersonal, deletePersonal, fetchProfiles } from '../features/deposits/api/depositsApi.js';
+import { fetchPersonal, createPersonal, updatePersonal, deletePersonal, fetchProfiles, swapTrabajadorProfiles } from '../features/deposits/api/depositsApi.js';
 
 // Vista "Trabajadores": a diferencia de SucursalDetailModal (que gestiona
 // personal DENTRO del contexto de una sucursal fija), esta vista lista TODOS
@@ -120,6 +120,13 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
     const merged = { ...existing, ...updates };
     const actualizado = await updatePersonal(trabajadorId, merged);
     setPersonal((prev) => prev.map((item) => (item.id === trabajadorId ? { ...item, ...actualizado } : item)));
+  };
+
+  // Intercambio de cuentas entre dos trabajadores (un solo request).
+  const handleSwap = async (trabajadorId, otroTrabajadorId, { intercambiarTelefono = false } = {}) => {
+    const actualizados = await swapTrabajadorProfiles(trabajadorId, otroTrabajadorId, { intercambiarTelefono });
+    const byId = new Map(actualizados.map((t) => [t.id, t]));
+    setPersonal((prev) => prev.map((item) => (byId.has(item.id) ? { ...item, ...byId.get(item.id) } : item)));
   };
 
   const handleToggleStatus = async (trabajador) => {
@@ -339,6 +346,7 @@ const TrabajadoresView = ({ empresas = [], sucursales = [] }) => {
             personal={personal}
             onClose={() => setEditingTrabajador(null)}
             onSave={handleUpdate}
+            onSwap={handleSwap}
           />
         )}
         {deletingTrabajador && (

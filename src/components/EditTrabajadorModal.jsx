@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, User, Phone, Loader2, Smartphone, Search, AlertTriangle, RefreshCw } from 'lucide-react';
+import { X, User, Phone, Loader2, Smartphone, Search, AlertTriangle, RefreshCw, ArrowLeftRight } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose.js';
 
 // Edita un Trabajador existente. UpdateTrabajadorRequest (backend) solo
@@ -16,6 +16,10 @@ import { useEscapeClose } from '../hooks/useEscapeClose.js';
 const EditTrabajadorModal = ({
   onClose,
   onSave,
+  // (trabajadorId, otroTrabajadorId, { intercambiarTelefono }) => Promise.
+  // Si se pasa, las cuentas ocupadas por otro trabajador se pueden elegir
+  // para INTERCAMBIAR (cada uno se queda con la cuenta del otro).
+  onSwap,
   trabajador,
   sucursales = [],
   profiles = [],
@@ -30,6 +34,8 @@ const EditTrabajadorModal = ({
   const [changingProfile, setChangingProfile] = useState(false);
   const [profileSearch, setProfileSearch] = useState('');
   const [newProfileId, setNewProfileId] = useState('');
+  const [swapTarget, setSwapTarget] = useState(null); // { profileId, trabajadorId, trabajadorNombre, trabajadorTelefono }
+  const [swapPhones, setSwapPhones] = useState(false);
 
   useEscapeClose(onClose, !submitting);
 
@@ -45,11 +51,11 @@ const EditTrabajadorModal = ({
   const currentProfile = profileById.get(trabajador?.profile_id) || null;
   const newProfile = newProfileId ? profileById.get(newProfileId) || null : null;
 
-  // profile_id -> nombre del trabajador ACTIVO que lo usa (excluye a este).
+  // profile_id -> trabajador ACTIVO que lo usa (excluye a este).
   const ocupadoPor = useMemo(() => {
     const map = new Map();
     personal.forEach((p) => {
-      if (p.id !== trabajador?.id && p.estado === 'activo' && p.profile_id) map.set(p.profile_id, p.nombre);
+      if (p.id !== trabajador?.id && p.estado === 'activo' && p.profile_id) map.set(p.profile_id, p);
     });
     return map;
   }, [personal, trabajador?.id]);
@@ -77,7 +83,22 @@ const EditTrabajadorModal = ({
   const cancelProfileChange = () => {
     setChangingProfile(false);
     setNewProfileId('');
+    setSwapTarget(null);
     setProfileSearch('');
+  };
+
+  const handleSwap = async () => {
+    if (!swapTarget || !onSwap) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      await onSwap(trabajador.id, swapTarget.trabajadorId, { intercambiarTelefono: swapPhones });
+      onClose();
+    } catch (err) {
+      setError(err.message || 'No se pudo intercambiar los usuarios.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const sucursalesDeEmpresa = sucursales.filter(
@@ -96,7 +117,7 @@ const EditTrabajadorModal = ({
     setSubmitting(true);
     try {
       if (newProfileId && ocupadoPor.has(newProfileId)) {
-        setError(`Ese usuario ya está asignado al trabajador activo "${ocupadoPor.get(newProfileId)}".`);
+        setError(`Ese usuario ya está asignado al trabajador activo "${ocupadoPor.get(newProfileId)?.nombre}".`);
         setSubmitting(false);
         return;
       }
@@ -239,15 +260,30 @@ const EditTrabajadorModal = ({
                     ) : (
                       candidatos.map((p) => {
                         const ocupado = ocupadoPor.get(p.id);
+                        const swappable = Boolean(ocupado && onSwap);
+                        const selected = newProfileId === p.id || swapTarget?.profileId === p.id;
                         return (
                           <button
                             type="button"
                             key={p.id}
-                            disabled={Boolean(ocupado)}
-                            onClick={() => setNewProfileId(p.id)}
+                            disabled={Boolean(ocupado) && !swappable}
+                            onClick={() => {
+                              if (ocupado) {
+                                setNewProfileId('');
+                                setSwapTarget({
+                                  profileId: p.id,
+                                  trabajadorId: ocupado.id,
+                                  trabajadorNombre: ocupado.nombre,
+                                  trabajadorTelefono: ocupado.telefono_origen || '',
+                                });
+                              } else {
+                                setSwapTarget(null);
+                                setNewProfileId(p.id);
+                              }
+                            }}
                             className={`flex w-full items-center justify-between px-3 py-2 text-left ${
-                              ocupado ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'
-                            } ${newProfileId === p.id ? 'bg-blue-50' : ''}`}
+                              ocupado && !swappable ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'
+                            } ${selected ? (ocupado ? 'bg-violet-50' : 'bg-blue-50') : ''}`}
                           >
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-gray-900">{p.nombre || 'Sin nombre'}</p>
@@ -257,13 +293,57 @@ const EditTrabajadorModal = ({
                               </p>
                             </div>
                             <span className="ml-2 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-gray-400">
-                              {ocupado ? `Asignado a ${ocupado}` : p.rol}
+                              {ocupado ? (swappable ? `Intercambiar con ${ocupado.nombre}` : `Asignado a ${ocupado.nombre}`) : p.rol}
                             </span>
                           </button>
                         );
                       })
                     )}
                   </div>
+                </div>
+              )}
+
+              {swapTarget && (
+                <div className="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50 p-2 text-xs text-violet-900">
+                  <p className="flex items-start gap-1 font-medium">
+                    <ArrowLeftRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                    Intercambio de usuarios
+                  </p>
+                  <ul className="ml-4 list-disc space-y-0.5">
+                    <li>
+                      <strong>{nombre || trabajador?.nombre}</strong> pasa a usar la cuenta{' '}
+                      <strong>{profileById.get(swapTarget.profileId)?.nombre}</strong>
+                    </li>
+                    <li>
+                      <strong>{swapTarget.trabajadorNombre}</strong> pasa a usar la cuenta{' '}
+                      <strong>{currentProfile?.nombre || 'actual'}</strong>
+                    </li>
+                  </ul>
+                  <label className="flex cursor-pointer items-start gap-1.5">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={swapPhones}
+                      onChange={(e) => setSwapPhones(e.target.checked)}
+                    />
+                    <span>
+                      Intercambiar también los teléfonos personales ({telefono || trabajador?.telefono_origen || 'sin teléfono'} ↔{' '}
+                      {swapTarget.trabajadorTelefono || 'sin teléfono'})
+                    </span>
+                  </label>
+                  <p className="text-violet-700">
+                    Se hace en un solo paso, sin dejar ninguna cuenta sin trabajador. Los depósitos anteriores no cambian.
+                    Otros cambios de este formulario (nombre, sucursal) no se guardan con el intercambio.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSwap}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-60"
+                  >
+                    {submitting ? <Loader2 size={12} className="animate-spin" /> : <ArrowLeftRight size={12} />}
+                    Intercambiar usuarios
+                  </button>
                 </div>
               )}
 

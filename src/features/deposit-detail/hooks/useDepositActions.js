@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   checkDuplicate,
   confirmDeposit,
@@ -58,6 +58,20 @@ export function useDepositActions({
   // "antiguos"). Objeto nuevo en cada aviso real para que el componente
   // pueda mostrarlo con un efecto sin repetirse en cada render.
   const [dateReviewWarning, setDateReviewWarning] = useState(null);
+  // En la comprobación automática el aviso de fecha se muestra una sola vez
+  // por fecha (no en cada re-comprobación mientras el usuario edita).
+  const lastAutoDateWarningRef = useRef(null);
+  // Cada comprobación lleva un número; si mientras espera al backend empezó
+  // otra (o se invalidó por un cambio de datos), su resultado ya es viejo y
+  // se descarta para no habilitar "Confirmar" con datos que cambiaron.
+  const checkSeqRef = useRef(0);
+  const invalidateDuplicateCheck = useCallback(() => {
+    checkSeqRef.current += 1;
+    setIsChecking(false);
+    setCheckResult((prev) =>
+      prev.checked || prev.message ? { checked: false, isDuplicate: false, message: "" } : prev,
+    );
+  }, []);
 
   // ─── Valores derivados ──────────────────────────────────────────────────────
   const canCheckDuplicates =
@@ -154,7 +168,19 @@ export function useDepositActions({
   // usa esto para mostrar el mismo modal de error que ya se usa para
   // confirmar/rechazar, además del mensaje que ya queda en la barra de
   // estado (checkResult.message).
-  const handleCheckDuplicates = useCallback(async () => {
+  // auto=true: comprobación automática (al abrir el detalle y al cambiar
+  // operación/importe/moneda/etc., ver DepositDetailModal.jsx). Mismas
+  // reglas que el botón, con tres diferencias para no molestar:
+  //   - si faltan campos, no hace nada (no muestra el aviso de "completa...");
+  //   - el aviso de fecha distinta a hoy sale una sola vez por fecha;
+  //   - la validación en la pestaña activa (extensión) NO se ejecuta sola:
+  //     si aplica, busca duplicados en la BD pero deja pendiente pulsar el
+  //     botón para validar la cuenta (no se puede confirmar hasta entonces).
+  // Los resultados llevan auto:true para no abrir popups solos.
+  const handleCheckDuplicates = useCallback(async ({ auto = false } = {}) => {
+    if (auto && !canCheckDuplicates) return { skipped: true };
+    const seq = ++checkSeqRef.current;
+    const isStale = () => seq !== checkSeqRef.current;
     if (!canCheckDuplicates) {
       const message = "Completa empresa, banco, anexo, moneda, importe, nro. de operación y fecha de depósito antes de comprobar duplicados.";
       setCheckResult({ checked: true, isDuplicate: true, message });
@@ -165,7 +191,10 @@ export function useDepositActions({
     // revisa siempre que se toca "Duplicados" (con campos completos), sin
     // frenar el resto del flujo.
     if (editableData.fecha_deposito && editableData.fecha_deposito !== getTodayDateInputValue()) {
-      setDateReviewWarning({ fecha: editableData.fecha_deposito });
+      if (!auto || lastAutoDateWarningRef.current !== editableData.fecha_deposito) {
+        lastAutoDateWarningRef.current = editableData.fecha_deposito;
+        setDateReviewWarning({ fecha: editableData.fecha_deposito });
+      }
     }
 
     // Anexo termina en "MN" (Soles) o "ME" (Dólares) -- si no coincide con
@@ -177,7 +206,7 @@ export function useDepositActions({
     const expectedMoneda = ANEXO_SUFFIX_TO_MONEDA[anexoSuffix];
     if (expectedMoneda && selectedMoneda && expectedMoneda !== selectedMoneda) {
       const message = `El anexo "${editableData.anexo}" es de ${MONEDA_LABEL[expectedMoneda]}, pero la moneda elegida es ${MONEDA_LABEL[selectedMoneda] || selectedMoneda}. Corregilo antes de confirmar.`;
-      setCheckResult({ checked: true, isDuplicate: true, message: `⚠️ ${message}` });
+      setCheckResult({ checked: true, isDuplicate: true, message: `⚠️ ${message}`, auto });
       return { blocked: true, message };
     }
 
@@ -193,12 +222,14 @@ export function useDepositActions({
     const empresaNombre =
       (empresas || []).find((e) => String(e.id) === String(editableData.empresa_id))?.nombre || "";
     const validationRule = findAnexoValidationRule(empresaNombre, editableData.anexo);
-    if (validationRule && isActiveTabSearchAvailable()) {
+    const needsActiveTabValidation = Boolean(validationRule && isActiveTabSearchAvailable());
+    if (needsActiveTabValidation && !auto) {
       setCheckResult({ checked: false, isDuplicate: false, message: "Validando datos de la cuenta en la pestaña activa..." });
       const [empresaCheck, datoCheck] = await Promise.all([
         searchActiveTab([validationRule.empresaValidar]),
         searchActiveTab([validationRule.datoValidar]),
       ]);
+      if (isStale()) return { stale: true };
 
       const faltantes = [];
       if (!empresaCheck?.found) faltantes.push(`empresa "${validationRule.empresaValidar}"`);
@@ -225,6 +256,7 @@ export function useDepositActions({
         numeroOperacion: editableData.numero_operacion_banco,
         excludeId: deposit.id,
       });
+      if (isStale()) return { stale: true };
 
       if (response.error) {
         setCheckResult({ checked: true, isDuplicate: true, message: "Error al comprobar: " + response.error });
@@ -277,6 +309,7 @@ export function useDepositActions({
           return dup;
         }),
       );
+      if (isStale()) return { stale: true };
 
       if (duplicates.length > 0) {
         setDuplicateDeposits(duplicates);
@@ -284,6 +317,16 @@ export function useDepositActions({
           checked: true,
           isDuplicate: true,
           message: `¡Alerta! Se encontraron ${duplicates.length} depósito(s) duplicado(s).`,
+          auto,
+        });
+      } else if (auto && needsActiveTabValidation) {
+        setDuplicateDeposits([]);
+        setCheckResult({
+          checked: false,
+          isDuplicate: false,
+          message:
+            "Sin duplicados en la base de datos. Pulsa «Comprobar Duplicados» para validar también la cuenta en la pestaña del banco.",
+          auto,
         });
       } else {
         setDuplicateDeposits([]);
@@ -291,12 +334,13 @@ export function useDepositActions({
           checked: true,
           isDuplicate: false,
           message: "No se encontraron duplicados. Puede confirmar el depósito.",
+          auto,
         });
       }
     } catch (err) {
-      setCheckResult({ checked: true, isDuplicate: true, message: "Error crítico: " + err.message });
+      if (!isStale()) setCheckResult({ checked: true, isDuplicate: true, message: "Error crítico: " + err.message });
     } finally {
-      setIsChecking(false);
+      if (!isStale()) setIsChecking(false);
     }
   }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits, empresas]);
 
@@ -445,6 +489,7 @@ export function useDepositActions({
     isSending,
     checkResult,
     setCheckResult,
+    invalidateDuplicateCheck,
     duplicateDeposits,
     isRejectionModalOpen,
     setIsRejectionModalOpen,

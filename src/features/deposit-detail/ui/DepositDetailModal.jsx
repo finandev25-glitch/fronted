@@ -6,6 +6,7 @@ import { useDepositForm } from "../hooks/useDepositForm.js";
 import { useDepositActions } from "../hooks/useDepositActions.js";
 import { useDepositSql } from "../hooks/useDepositSql.js";
 import { useDepositEventTracking } from "../hooks/useDepositEventTracking.js";
+import { getAutoNextPreference, setAutoNextPreference } from "../../../utils/autoNextPreference.js";
 import { DepositVoucherPanel } from "./DepositVoucherPanel.jsx";
 import ZoomableVoucherImage from "./ZoomableVoucherImage.jsx";
 import { DepositFormPanel } from "./DepositFormPanel.jsx";
@@ -137,6 +138,8 @@ const DepositDetailModal = ({
   editMode = "full",
   presentationMode = "default",
   queueItem,
+  // Solo el Kanban sabe abrir "el siguiente pendiente": muestra la casilla.
+  showAutoNextOption = false,
 }) => {
   if (!deposit) return null;
   const isCompactPresentation = presentationMode === "compact";
@@ -174,6 +177,7 @@ const DepositDetailModal = ({
     isProcessing,
     isSending,
     checkResult,
+    invalidateDuplicateCheck,
     duplicateDeposits,
     isRejectionModalOpen,
     setIsRejectionModalOpen,
@@ -360,6 +364,12 @@ const DepositDetailModal = ({
     if (result?.success) {
       closeOnSuccess?.();
       showCompactToast("✅ Depósito confirmado exitosamente.", "success");
+      // Con "Abrir el siguiente pendiente al terminar" marcado, el detalle se
+      // cierra solo (normalmente queda abierto para poder Regularizar) y el
+      // Kanban abre el siguiente. La pausa deja ver el aviso de éxito.
+      if (showAutoNextOption && getAutoNextPreference()) {
+        setTimeout(() => onClose(), 600);
+      }
     } else if (result?.error) {
       showCompactToast(`❌ ${result.error}`, "error");
     }
@@ -534,6 +544,9 @@ const DepositDetailModal = ({
   useEffect(() => {
     if (!shouldUseDuplicateModals) return;
     if (!checkResult.checked) return;
+    // La comprobación automática solo abre popup si ENCONTRÓ duplicados;
+    // el popup "Sin duplicados" queda para cuando el usuario pulsa el botón.
+    if (checkResult.auto && !checkResult.isDuplicate) return;
     if (lastAutoOpenedCheckResultRef.current === checkResult) return;
     lastAutoOpenedCheckResultRef.current = checkResult;
 
@@ -596,7 +609,98 @@ const DepositDetailModal = ({
   const canShowConfirmActions = editMode !== "fields-only" && !isLockedByOther &&
     (deposit.estado === "recibido" || deposit.estado === "procesado" || deposit.estado === "rechazado");
 
+  // ─── Comprobación automática de duplicados ──────────────────────────────
+  // Se comprueba sola al abrir (cuando ya llegó el detalle completo) y cada
+  // vez que cambia un dato que influye: empresa, banco, anexo, moneda,
+  // importe, nro. de operación, fecha o tarjeta. Apenas cambia algo se
+  // invalida el resultado anterior (no se puede confirmar con un resultado
+  // viejo) y se vuelve a comprobar tras una pausa corta.
+  const canDecide =
+    deposit.estado === "procesado" && !isLockedByOther && !isFieldsOnlyEdit && editMode !== "readonly";
+  const autoDuplicateCheckEnabled = isDetailLoaded && canDecide;
+  const handleCheckDuplicatesRef = useRef(handleCheckDuplicates);
+  handleCheckDuplicatesRef.current = handleCheckDuplicates;
+  const duplicateCheckKey = [
+    editableData.empresa_id,
+    editableData.banco_id,
+    editableData.anexo,
+    selectedMoneda,
+    editableData.monto,
+    editableData.numero_operacion_banco,
+    editableData.fecha_deposito,
+    editableData.numero_tarjeta,
+  ].join("|");
+  useEffect(() => {
+    if (!autoDuplicateCheckEnabled) return undefined;
+    invalidateDuplicateCheck();
+    const timer = setTimeout(() => {
+      void handleCheckDuplicatesRef.current({ auto: true });
+    }, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duplicateCheckKey, autoDuplicateCheckEnabled]);
+
   const [isFloatingIframeOpen, setIsFloatingIframeOpen] = useState(false);
+
+  // ─── Atajos de teclado ──────────────────────────────────────────────────
+  // Ctrl+Enter (Cmd+Enter en Mac) = Confirmar · Alt+R = Rechazar.
+  // (Ctrl+R no se usa: es "recargar página" del navegador.)
+  // Solo con el depósito pendiente y tomado por uno mismo, y nunca mientras
+  // hay otra ventana encima (rechazo, duplicados, SQL, etc.).
+  const shortcutsEnabled = canDecide;
+  const [autoNextEnabled, setAutoNextEnabled] = useState(() => getAutoNextPreference());
+  const shortcutStateRef = useRef({});
+  shortcutStateRef.current = {
+    blocked:
+      isRejectionModalOpen ||
+      duplicateModalMode !== "none" ||
+      isSqlMovementsModalOpen ||
+      showRegularizeUpload ||
+      isContactModalOpen ||
+      isPickerOpen ||
+      isFloatingIframeOpen ||
+      Boolean(compactActionToast) ||
+      isProcessing ||
+      isSending,
+    canConfirm,
+    isChecking,
+    checkMessage: checkResult.message,
+    // Funciones del render actual (leen editableData vigente, no la del
+    // primer render).
+    confirm: handleConfirmDepositWithFeedback,
+    toast: showCompactToast,
+    track: trackAction,
+  };
+  useEffect(() => {
+    if (!shortcutsEnabled) return undefined;
+    const onKeyDown = (e) => {
+      const st = shortcutStateRef.current;
+      if (st.blocked) return;
+      const isConfirm = e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+      const isReject = e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "r" || e.key === "R" || e.code === "KeyR");
+      if (isConfirm) {
+        e.preventDefault();
+        if (st.canConfirm) {
+          st.track("atajo_confirmar");
+          void st.confirm();
+        } else {
+          st.toast(
+            st.isChecking
+              ? "⏳ Comprobando duplicados, espera un momento."
+              : `⚠️ Aún no se puede confirmar. ${st.checkMessage || "Completa los datos y comprueba duplicados."}`,
+            "warning",
+          );
+        }
+      } else if (isReject) {
+        e.preventDefault();
+        st.track("atajo_rechazar");
+        setIsRejectionModalOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcutsEnabled]);
   const [rejectedObservationText, setRejectedObservationText] = useState("");
   
   const [elapsedTime, setElapsedTime] = useState("");
@@ -2813,7 +2917,7 @@ const DepositDetailModal = ({
                         </button>
                       </div>
                       <AnimatePresence>
-                        {checkResult.checked && (
+                        {(checkResult.checked || checkResult.message) && (
                           <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -3188,8 +3292,25 @@ const DepositDetailModal = ({
               isCompactPresentation ? "rounded-b-2xl p-3" : "rounded-b-xl p-4"
             }`}
           >
-            <div className="mr-auto hidden md:block text-xs text-gray-500 dark:text-zinc-400">
-              Esc: cerrar
+            <div className="mr-auto hidden md:flex items-center gap-3 text-xs text-gray-500 dark:text-zinc-400">
+              <span>
+                Esc: cerrar
+                {canDecide && " · Ctrl+Enter: confirmar · Alt+R: rechazar"}
+              </span>
+              {showAutoNextOption && canDecide && (
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-white px-2 py-0.5 text-gray-600 hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5"
+                    checked={autoNextEnabled}
+                    onChange={(e) => {
+                      setAutoNextEnabled(e.target.checked);
+                      setAutoNextPreference(e.target.checked);
+                    }}
+                  />
+                  Abrir el siguiente pendiente al terminar
+                </label>
+              )}
             </div>
             {isFieldsOnlyEdit ? (
               <>

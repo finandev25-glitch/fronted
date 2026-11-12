@@ -791,6 +791,18 @@ export async function updatePersonal(id, data) {
   return mapTrabajador(updated);
 }
 
+// POST /v1/masters/trabajadores/{id}/intercambiar-usuario — solo admin.
+// Cada trabajador se queda con la cuenta (Profile) del otro, en una sola
+// transacción. Opcionalmente intercambia también los teléfonos personales.
+// Devuelve los dos trabajadores actualizados.
+export async function swapTrabajadorProfiles(id, otroTrabajadorId, { intercambiarTelefono = false } = {}) {
+  const data = await apiJson(`${MASTERS_BASE}/trabajadores/${id}/intercambiar-usuario`, {
+    method: "POST",
+    body: JSON.stringify({ otroTrabajadorId, intercambiarTelefono }),
+  });
+  return (Array.isArray(data) ? data : []).map(mapTrabajador);
+}
+
 export async function deletePersonal(id) {
   return apiJson(`${MASTERS_BASE}/trabajadores/${id}`, { method: "DELETE" });
 }

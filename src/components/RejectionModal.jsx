@@ -1,8 +1,27 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { X, MessageSquareWarning, Loader2 } from "lucide-react";
+import { X, MessageSquareWarning, Loader2, Check } from "lucide-react";
 import { useEscapeClose } from "../hooks/useEscapeClose.js";
+
+// Motivos frecuentes: un clic los agrega (uno por línea) y otro los quita.
+// El texto sigue siendo editable para agregar detalle propio. Usar siempre
+// los mismos textos también deja los rechazos uniformes para los reportes.
+export const MOTIVOS_RECHAZO_FRECUENTES = [
+  "Enviar voucher completo",
+  "Enviar voucher legible",
+  "Enviar nombres completos",
+  "El abono no existe en el empresa indicada",
+  "El abono no existe con el nombre del cliente enviado",
+  "El abono no existe en el banco seleccionado",
+  "El abono no existe, enviar el voucher mañana",
+];
+
+const reasonLines = (text) =>
+  String(text || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
 
 const RejectionModal = ({
   onClose,
@@ -14,6 +33,14 @@ const RejectionModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEscapeClose(onClose, !isSubmitting);
+
+  const selectedLines = reasonLines(reason);
+  const toggleMotivo = (motivo) => {
+    const lines = reasonLines(reason);
+    const next = lines.includes(motivo) ? lines.filter((l) => l !== motivo) : [...lines, motivo];
+    setReason(next.join("\n"));
+    setError("");
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) return; // Evitar múltiples clics
@@ -41,7 +68,7 @@ const RejectionModal = ({
         initial={{ opacity: 0, scale: 0.96, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 20 }}
-        className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
           <h2 className="text-base font-bold text-gray-900">
@@ -62,6 +89,28 @@ const RejectionModal = ({
             <MessageSquareWarning className="mr-2 h-5 w-5 text-yellow-500" />
             Motivo del Rechazo
           </label>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {MOTIVOS_RECHAZO_FRECUENTES.map((motivo) => {
+              const active = selectedLines.includes(motivo);
+              return (
+                <button
+                  key={motivo}
+                  type="button"
+                  onClick={() => toggleMotivo(motivo)}
+                  disabled={isSubmitting}
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                    active
+                      ? "border-red-500 bg-red-50 text-red-700"
+                      : "border-gray-300 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50/50"
+                  }`}
+                >
+                  {active && <Check className="h-3 w-3" />}
+                  {motivo}
+                </button>
+              );
+            })}
+          </div>
           <textarea
             id="rejection-reason"
             rows="3"
@@ -72,7 +121,7 @@ const RejectionModal = ({
             }}
             disabled={isSubmitting}
             className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-            placeholder="Ej: El monto no coincide, voucher ilegible..."
+            placeholder="Elige uno o más motivos, o escribe uno propio..."
             autoFocus
           />
           {error && <p className="mt-1 text-sm text-red-600">{error}</p>}

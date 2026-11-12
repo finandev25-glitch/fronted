@@ -29,6 +29,7 @@ import {
 } from "../../api/depositsApi.js";
 import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { logDepositEvent } from "../../../../services/depositEventLog.js";
+import { getAutoNextPreference } from "../../../../utils/autoNextPreference.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
 import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
 import {
@@ -206,6 +207,9 @@ const KanbanPage = ({
   });
   const [selectedDeposit, setSelectedDeposit] = useState(null);
   const selectedDepositRef = useRef(null);
+  const resolvedFromDetailIdRef = useRef(null);
+  const pickNextPendingRef = useRef(null);
+  const handleCardClickRef = useRef(null);
   const modalOpenTimeRef = useRef(0);
   const hasRestoredRef = useRef(false);
 
@@ -767,6 +771,19 @@ const KanbanPage = ({
     },
     [currentUser, onTakeDeposit, depositQueue],
   );
+  handleCardClickRef.current = handleCardClick;
+
+  // Siguiente a abrir: el pendiente más antiguo que nadie tomó, respetando
+  // los filtros activos del Kanban (fecha, búsqueda, validador...). Incluye
+  // los "antiguos" sin tomar, que viven en la columna En Validación.
+  pickNextPendingRef.current = (excludeId) => {
+    const candidatos = [
+      ...(groupedDeposits["procesado"] || []),
+      ...(groupedDeposits["en_validacion"] || []),
+    ].filter((d) => d.id !== excludeId && d.estado === "procesado" && !d.validado_por);
+    candidatos.sort((a, b) => new Date(a.fecha_registro) - new Date(b.fecha_registro));
+    return candidatos[0] || null;
+  };
 
   // Trae a "hoy" los depósitos que quedaron "procesado" (pendientes) de días
   // anteriores -- típicamente rezagados que llegaron después del horario de
@@ -804,6 +821,10 @@ const KanbanPage = ({
       const isFinalState =
         updatedDeposit?.estado === "confirmado" || updatedDeposit?.estado === "rechazado";
       if (!isFinalState) return;
+      // Recordar que ESTE depósito se resolvió desde el detalle: al cerrarse
+      // el detalle, si la casilla "Abrir el siguiente pendiente" está
+      // marcada, se abre el siguiente (ver handleCloseModal).
+      resolvedFromDetailIdRef.current = updatedDeposit.id;
       if (!depositQueue.queuedIds.has(updatedDeposit.id)) return;
 
       depositQueue.removeFromQueue(updatedDeposit.id);
@@ -841,7 +862,20 @@ const KanbanPage = ({
     }
 
     setSelectedDeposit(null);
-  }, [onUnlockDeposit, depositQueue]);
+
+    // "Abrir el siguiente pendiente al terminar": solo si el detalle se
+    // cerró porque se confirmó/rechazó (no al cerrar sin decidir).
+    const resolvedId = resolvedFromDetailIdRef.current;
+    resolvedFromDetailIdRef.current = null;
+    if (depositBeingClosed && resolvedId === depositBeingClosed.id && getAutoNextPreference()) {
+      const next = pickNextPendingRef.current?.(depositBeingClosed.id);
+      if (next) {
+        handleCardClickRef.current?.(next);
+      } else {
+        toast.info?.("No quedan depósitos pendientes por tomar.");
+      }
+    }
+  }, [onUnlockDeposit, depositQueue, toast]);
 
   // Implementación real de closeModalForAutoUnlockRef (ver useDepositLockTimer
   // más arriba): a diferencia de handleCloseModal, acá NO se vuelve a llamar
@@ -1059,6 +1093,7 @@ const KanbanPage = ({
             allDeposits={deposits}
             onOpenVoucherWindow={onOpenVoucherWindow}
             presentationMode={detailPresentationMode}
+            showAutoNextOption
             queueItem={depositQueue.queueItems.find((item) => item.id === selectedDeposit.id)}
           />
         )}
