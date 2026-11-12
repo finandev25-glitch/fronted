@@ -715,3 +715,10 @@ select.queue-edit-input {
     min-height: 140px;
   }
 }
+
+
+/* N° de operación igual al del voucher: hay que poner el del banco */
+.queue-edit-input.op-voucher {
+  border-color: #f59e0b;
+  background: rgba(254, 243, 199, 0.7);
+}

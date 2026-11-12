@@ -955,6 +955,16 @@ const KanbanPage = ({
       return { ok: false, message: `Faltan datos: ${missing.join(", ")}.` };
     }
 
+    // Misma regla que el detalle: hay que confirmar con el N° del BANCO, no
+    // con el del voucher (comparación exacta: un cero de más ya es distinto).
+    const opVoucher = String(deposit.numero_operacion_voucher ?? deposit.numero_operacion ?? "").replace(/\D/g, "");
+    if (opVoucher && String(data.numeroOperacion).replace(/\D/g, "") === opVoucher) {
+      return {
+        ok: false,
+        message: `El N° de operación (${opVoucher}) es el del voucher. Pon el N° de operación del banco.`,
+      };
+    }
+
     const expectedMoneda = { MN: "PEN", ME: "USD" }[data.anexo.toUpperCase().slice(-2)];
     if (expectedMoneda && expectedMoneda !== data.moneda) {
       return { ok: false, message: `El anexo ${data.anexo} no corresponde a la moneda ${data.moneda}.` };

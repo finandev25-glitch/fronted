@@ -3343,6 +3343,8 @@ const DepositDetailModal = ({
                         fechaDeposito:
                           editableData.fecha_deposito || deposit.fecha_deposito,
                         numero_operacion_solicitante: deposit.numero_operacion,
+                        numero_operacion_voucher:
+                          deposit.numero_operacion_voucher ?? deposit.numero_operacion ?? "",
                         numero_operacion_banco:
                           editableData.numero_operacion_banco ||
                           deposit.numero_operacion_banco ||
@@ -3414,6 +3416,8 @@ const DepositDetailModal = ({
                         fechaDeposito:
                           editableData.fecha_deposito || deposit.fecha_deposito,
                         numero_operacion_solicitante: deposit.numero_operacion,
+                        numero_operacion_voucher:
+                          deposit.numero_operacion_voucher ?? deposit.numero_operacion ?? "",
                         numero_operacion_banco:
                           editableData.numero_operacion_banco ||
                           deposit.numero_operacion_banco ||

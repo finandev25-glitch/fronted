@@ -144,6 +144,48 @@ if (isExtensionContextValid()) {
   }
 }
 
+// ── Bitácora: eventos del panel lateral hacia la página ─────────────────────
+// La página (depositEventLog.js) los encola con su sesión y responde con
+// "confirmo:log-deposit-events-ack". Si no hay acuse (la app no está
+// cargada en esta pestaña), la extensión los conserva y reintenta después.
+const LOG_ACK_TIMEOUT_MS = 1500;
+
+if (isExtensionContextValid()) {
+  try {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== "CONFIRMO_LOG_EVENTS") return false;
+
+      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        window.removeEventListener("confirmo:log-deposit-events-ack", onAck);
+        sendResponse({ ok });
+      };
+      const onAck = (event) => {
+        if (event?.detail?.requestId === requestId) finish(true);
+      };
+      const timer = setTimeout(() => finish(false), LOG_ACK_TIMEOUT_MS);
+
+      window.addEventListener("confirmo:log-deposit-events-ack", onAck);
+      try {
+        window.dispatchEvent(
+          new CustomEvent("confirmo:log-deposit-events", {
+            detail: { requestId, events: message.events || [] },
+          }),
+        );
+      } catch (_error) {
+        finish(false);
+      }
+      return true; // respuesta asíncrona
+    });
+  } catch (_error) {
+    // Contexto invalidado -- ver comentario junto a isExtensionContextValid.
+  }
+}
+
 // ── Canal de VUELTA extensión → página: cuando el usuario marca un depósito
 // como "atendido" en el side panel (mientras navega la página del banco),
 // eso se guarda en chrome.storage.local. Este content-script está inyectado

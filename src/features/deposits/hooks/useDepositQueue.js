@@ -63,6 +63,9 @@ function buildQueueDepositData(deposit, cuentas, bancos) {
     // DepositDetailModal.jsx (botón "Panel Lateral") y los componentes
     // legados VoucherExtensionPanel/FloatingDepositMetaOverlay.
     numero_operacion_solicitante: deposit?.numero_operacion || "",
+    // N° tal como vino del voucher: el panel lateral avisa y no deja
+    // confirmar mientras el campo siga igual (hay que poner el del banco).
+    numero_operacion_voucher: deposit?.numero_operacion_voucher ?? deposit?.numero_operacion ?? "",
     importe: deposit?.monto,
     moneda: deposit?.moneda || "",
     cliente: deposit?.cliente || "",

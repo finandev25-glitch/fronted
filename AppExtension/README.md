@@ -84,3 +84,9 @@ falta firmarla con Mozilla (o usar Firefox Developer Edition/Nightly con
 - Estado
 - Sucursal
 - Banco
+
+## 1.3.0
+
+- **Bitácora de horas-hombre:** el panel mide el tiempo por depósito (abierto, visible y activo) y las acciones (validar, buscar, confirmar). Como el panel no tiene sesión, los eventos se guardan en `deposit_events_outbox` (chrome.storage.local) y se entregan a la pestaña del sistema (`CONFIRMO_LOG_EVENTS` → `confirmo:log-deposit-events`), que los envía al backend con canal `appextension`. Si no hay pestaña del sistema abierta, se reintentan con el siguiente evento.
+- **N° de operación del voucher:** el campo se marca en ámbar y no se puede confirmar mientras tenga el N° del voucher (hay que poner el del banco). La pantalla principal aplica la misma regla al recibir la confirmación.
+- **Ctrl+Enter:** inicia la confirmación; un segundo Ctrl+Enter equivale a "Sí, confirmar".

@@ -73,14 +73,36 @@ function scheduleFlush() {
   }, FLUSH_DELAY_MS);
 }
 
-export function logDepositEvent(depositId, evento, { sesionId = null, metadata = null } = {}) {
+// Canal desde el que se generó el evento, para separar los flujos en el
+// análisis de horas-hombre:
+//   web                   -> portal en una pestaña normal
+//   extension_portal      -> PortalPanelExtension (portal en vivo dentro del side panel)
+//   extension_empaquetada -> copia compilada del fronted cargada como extensión
+//   appextension          -> panel lateral de validación (llega reenviado, ver abajo)
+function detectCanal() {
+  try {
+    if (window.__APP_UI_MODE__ === "extension") {
+      if (window.location.protocol === "chrome-extension:" || window.location.protocol === "moz-extension:") {
+        return "extension_empaquetada";
+      }
+      return window.top !== window.self ? "extension_portal" : "web";
+    }
+  } catch {
+    // window.top inaccesible: se asume embebido.
+    return "extension_portal";
+  }
+  return "web";
+}
+const CANAL = typeof window !== "undefined" ? detectCanal() : "web";
+
+export function logDepositEvent(depositId, evento, { sesionId = null, metadata = null, ocurridoEn = null } = {}) {
   if (!depositId || !evento || endpointMissing) return;
   queue.push({
     depositId: String(depositId),
     evento,
     sesionId,
-    ocurridoEn: new Date().toISOString(),
-    metadata,
+    ocurridoEn: ocurridoEn || new Date().toISOString(),
+    metadata: { canal: CANAL, ...(metadata || {}) },
   });
   if (queue.length > MAX_QUEUE) queue = queue.slice(queue.length - MAX_QUEUE);
   saveQueue();
@@ -133,4 +155,30 @@ if (typeof window !== "undefined") {
   window.addEventListener("pagehide", flushNow);
   window.addEventListener("online", () => void flushDepositEvents());
   if (queue.length > 0) scheduleFlush();
+
+  // Eventos del panel lateral de AppExtension: el panel no tiene sesión
+  // propia, así que su content-script los reenvía a esta página (que sí la
+  // tiene) y acá se encolan como cualquier otro, con canal "appextension".
+  // Se responde con un acuse para que la extensión los saque de su cola.
+  window.addEventListener("confirmo:log-deposit-events", (event) => {
+    const detail = event?.detail || {};
+    const events = Array.isArray(detail.events) ? detail.events : [];
+    events.forEach((e) => {
+      if (!e?.depositId || !e?.evento) return;
+      logDepositEvent(e.depositId, e.evento, {
+        sesionId: e.sesionId || null,
+        ocurridoEn: e.ocurridoEn || null,
+        metadata: { ...(e.metadata || {}), canal: "appextension" },
+      });
+    });
+    try {
+      window.dispatchEvent(
+        new CustomEvent("confirmo:log-deposit-events-ack", {
+          detail: { requestId: detail.requestId, accepted: !endpointMissing },
+        }),
+      );
+    } catch {
+      // sin CustomEvent: la extensión reintentará más tarde.
+    }
+  });
 }

@@ -100,6 +100,70 @@ async function confirmQueueItemViaPortal({ id, fields }) {
   };
 }
 
+// ── Bitácora de horas-hombre ─────────────────────────────────────────────
+// El panel no tiene sesión propia: sus eventos (abrir/cerrar un depósito,
+// tiempo activo, acciones) se guardan en una bandeja de salida y se
+// entregan a la pestaña del sistema, que los envía al backend con su sesión
+// (content-script -> "confirmo:log-deposit-events" -> depositEventLog.js).
+// Si no hay pestaña del sistema abierta, quedan en la bandeja y se
+// reintentan con el siguiente evento.
+const EVENTS_OUTBOX_KEY = "deposit_events_outbox";
+const EVENTS_OUTBOX_MAX = 500;
+let outboxChain = Promise.resolve();
+
+function withOutbox(fn) {
+  outboxChain = outboxChain.then(fn, fn);
+  return outboxChain;
+}
+
+async function readOutbox() {
+  const result = await chrome.storage.local.get(EVENTS_OUTBOX_KEY);
+  return Array.isArray(result[EVENTS_OUTBOX_KEY]) ? result[EVENTS_OUTBOX_KEY] : [];
+}
+
+async function writeOutbox(events) {
+  await chrome.storage.local.set({ [EVENTS_OUTBOX_KEY]: events.slice(-EVENTS_OUTBOX_MAX) });
+}
+
+async function deliverOutbox() {
+  const pending = await readOutbox();
+  if (pending.length === 0) return;
+
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: PORTAL_TAB_PATTERNS });
+  } catch (_error) {
+    return;
+  }
+
+  const batch = pending.slice(0, 100);
+  for (const tab of tabs) {
+    if (!tab.id) continue;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: "CONFIRMO_LOG_EVENTS", events: batch });
+      if (response?.ok) {
+        const sentIds = new Set(batch.map((e) => e.localId));
+        const rest = (await readOutbox()).filter((e) => !sentIds.has(e.localId));
+        await writeOutbox(rest);
+        return;
+      }
+    } catch (_error) {
+      // Pestaña sin content-script o sin la app cargada: probar la siguiente.
+    }
+  }
+}
+
+function logDepositEvents(events) {
+  return withOutbox(async () => {
+    const valid = (events || []).filter((e) => e?.depositId && e?.evento);
+    if (valid.length > 0) {
+      const outbox = await readOutbox();
+      await writeOutbox([...outbox, ...valid]);
+    }
+    await deliverOutbox();
+  });
+}
+
 async function removeFromQueue({ id }) {
   if (!id) return getQueueState();
   const state = await getQueueState();
@@ -700,6 +764,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "REMOVE_FROM_QUEUE") {
     removeFromQueue({ id: message.id })
       .then((state) => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "LOG_DEPOSIT_EVENTS") {
+    logDepositEvents(message.events)
+      .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
