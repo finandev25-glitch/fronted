@@ -9,6 +9,7 @@ import {
 import { searchActiveTab, isActiveTabSearchAvailable } from "../lib/activeTabSearch.js";
 import { findAnexoValidationRule } from "../data/anexoValidationRules.js";
 import { isNiubizBanco } from "../../deposits/components/depositDetailModalHelpers.jsx";
+import { isDepositAntiguo } from "../../../utils/depositStatusHelpers.js";
 
 // "MN" = moneda nacional (Soles), "ME" = moneda extranjera (Dólares) --
 // mismo criterio que useDepositForm.js (anexoMonedaWarning) y el side panel
@@ -84,9 +85,12 @@ export function useDepositActions({
   const opEsDelVoucher =
     deposit?.estado === "procesado" && Boolean(opVoucher) && opIngresada === opVoucher;
   const opPendienteMensaje = `Ingresa el N° de operación del banco: el actual (${opVoucher}) es el del voucher.`;
+  // En los ANTIGUOS a veces el N° ya coincide con el del banco: ahí solo se
+  // avisa (campo en ámbar), sin bloquear la comprobación ni la confirmación.
+  const opBloqueaVoucher = opEsDelVoucher && !isDepositAntiguo(deposit);
 
   const canCheckDuplicates =
-    !opEsDelVoucher &&
+    !opBloqueaVoucher &&
     editableData.empresa_id &&
     editableData.banco_id &&
     editableData.anexo &&
@@ -105,7 +109,7 @@ export function useDepositActions({
   // comprobación anterior) y el botón/popup de Confirmar se habilitaba
   // igual, con datos incompletos.
   const canConfirm =
-    !opEsDelVoucher &&
+    !opBloqueaVoucher &&
     !isChecking &&
     checkResult.checked &&
     !checkResult.isDuplicate &&
@@ -191,7 +195,7 @@ export function useDepositActions({
   //     botón para validar la cuenta (no se puede confirmar hasta entonces).
   // Los resultados llevan auto:true para no abrir popups solos.
   const handleCheckDuplicates = useCallback(async ({ auto = false } = {}) => {
-    if (opEsDelVoucher) {
+    if (opBloqueaVoucher) {
       // Aviso en ámbar (pending) en vez de "sin duplicados".
       setDuplicateDeposits([]);
       setCheckResult({ checked: false, isDuplicate: false, pending: true, message: opPendienteMensaje, auto });
@@ -344,7 +348,7 @@ export function useDepositActions({
           checked: false,
           isDuplicate: false,
           message:
-            "Sin duplicados en la base de datos. Pulsa «Comprobar Duplicados» para validar también la cuenta en la pestaña del banco.",
+            "Sin duplicados en la base de datos. Pulsa «Duplicados» para validar también la cuenta en la pestaña del banco.",
           auto,
         });
       } else {
@@ -361,7 +365,7 @@ export function useDepositActions({
     } finally {
       if (!isStale()) setIsChecking(false);
     }
-  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits, empresas, opEsDelVoucher, opPendienteMensaje]);
+  }, [canCheckDuplicates, deposit?.id, editableData, selectedMoneda, allDeposits, empresas, opBloqueaVoucher, opPendienteMensaje]);
 
   // ─── Confirmar depósito ───────────────────────────────────────────────────────
   // Devuelve { success, error? } en vez de usar window.alert(): además de que
@@ -371,7 +375,7 @@ export function useDepositActions({
   // propio modal/toast, tanto en la Ventana de validación (panel compacto)
   // como en el modal completo.
   const handleConfirmDeposit = useCallback(async () => {
-    if (opEsDelVoucher) {
+    if (opBloqueaVoucher) {
       return { success: false, error: opPendienteMensaje };
     }
     if (!checkResult.checked) {
@@ -423,7 +427,7 @@ export function useDepositActions({
       setIsSending(false);
       setIsProcessing(false);
     }
-  }, [buildEditableFieldsForRequest, buildUpdatePayload, checkResult, currentUser, deposit, editableData, onClose, onUpdateDeposit, selectedMoneda, opEsDelVoucher, opPendienteMensaje]);
+  }, [buildEditableFieldsForRequest, buildUpdatePayload, checkResult, currentUser, deposit, editableData, onClose, onUpdateDeposit, selectedMoneda, opBloqueaVoucher, opPendienteMensaje]);
 
   // ─── Rechazar depósito ───────────────────────────────────────────────────────
   // FIX: ahora llama al endpoint real POST /v1/deposits/{id}/reject, que

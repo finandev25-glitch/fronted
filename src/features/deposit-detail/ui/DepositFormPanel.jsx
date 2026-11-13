@@ -28,6 +28,7 @@ export const DepositFormPanel = ({
   selectedMoneda,
   nroOperacionClasses,
   opEsDelVoucher = false,
+  opSoloAviso = false,
   verificacionOcr,
   selectedBanco,
   deposit,
@@ -172,7 +173,9 @@ export const DepositFormPanel = ({
                         />
                         {opEsDelVoucher && (
                           <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-                            Es el N° del voucher: reemplázalo por el N° de operación del banco.
+                            {opSoloAviso
+                              ? "Es el N° del voucher: verifica que coincida con el N° de operación del banco."
+                              : "Es el N° del voucher: reemplázalo por el N° de operación del banco."}
                           </p>
                         )}
                       </FormRow>

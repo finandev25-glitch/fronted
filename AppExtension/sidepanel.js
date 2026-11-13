@@ -751,8 +751,10 @@ async function runFullValidation(inner, item, button) {
     }
 
     // 1b. N° de operación: tiene que ser el del banco, no el del voucher
-    if (isOpDelVoucher(inner, item)) {
+    if (opBloqueaVoucher(inner, item)) {
       checks.push({ label: "Nro. operación", tone: "error", text: "es el del voucher; pon el N° de operación del banco." });
+    } else if (isOpDelVoucher(inner, item)) {
+      checks.push({ label: "Nro. operación", tone: "warning", text: "es el del voucher (antiguo): verifica que coincida con el del banco." });
     }
 
     // 2. Anexo vs. moneda (sufijo MN = Soles, ME = Dólares)
@@ -840,7 +842,7 @@ function collectConfirmFields(inner, item) {
 
 async function startConfirmFlow(inner, item, confirmBtn) {
   hideConfirmBar(inner);
-  if (isOpDelVoucher(inner, item)) {
+  if (opBloqueaVoucher(inner, item)) {
     updateOpVoucherNote(inner, item);
     showToast("El N° de operación es el del voucher. Pon el N° de operación del banco.", "warning");
     return;
@@ -1434,12 +1436,23 @@ function isOpDelVoucher(inner, item) {
   return actual === voucher;
 }
 
+// En los ANTIGUOS a veces el N° ya coincide con el del banco: solo se avisa,
+// no se bloquea la validación ni la confirmación.
+function opBloqueaVoucher(inner, item) {
+  return isOpDelVoucher(inner, item) && !item?.depositData?.es_antiguo;
+}
+
 function updateOpVoucherNote(inner, item) {
   const input = inner.querySelector('[data-field="numero_operacion_solicitante"]');
   const note = inner.querySelector("[data-op-voucher-note]");
   const esVoucher = isOpDelVoucher(inner, item);
   input?.classList.toggle("op-voucher", esVoucher);
-  if (note) note.hidden = !esVoucher;
+  if (note) {
+    note.hidden = !esVoucher;
+    note.textContent = item?.depositData?.es_antiguo
+      ? "Es el N° del voucher: verifica que coincida con el del banco."
+      : "Es el N° del voucher: pon el N° de operación del banco.";
+  }
 }
 
 // ── Atajo: Ctrl+Enter = Confirmar (igual que en el detalle del sistema) ────

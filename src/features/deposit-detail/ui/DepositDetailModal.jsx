@@ -619,6 +619,10 @@ const DepositDetailModal = ({
   const canDecide =
     deposit.estado === "procesado" && !isLockedByOther && !isFieldsOnlyEdit && editMode !== "readonly";
   const autoDuplicateCheckEnabled = isDetailLoaded && canDecide;
+  // Antiguos: no se comprueba solo (pedido de los usuarios); se usa el botón
+  // "Duplicados". Igual se invalida el resultado al cambiar un dato, y los
+  // avisos del N° de operación del voucher se mantienen.
+  const autoDuplicateCheckRuns = autoDuplicateCheckEnabled && !depositIsAntiguo;
   const handleCheckDuplicatesRef = useRef(handleCheckDuplicates);
   handleCheckDuplicatesRef.current = handleCheckDuplicates;
   const duplicateCheckKey = [
@@ -634,12 +638,13 @@ const DepositDetailModal = ({
   useEffect(() => {
     if (!autoDuplicateCheckEnabled) return undefined;
     invalidateDuplicateCheck();
+    if (!autoDuplicateCheckRuns) return undefined;
     const timer = setTimeout(() => {
       void handleCheckDuplicatesRef.current({ auto: true });
     }, 700);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [duplicateCheckKey, autoDuplicateCheckEnabled]);
+  }, [duplicateCheckKey, autoDuplicateCheckEnabled, autoDuplicateCheckRuns]);
 
   const [isFloatingIframeOpen, setIsFloatingIframeOpen] = useState(false);
 
@@ -1995,7 +2000,9 @@ const DepositDetailModal = ({
                         />
                         {opEsDelVoucher && (
                           <p className="text-[10px] font-medium leading-tight text-amber-700 dark:text-amber-300">
-                            Es el N° del voucher: pega el del banco.
+                            {depositIsAntiguo
+                              ? "Es el N° del voucher: verifica que coincida con el del banco."
+                              : "Es el N° del voucher: pega el del banco."}
                           </p>
                         )}
                       </div>
@@ -2141,23 +2148,33 @@ const DepositDetailModal = ({
                       </button>
                     </div>
 
+                    {/* Barra de estado: línea 1 = duplicados (incluye "comprobando…"
+                        y los avisos pendientes, p. ej. N° del voucher); línea 2 =
+                        resultado de la búsqueda en la pestaña del banco. */}
                     <div
                       className={`flex w-full flex-none items-center justify-between gap-3 rounded-xl border px-3 py-2 text-[10px] ${
-                        checkResult.checked
-                          ? checkResult.isDuplicate
-                            ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/30 dark:text-rose-200"
-                            : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/30 dark:text-emerald-200"
-                          : compactSearchStatusClass
+                        isChecking
+                          ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/30 dark:text-blue-200"
+                          : checkResult.checked
+                            ? checkResult.isDuplicate
+                              ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/30 dark:text-rose-200"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/30 dark:text-emerald-200"
+                            : checkResult.message
+                              ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/30 dark:text-amber-200"
+                              : compactSearchStatusClass
                       }`}
                     >
-                      <div className="min-w-0 flex-1">
-                        <span className="block truncate whitespace-nowrap">
-                          {checkResult.checked
-                            ? checkResult.message
-                            : isCompactSearching
-                              ? "Buscando..."
-                              : compactSearchStatus}
-                        </span>
+                      <div className="min-w-0 flex-1 space-y-0.5 leading-tight">
+                        {(isChecking || checkResult.message) && (
+                          <span className="block whitespace-normal">
+                            {isChecking ? "Comprobando duplicados..." : checkResult.message}
+                          </span>
+                        )}
+                        {(isCompactSearching || compactSearchStatus !== "Sin verificar." || !(isChecking || checkResult.message)) && (
+                          <span className="block whitespace-normal opacity-80">
+                            {isCompactSearching ? "Buscando..." : compactSearchStatus}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2901,6 +2918,7 @@ const DepositDetailModal = ({
                     selectedMoneda={selectedMoneda}
                     nroOperacionClasses={nroOperacionClasses}
                     opEsDelVoucher={opEsDelVoucher}
+                    opSoloAviso={depositIsAntiguo}
                     selectedBanco={selectedBanco}
                     deposit={deposit}
                   />
@@ -3345,6 +3363,7 @@ const DepositDetailModal = ({
                         numero_operacion_solicitante: deposit.numero_operacion,
                         numero_operacion_voucher:
                           deposit.numero_operacion_voucher ?? deposit.numero_operacion ?? "",
+                        es_antiguo: depositIsAntiguo,
                         numero_operacion_banco:
                           editableData.numero_operacion_banco ||
                           deposit.numero_operacion_banco ||
@@ -3418,6 +3437,7 @@ const DepositDetailModal = ({
                         numero_operacion_solicitante: deposit.numero_operacion,
                         numero_operacion_voucher:
                           deposit.numero_operacion_voucher ?? deposit.numero_operacion ?? "",
+                        es_antiguo: depositIsAntiguo,
                         numero_operacion_banco:
                           editableData.numero_operacion_banco ||
                           deposit.numero_operacion_banco ||

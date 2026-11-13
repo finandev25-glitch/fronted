@@ -42,6 +42,7 @@
  *   actual.
  */
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { isDepositAntiguo } from "../../../utils/depositStatusHelpers.js";
 import {
   getBancoOptions,
   getAnexoOptionsForDeposit,
@@ -66,6 +67,7 @@ function buildQueueDepositData(deposit, cuentas, bancos) {
     // N° tal como vino del voucher: el panel lateral avisa y no deja
     // confirmar mientras el campo siga igual (hay que poner el del banco).
     numero_operacion_voucher: deposit?.numero_operacion_voucher ?? deposit?.numero_operacion ?? "",
+    es_antiguo: isDepositAntiguo(deposit),
     importe: deposit?.monto,
     moneda: deposit?.moneda || "",
     cliente: deposit?.cliente || "",
