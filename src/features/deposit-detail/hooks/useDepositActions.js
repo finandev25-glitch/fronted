@@ -10,6 +10,7 @@ import { searchActiveTab, isActiveTabSearchAvailable } from "../lib/activeTabSea
 import { findAnexoValidationRule } from "../data/anexoValidationRules.js";
 import { isNiubizBanco } from "../../deposits/components/depositDetailModalHelpers.jsx";
 import { isDepositAntiguo } from "../../../utils/depositStatusHelpers.js";
+import { getUiMode } from "../../../utils/uiMode.js";
 
 // "MN" = moneda nacional (Soles), "ME" = moneda extranjera (Dólares) --
 // mismo criterio que useDepositForm.js (anexoMonedaWarning) y el side panel
@@ -245,7 +246,14 @@ export function useDepositActions({
     const empresaNombre =
       (empresas || []).find((e) => String(e.id) === String(editableData.empresa_id))?.nombre || "";
     const validationRule = findAnexoValidationRule(empresaNombre, editableData.anexo);
-    const needsActiveTabValidation = Boolean(validationRule && isActiveTabSearchAvailable());
+    // Solo dentro de las extensiones (modo "extension"): ahí la pestaña activa
+    // es la del banco. En el portal normal la pestaña activa es el propio
+    // portal, así que nunca se valida -- aunque haya una extensión instalada
+    // que habilite la búsqueda (PortalPanelExtension la habilita también en
+    // la pestaña del portal, y por eso esta validación se colaba ahí).
+    const needsActiveTabValidation = Boolean(
+      validationRule && getUiMode() === "extension" && isActiveTabSearchAvailable(),
+    );
     if (needsActiveTabValidation && !auto) {
       setCheckResult({ checked: false, isDuplicate: false, message: "Validando datos de la cuenta en la pestaña activa..." });
       const [empresaCheck, datoCheck] = await Promise.all([
