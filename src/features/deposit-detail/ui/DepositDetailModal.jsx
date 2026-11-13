@@ -185,6 +185,7 @@ const DepositDetailModal = ({
     canConfirm,
     canCheckDuplicates,
     opEsDelVoucher,
+    opSoloAviso,
     handleCheckDuplicates,
     handleConfirmDeposit,
     handleConfirmRejection,
@@ -2000,7 +2001,7 @@ const DepositDetailModal = ({
                         />
                         {opEsDelVoucher && (
                           <p className="text-[10px] font-medium leading-tight text-amber-700 dark:text-amber-300">
-                            {depositIsAntiguo
+                            {opSoloAviso
                               ? "Es el N° del voucher: verifica que coincida con el del banco."
                               : "Es el N° del voucher: pega el del banco."}
                           </p>
@@ -2918,7 +2919,7 @@ const DepositDetailModal = ({
                     selectedMoneda={selectedMoneda}
                     nroOperacionClasses={nroOperacionClasses}
                     opEsDelVoucher={opEsDelVoucher}
-                    opSoloAviso={depositIsAntiguo}
+                    opSoloAviso={opSoloAviso}
                     selectedBanco={selectedBanco}
                     deposit={deposit}
                   />

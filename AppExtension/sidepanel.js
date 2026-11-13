@@ -754,7 +754,7 @@ async function runFullValidation(inner, item, button) {
     if (opBloqueaVoucher(inner, item)) {
       checks.push({ label: "Nro. operación", tone: "error", text: "es el del voucher; pon el N° de operación del banco." });
     } else if (isOpDelVoucher(inner, item)) {
-      checks.push({ label: "Nro. operación", tone: "warning", text: "es el del voucher (antiguo): verifica que coincida con el del banco." });
+      checks.push({ label: "Nro. operación", tone: "warning", text: "es el del voucher: verifica que coincida con el del banco." });
     }
 
     // 2. Anexo vs. moneda (sufijo MN = Soles, ME = Dólares)
@@ -1436,10 +1436,20 @@ function isOpDelVoucher(inner, item) {
   return actual === voucher;
 }
 
-// En los ANTIGUOS a veces el N° ya coincide con el del banco: solo se avisa,
-// no se bloquea la validación ni la confirmación.
+// En los ANTIGUOS y en Scotiabank a veces el N° ya coincide con el del banco:
+// solo se avisa, no se bloquea la validación ni la confirmación.
+function opSoloAviso(inner, item) {
+  const data = item?.depositData || {};
+  const bancoId = getFieldValue(inner, "bancoId") || data.bancoId || "";
+  const opcion = (Array.isArray(data.bancoOptions) ? data.bancoOptions : []).find(
+    (b) => String(b.id) === String(bancoId),
+  );
+  const nombreBanco = `${opcion?.nombre || ""} ${data.banco || ""}`;
+  return Boolean(data.es_antiguo) || /SCOTIA/i.test(nombreBanco);
+}
+
 function opBloqueaVoucher(inner, item) {
-  return isOpDelVoucher(inner, item) && !item?.depositData?.es_antiguo;
+  return isOpDelVoucher(inner, item) && !opSoloAviso(inner, item);
 }
 
 function updateOpVoucherNote(inner, item) {
@@ -1449,7 +1459,7 @@ function updateOpVoucherNote(inner, item) {
   input?.classList.toggle("op-voucher", esVoucher);
   if (note) {
     note.hidden = !esVoucher;
-    note.textContent = item?.depositData?.es_antiguo
+    note.textContent = opSoloAviso(inner, item)
       ? "Es el N° del voucher: verifica que coincida con el del banco."
       : "Es el N° del voucher: pon el N° de operación del banco.";
   }

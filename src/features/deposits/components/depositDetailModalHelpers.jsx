@@ -339,6 +339,12 @@ export const normalizeDepositCurrency = (value) => {
 export const isNiubizBanco = (banco) =>
   String(banco?.abreviatura || "").trim().toUpperCase() === "NIUBIZ";
 
+// Bancos donde el N° de operación del voucher A VECES es el mismo que registra
+// el banco (Scotiabank). Ahí la regla "hay que poner el N° del banco" solo
+// avisa, no bloquea.
+export const bancoPuedeRepetirNumero = (banco) =>
+  /SCOTIA/i.test(`${banco?.abreviatura || ""} ${banco?.nombre || ""}`);
+
 export const renderSqlCell = (value, key) => {
   if (value == null || value === "") return "-";
   if (key === "FECHA") return formatSqlDateDDMMYYYY(value);

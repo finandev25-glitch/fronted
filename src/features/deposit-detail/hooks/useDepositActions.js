@@ -8,7 +8,7 @@ import {
 } from "../../deposits/api/depositsApi.js";
 import { searchActiveTab, isActiveTabSearchAvailable } from "../lib/activeTabSearch.js";
 import { findAnexoValidationRule } from "../data/anexoValidationRules.js";
-import { isNiubizBanco } from "../../deposits/components/depositDetailModalHelpers.jsx";
+import { isNiubizBanco, bancoPuedeRepetirNumero } from "../../deposits/components/depositDetailModalHelpers.jsx";
 import { isDepositAntiguo } from "../../../utils/depositStatusHelpers.js";
 import { getUiMode } from "../../../utils/uiMode.js";
 
@@ -86,9 +86,11 @@ export function useDepositActions({
   const opEsDelVoucher =
     deposit?.estado === "procesado" && Boolean(opVoucher) && opIngresada === opVoucher;
   const opPendienteMensaje = `Ingresa el N° de operación del banco: el actual (${opVoucher}) es el del voucher.`;
-  // En los ANTIGUOS a veces el N° ya coincide con el del banco: ahí solo se
-  // avisa (campo en ámbar), sin bloquear la comprobación ni la confirmación.
-  const opBloqueaVoucher = opEsDelVoucher && !isDepositAntiguo(deposit);
+  // En los ANTIGUOS y en Scotiabank a veces el N° ya coincide con el del
+  // banco: ahí solo se avisa (campo en ámbar), sin bloquear la comprobación
+  // ni la confirmación.
+  const opSoloAviso = isDepositAntiguo(deposit) || bancoPuedeRepetirNumero(selectedBanco);
+  const opBloqueaVoucher = opEsDelVoucher && !opSoloAviso;
 
   const canCheckDuplicates =
     !opBloqueaVoucher &&
@@ -532,6 +534,7 @@ export function useDepositActions({
     canConfirm,
     canCheckDuplicates,
     opEsDelVoucher,
+    opSoloAviso,
     // Handlers
     buildUpdatePayload,
     handleCheckDuplicates,

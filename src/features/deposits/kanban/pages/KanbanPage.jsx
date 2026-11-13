@@ -31,7 +31,7 @@ import { useDepositQueue } from "../../hooks/useDepositQueue.js";
 import { logDepositEvent } from "../../../../services/depositEventLog.js";
 import { getAutoNextPreference } from "../../../../utils/autoNextPreference.js";
 import { useDepositLockTimer } from "../../hooks/useDepositLockTimer.js";
-import { isNiubizBanco } from "../../components/depositDetailModalHelpers.jsx";
+import { isNiubizBanco, bancoPuedeRepetirNumero } from "../../components/depositDetailModalHelpers.jsx";
 import {
   getKanbanBucket,
   isDepositAntiguo,
@@ -959,8 +959,13 @@ const KanbanPage = ({
     // Misma regla que el detalle: hay que confirmar con el N° del BANCO, no
     // con el del voucher (comparación exacta: un cero de más ya es distinto).
     const opVoucher = String(deposit.numero_operacion_voucher ?? deposit.numero_operacion ?? "").replace(/\D/g, "");
-    // (En antiguos a veces ya coincide con el del banco: no se bloquea.)
-    if (opVoucher && !isDepositAntiguo(deposit) && String(data.numeroOperacion).replace(/\D/g, "") === opVoucher) {
+    // (En antiguos y en Scotiabank a veces ya coincide con el del banco: no se bloquea.)
+    if (
+      opVoucher &&
+      !isDepositAntiguo(deposit) &&
+      !bancoPuedeRepetirNumero(banco) &&
+      String(data.numeroOperacion).replace(/\D/g, "") === opVoucher
+    ) {
       return {
         ok: false,
         message: `El N° de operación (${opVoucher}) es el del voucher. Pon el N° de operación del banco.`,
