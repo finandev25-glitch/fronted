@@ -328,7 +328,6 @@ function renderVoucherBody(item) {
   // voucher y el resto del DOM quedan intactos.
   const existingInner = elements.voucherBody.querySelector(".queue-item-detail-inner");
   if (existingInner && updateQueueItemDetailInPlace(existingInner, item, data)) {
-    updateOpVoucherNote(existingInner, item);
     return;
   }
 
@@ -750,13 +749,6 @@ async function runFullValidation(inner, item, button) {
       checks.push({ label: "Campos", tone: "ok", text: "completos." });
     }
 
-    // 1b. N° de operación: tiene que ser el del banco, no el del voucher
-    if (opBloqueaVoucher(inner, item)) {
-      checks.push({ label: "Nro. operación", tone: "error", text: "es el del voucher; pon el N° de operación del banco." });
-    } else if (isOpDelVoucher(inner, item)) {
-      checks.push({ label: "Nro. operación", tone: "warning", text: "es el del voucher: verifica que coincida con el del banco." });
-    }
-
     // 2. Anexo vs. moneda (sufijo MN = Soles, ME = Dólares)
     const anexo = getFieldValue(inner, "anexo");
     const moneda = getFieldValue(inner, "moneda");
@@ -842,11 +834,6 @@ function collectConfirmFields(inner, item) {
 
 async function startConfirmFlow(inner, item, confirmBtn) {
   hideConfirmBar(inner);
-  if (opBloqueaVoucher(inner, item)) {
-    updateOpVoucherNote(inner, item);
-    showToast("El N° de operación es el del voucher. Pon el N° de operación del banco.", "warning");
-    return;
-  }
   const checks = await runFullValidation(inner, item, confirmBtn);
   if (checks.some((c) => c.tone === "error")) {
     showToast("Corrige las observaciones marcadas con ✗ antes de confirmar.", "warning");
@@ -1035,7 +1022,6 @@ function buildQueueItemDetailContent(item, data) {
           <button type="button" class="field-search-btn queue-search-op-btn" title="Buscar nro. operación" aria-label="Buscar nro. operación">${SEARCH_ICON_SVG}</button>
         </span>
         <input type="text" class="queue-edit-input" data-field="numero_operacion_solicitante" data-required="1" value="${escapeHtml(operationValue)}" placeholder="Número de operación" />
-        <p class="field-check-note tone-warning" data-op-voucher-note hidden>Es el N° del voucher: pon el N° de operación del banco.</p>
       </div>
       <div class="queue-item-field">
         <span class="label label--with-action">
@@ -1169,11 +1155,6 @@ function buildQueueItemDetailContent(item, data) {
   updateFechaNote(inner);
   inner.querySelector('[data-field="fecha_deposito"]')?.addEventListener("input", () => updateFechaNote(inner));
 
-  // Aviso del N° de operación del voucher, al pintar y mientras se escribe.
-  updateOpVoucherNote(inner, item);
-  inner
-    .querySelector('[data-field="numero_operacion_solicitante"]')
-    ?.addEventListener("input", () => updateOpVoucherNote(inner, item));
 
   const validateBtn = inner.querySelector(".queue-item-validate-btn");
   validateBtn?.addEventListener("click", (event) => {
@@ -1421,48 +1402,6 @@ function setupVoucherZoom(container) {
     zoomTy = 0;
     applyVoucherZoom();
   });
-}
-
-// ── N° de operación del voucher ─────────────────────────────────────────────
-// Igual que en el detalle del sistema: el N° del voucher nunca es el que
-// registra el banco (cambia un cero, el primer dígito, o es otro número), y
-// en contabilidad tiene que quedar el del banco. Comparación exacta por
-// dígitos: un cero de más ya cuenta como distinto.
-function isOpDelVoucher(inner, item) {
-  const data = item?.depositData || {};
-  const voucher = String(data.numero_operacion_voucher ?? "").replace(/\D/g, "");
-  if (!voucher) return false;
-  const actual = String(getFieldValue(inner, "numero_operacion_solicitante") || "").replace(/\D/g, "");
-  return actual === voucher;
-}
-
-// En los ANTIGUOS y en Scotiabank a veces el N° ya coincide con el del banco:
-// solo se avisa, no se bloquea la validación ni la confirmación.
-function opSoloAviso(inner, item) {
-  const data = item?.depositData || {};
-  const bancoId = getFieldValue(inner, "bancoId") || data.bancoId || "";
-  const opcion = (Array.isArray(data.bancoOptions) ? data.bancoOptions : []).find(
-    (b) => String(b.id) === String(bancoId),
-  );
-  const nombreBanco = `${opcion?.nombre || ""} ${data.banco || ""}`;
-  return Boolean(data.es_antiguo) || /SCOTIA/i.test(nombreBanco);
-}
-
-function opBloqueaVoucher(inner, item) {
-  return isOpDelVoucher(inner, item) && !opSoloAviso(inner, item);
-}
-
-function updateOpVoucherNote(inner, item) {
-  const input = inner.querySelector('[data-field="numero_operacion_solicitante"]');
-  const note = inner.querySelector("[data-op-voucher-note]");
-  const esVoucher = isOpDelVoucher(inner, item);
-  input?.classList.toggle("op-voucher", esVoucher);
-  if (note) {
-    note.hidden = !esVoucher;
-    note.textContent = opSoloAviso(inner, item)
-      ? "Es el N° del voucher: verifica que coincida con el del banco."
-      : "Es el N° del voucher: pon el N° de operación del banco.";
-  }
 }
 
 // ── Atajo: Ctrl+Enter = Confirmar (igual que en el detalle del sistema) ────

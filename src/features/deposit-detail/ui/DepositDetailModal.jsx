@@ -184,8 +184,6 @@ const DepositDetailModal = ({
     dateReviewWarning,
     canConfirm,
     canCheckDuplicates,
-    opEsDelVoucher,
-    opSoloAviso,
     handleCheckDuplicates,
     handleConfirmDeposit,
     handleConfirmRejection,
@@ -611,21 +609,14 @@ const DepositDetailModal = ({
   const canShowConfirmActions = editMode !== "fields-only" && !isLockedByOther &&
     (deposit.estado === "recibido" || deposit.estado === "procesado" || deposit.estado === "rechazado");
 
-  // ─── Comprobación automática de duplicados ──────────────────────────────
-  // Se comprueba sola al abrir (cuando ya llegó el detalle completo) y cada
-  // vez que cambia un dato que influye: empresa, banco, anexo, moneda,
-  // importe, nro. de operación, fecha o tarjeta. Apenas cambia algo se
-  // invalida el resultado anterior (no se puede confirmar con un resultado
-  // viejo) y se vuelve a comprobar tras una pausa corta.
+  // ─── Invalidación de la comprobación de duplicados ──────────────────────
+  // La comprobación se hace solo con el botón. Si después cambia un dato que
+  // influye (empresa, banco, anexo, moneda, importe, nro. de operación,
+  // fecha o tarjeta), el resultado anterior deja de valer y hay que volver a
+  // comprobar antes de confirmar.
   const canDecide =
     deposit.estado === "procesado" && !isLockedByOther && !isFieldsOnlyEdit && editMode !== "readonly";
   const autoDuplicateCheckEnabled = isDetailLoaded && canDecide;
-  // Antiguos: no se comprueba solo (pedido de los usuarios); se usa el botón
-  // "Duplicados". Igual se invalida el resultado al cambiar un dato, y los
-  // avisos del N° de operación del voucher se mantienen.
-  const autoDuplicateCheckRuns = autoDuplicateCheckEnabled && !depositIsAntiguo;
-  const handleCheckDuplicatesRef = useRef(handleCheckDuplicates);
-  handleCheckDuplicatesRef.current = handleCheckDuplicates;
   const duplicateCheckKey = [
     editableData.empresa_id,
     editableData.banco_id,
@@ -639,13 +630,9 @@ const DepositDetailModal = ({
   useEffect(() => {
     if (!autoDuplicateCheckEnabled) return undefined;
     invalidateDuplicateCheck();
-    if (!autoDuplicateCheckRuns) return undefined;
-    const timer = setTimeout(() => {
-      void handleCheckDuplicatesRef.current({ auto: true });
-    }, 700);
-    return () => clearTimeout(timer);
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [duplicateCheckKey, autoDuplicateCheckEnabled, autoDuplicateCheckRuns]);
+  }, [duplicateCheckKey, autoDuplicateCheckEnabled]);
 
   const [isFloatingIframeOpen, setIsFloatingIframeOpen] = useState(false);
 
@@ -1125,11 +1112,7 @@ const DepositDetailModal = ({
         : "border-slate-200 bg-slate-50 text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-slate-300";
 
 
-  // Ámbar mientras el campo siga con el N° del voucher (hay que pegar el
-  // del banco; ver opEsDelVoucher en useDepositActions.js).
-  const nroOperacionClasses = opEsDelVoucher
-    ? "border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/30 focus:ring-amber-500"
-    : "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400";
+  const nroOperacionClasses = "border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:ring-blue-500 dark:focus:ring-blue-400";
   const getCardBorderColor = (type) => "border-gray-200";
 
   const sqlMovementsModalPortal =
@@ -1999,13 +1982,6 @@ const DepositDetailModal = ({
                           className={`w-full rounded-xl border px-2.5 py-1 text-lg font-mono outline-none transition-colors focus:ring-2 ${nroOperacionClasses}`}
                           placeholder="pega la operacion"
                         />
-                        {opEsDelVoucher && (
-                          <p className="text-[10px] font-medium leading-tight text-amber-700 dark:text-amber-300">
-                            {opSoloAviso
-                              ? "Es el N° del voucher: verifica que coincida con el del banco."
-                              : "Es el N° del voucher: pega el del banco."}
-                          </p>
-                        )}
                       </div>
 
                       <div className="space-y-0.5">
@@ -2918,8 +2894,6 @@ const DepositDetailModal = ({
                     filteredAnexos={filteredAnexos}
                     selectedMoneda={selectedMoneda}
                     nroOperacionClasses={nroOperacionClasses}
-                    opEsDelVoucher={opEsDelVoucher}
-                    opSoloAviso={opSoloAviso}
                     selectedBanco={selectedBanco}
                     deposit={deposit}
                   />

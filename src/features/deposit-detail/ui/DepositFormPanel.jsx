@@ -27,8 +27,6 @@ export const DepositFormPanel = ({
   filteredAnexos,
   selectedMoneda,
   nroOperacionClasses,
-  opEsDelVoucher = false,
-  opSoloAviso = false,
   verificacionOcr,
   selectedBanco,
   deposit,
@@ -171,13 +169,6 @@ export const DepositFormPanel = ({
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 font-mono transition-colors duration-200 text-lg disabled:bg-gray-100 dark:disabled:bg-zinc-700/50 dark:disabled:text-zinc-400 ${nroOperacionClasses}`}
                           placeholder="pega la operacion segun la web del banco"
                         />
-                        {opEsDelVoucher && (
-                          <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-                            {opSoloAviso
-                              ? "Es el N° del voucher: verifica que coincida con el N° de operación del banco."
-                              : "Es el N° del voucher: reemplázalo por el N° de operación del banco."}
-                          </p>
-                        )}
                       </FormRow>
                     </div>
 
